@@ -1,0 +1,862 @@
+/***********************************************************************
+
+    ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
+
+    Copyright (C) 2016, 2017 Robert Cunnings NW8L
+
+    This file is part of the ARIM messaging program.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include "main.h"
+#include "ini.h"
+
+#define MAX_INI_LINE_SIZE 256
+
+char *fecmodes[] = {
+    "4FSK.200.50S",
+    "4FSK.500.100S",
+    "4FSK.500.100",
+    "4FSK.2000.600S",
+    "4FSK.2000.600",
+    "4PSK.200.100S",
+    "4PSK.200.100",
+    "8PSK.200.100",
+    "4PSK.500.100",
+    "8PSK.500.100",
+    "4PSK.1000.100",
+    "8PSK.1000.100",
+    "4PSK.2000.100",
+    "8PSK.2000.100",
+    "16QAM.200.100",
+    "16QAM.500.100",
+    "16QAM.1000.100",
+    "16QAM.2000.100",
+    0,
+};
+
+ARIM_SET g_arim_settings;
+LOG_SET g_log_settings;
+UI_SET g_ui_settings;
+TNC_SET g_tnc_settings[TNC_MAX_COUNT];
+int g_cur_tnc, g_num_tnc;
+char g_arim_path[MAX_DIR_PATH_SIZE];
+char g_config_fname[MAX_DIR_PATH_SIZE];
+char g_print_config_fname[MAX_DIR_PATH_SIZE];
+int g_config_clo;
+FILE *printconf_fp;
+
+int ini_validate_ipaddr(const char *addr)
+{
+    const char *p;
+    size_t len;
+
+    /* per IETF RFC 952, RFC 1123 and RFC 2035 */
+    len = strlen(addr);
+    /* max length is 255 less implied leading and trailing octets */
+    if (len > 253)
+        return 0;
+    len = 0;
+    p = addr;
+    while (*p) {
+        if (*p == '.') {
+            /* check last label length */
+            if (len > 63)
+                return 0;
+            /* labels must not end with '-' */
+            if (len > 0 && *(p - 1) == '-')
+                return 0;
+            len = 0;
+        } else if (*p == '-') {
+            /* labels must not start with '-' */
+            if (len == 0)
+                return 0;
+            ++len;
+        } else if (isalnum(*p)) {
+            ++len;
+        } else {
+            return 0;
+        }
+        ++p;
+    }
+    /* last char must not be '-' or '.' */
+    if (*(p - 1) == '-' || *(p - 1) == '.')
+        return 0;
+    return 1;
+}
+
+int ini_validate_mycall(const char *call)
+{
+    const char *p;
+    size_t len;
+
+    len = strlen(call);
+    if (len > MAX_TNC_MYCALL_STRLEN)
+        return 0;
+
+    p = call;
+    while (*p && isalnum(*p))
+        ++p;
+    if (*p == '-') {
+        /* encountered SSID */
+        ++p;
+        if ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z')) {
+            /* SSID A-Z, 1 char max */
+            if (*(p + 1))
+                return 0;
+        } else if (*p >= '0' && *p <= '9') {
+            /* SSID 0-15, 2 chars max */
+            ++p;
+            if (*p) {
+                if (*(p - 1) > '1' || *p < '0' || *p > '5')
+                    return 0;
+                ++p;
+                if (*p)
+                    return 0;
+            }
+        } else {
+            return 0;
+        }
+    } else if (*p || strlen(call) > 7) {
+        /* no SSID but encountered illegal char or body of call exceeds 7 chars */
+        return 0;
+    }
+    return 1;
+}
+
+int ini_validate_netcall(const char *call)
+{
+    const char *p;
+    size_t len;
+
+    len = strlen(call);
+    if (len > MAX_TNC_NETCALL_STRLEN)
+        return 0;
+
+    p = call;
+    while (*p && *p != ' ' && isprint(*p))
+        ++p;
+    if (*p)
+        return 0;
+    return 1;
+}
+
+int ini_validate_name(const char *name)
+{
+    const char *p;
+    size_t len;
+
+    len = strlen(name);
+    if (len > TNC_NAME_SIZE-1)
+        return 0;
+
+    p = name;
+    while (*p && isprint(*p))
+        ++p;
+    if (*p)
+        return 0;
+    return 1;
+}
+
+int ini_validate_info(const char *name)
+{
+    const char *p;
+    size_t len;
+
+    len = strlen(name);
+    if (len > TNC_INFO_SIZE-1)
+        return 0;
+
+    p = name;
+    while (*p && *p >= ' ')
+        ++p;
+    if (*p)
+        return 0;
+    return 1;
+}
+
+int ini_validate_fecmode(const char *mode)
+{
+    const char *p;
+    int i = 0;
+
+    p = fecmodes[i];
+    while (p) {
+        if (!strncasecmp(fecmodes[i], mode, strlen(mode)))
+            return 1;
+        p = fecmodes[++i];
+    }
+    return 0;
+}
+
+int ini_validate_gridsq(const char *gridsq)
+{
+    size_t len;
+
+    len = strlen(gridsq);
+    if (len != 4 && len != 6 && len != 8)
+        return 0;
+    if ((gridsq[0] < 'A' || gridsq[0] > 'R') && (gridsq[0] < 'a' || gridsq[0] > 'r'))
+        return 0;
+    if ((gridsq[1] < 'A' || gridsq[1] > 'R') && (gridsq[1] < 'a' || gridsq[1] > 'r'))
+        return 0;
+    if (!isdigit(gridsq[2]) || !isdigit(gridsq[3]))
+        return 0;
+    if (len > 4) {
+        if ((gridsq[4] < 'A' || gridsq[4] > 'X') && (gridsq[4] < 'a' || gridsq[4] > 'x'))
+            return 0;
+        if ((gridsq[5] < 'A' || gridsq[5] > 'X') && (gridsq[5] < 'a' || gridsq[5] > 'x'))
+            return 0;
+        if (len > 6) {
+            if (!isdigit(gridsq[6]) || !isdigit(gridsq[7]))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+int ini_validate_arq_bw(const char *val)
+{
+    if (!strncasecmp(val, "200MAX", 6))
+        return 1;
+    if (!strncasecmp(val, "500MAX", 6))
+        return 1;
+    if (!strncasecmp(val, "1000MAX", 7))
+        return 1;
+    if (!strncasecmp(val, "2000MAX", 7))
+        return 1;
+    if (!strncasecmp(val, "200FORCED", 9))
+        return 1;
+    if (!strncasecmp(val, "500FORCED", 9))
+        return 1;
+    if (!strncasecmp(val, "1000FORCED", 10))
+        return 1;
+    if (!strncasecmp(val, "2000FORCED", 10))
+        return 1;
+    return 0;
+}
+
+int ini_validate_bool(const char *val)
+{
+    if (!strncasecmp(val, "TRUE", 4))
+        return 1;
+    return 0;
+}
+
+char *ini_get_value(const char *key, char *line)
+{
+    static char *v;
+    char *p, *s, *e;
+
+    if ((s = strstr(line, "="))) {
+        /* key/value pair, find start of key */
+        p = line;
+        while (*p && (*p == ' ' || *p == '\t'))
+            ++p;
+        /* find end of key */
+        e = p;
+        while (*e && *e != ' ' && *e != '\t' && *e != '=')
+            ++e;
+        /* test for exact match */
+        if (p == strstr(p, key) && strlen(key) == (e - p)) {
+            /* matches, find start of value */
+            ++s;
+            while (*s && (*s == ' ' || *s == '\t'))
+                ++s;
+            /* find end of value and null-terminate the key/value pair */
+            e = s;
+            while (*e && *e != '\r' && *e != '\n')
+                ++e;
+            --e;
+            while (*e == ' ' || *e == '\t')
+                --e;
+            *(e + 1) = '\0';
+            v = s;
+            /* if program invoked with --print-conf switch, print key/value pair */
+            if (g_print_config)
+                fprintf(printconf_fp ? printconf_fp : stdout, "%s\n", p);
+            return v;
+        }
+    }
+    return NULL;
+}
+
+void ini_read_tnc_set(FILE *inifp, int which)
+{
+    char linebuf[MAX_INI_LINE_SIZE];
+    char *p, *v;
+    int test;
+
+    /* populate with default values */
+    memset(&g_tnc_settings[which], 0, sizeof(TNC_SET));
+    snprintf(g_tnc_settings[which].ipaddr, sizeof(g_tnc_settings[which].ipaddr), DEFAULT_TNC_IPADDR);
+    snprintf(g_tnc_settings[which].port, sizeof(g_tnc_settings[which].port), DEFAULT_TNC_PORT);
+    snprintf(g_tnc_settings[which].mycall, sizeof(g_tnc_settings[which].mycall), DEFAULT_TNC_MYCALL);
+    snprintf(g_tnc_settings[which].netcall[0], sizeof(g_tnc_settings[which].netcall[0]), DEFAULT_TNC_NETCALL);
+    snprintf(g_tnc_settings[which].gridsq, sizeof(g_tnc_settings[which].gridsq), DEFAULT_TNC_GRIDSQ);
+    snprintf(g_tnc_settings[which].btime, sizeof(g_tnc_settings[which].btime), DEFAULT_TNC_BTIME);
+    snprintf(g_tnc_settings[which].fecmode, sizeof(g_tnc_settings[which].fecmode), DEFAULT_TNC_FECMODE);
+    snprintf(g_tnc_settings[which].fecid, sizeof(g_tnc_settings[which].fecid), DEFAULT_TNC_FECID);
+    snprintf(g_tnc_settings[which].fecrepeats, sizeof(g_tnc_settings[which].fecrepeats), DEFAULT_TNC_FECREPEATS);
+    snprintf(g_tnc_settings[which].leader, sizeof(g_tnc_settings[which].leader), DEFAULT_TNC_LEADER);
+    snprintf(g_tnc_settings[which].trailer, sizeof(g_tnc_settings[which].trailer), DEFAULT_TNC_TRAILER);
+    snprintf(g_tnc_settings[which].squelch, sizeof(g_tnc_settings[which].squelch), DEFAULT_TNC_SQUELCH);
+    snprintf(g_tnc_settings[which].busydet, sizeof(g_tnc_settings[which].busydet), DEFAULT_TNC_BUSYDET);
+    snprintf(g_tnc_settings[which].state, sizeof(g_tnc_settings[which].state), DEFAULT_TNC_STATE);
+    snprintf(g_tnc_settings[which].listen, sizeof(g_tnc_settings[which].listen), DEFAULT_TNC_LISTEN);
+    snprintf(g_tnc_settings[which].en_pingack, sizeof(g_tnc_settings[which].en_pingack), DEFAULT_TNC_EN_PINGACK);
+    snprintf(g_tnc_settings[which].arq_sendcr, sizeof(g_tnc_settings[which].arq_sendcr), DEFAULT_TNC_ARQ_SENDCR);
+    snprintf(g_tnc_settings[which].arq_bandwidth, sizeof(g_tnc_settings[which].arq_bandwidth), DEFAULT_TNC_ARQ_BW);
+    snprintf(g_tnc_settings[which].arq_timeout, sizeof(g_tnc_settings[which].arq_timeout), DEFAULT_TNC_ARQ_TO);
+    snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), DEFAULT_TNC_RESET_BT_TX);
+
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (*p == '[') {
+                fseek(inifp, -(strlen(linebuf)), SEEK_CUR);
+                break; /* start of next section, done */
+            }
+            if ((v = ini_get_value("ipaddr", p))) {
+                if (ini_validate_ipaddr(v))
+                    snprintf(g_tnc_settings[which].ipaddr, sizeof(g_tnc_settings[which].ipaddr), "%s", v);
+            }
+            else if ((v = ini_get_value("port", p))) {
+                test = atoi(v);
+                if (test > 0 && test < 0xFFFF)
+                    snprintf(g_tnc_settings[which].port, sizeof(g_tnc_settings[which].port), "%d", test);
+            }
+            else if ((v = ini_get_value("mycall", p))) {
+                if (ini_validate_mycall(v))
+                    snprintf(g_tnc_settings[which].mycall, sizeof(g_tnc_settings[which].mycall), "%s", v);
+            }
+            else if ((v = ini_get_value("netcall", p))) {
+                if (ini_validate_netcall(v) && g_tnc_settings[which].netcall_cnt < TNC_NETCALL_MAX_CNT)
+                    snprintf(g_tnc_settings[which].netcall[g_tnc_settings[which].netcall_cnt++],
+                         TNC_NETCALL_SIZE, "%s", v);
+            }
+            else if ((v = ini_get_value("gridsq", p))) {
+                if (ini_validate_gridsq(v))
+                    snprintf(g_tnc_settings[which].gridsq, sizeof(g_tnc_settings[which].gridsq), "%s", v);
+            }
+            else if ((v = ini_get_value("reset-btime-on-tx", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), "FALSE");
+            }
+            else if ((v = ini_get_value("btime", p))) {
+                test = atoi(v);
+                if (test >= 0 && test <= MAX_TNC_BTIME_VALUE)
+                    snprintf(g_tnc_settings[which].btime, sizeof(g_tnc_settings[which].btime), "%d", test);
+            }
+            else if ((v = ini_get_value("name", p))) {
+                if (ini_validate_name(v))
+                    snprintf(g_tnc_settings[which].name, sizeof(g_tnc_settings[which].name), "%s", v);
+            }
+            else if ((v = ini_get_value("info", p))) {
+                if (ini_validate_info(v))
+                    snprintf(g_tnc_settings[which].info, sizeof(g_tnc_settings[which].info), "%s", v);
+            }
+            else if ((v = ini_get_value("fecrepeats", p))) {
+                test = atoi(v);
+                if (test >= 0 && test <= MAX_TNC_FECREPEATS_VALUE)
+                    snprintf(g_tnc_settings[which].fecrepeats, sizeof(g_tnc_settings[which].fecrepeats), "%s", v);
+            }
+            else if ((v = ini_get_value("fecid", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].fecid, sizeof(g_tnc_settings[which].fecid), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].fecid, sizeof(g_tnc_settings[which].fecid), "FALSE");
+            }
+            else if ((v = ini_get_value("fecmode", p))) {
+                if (ini_validate_fecmode(v))
+                    snprintf(g_tnc_settings[which].fecmode, sizeof(g_tnc_settings[which].fecmode), "%s", v);
+            }
+            else if ((v = ini_get_value("leader", p))) {
+                test = atoi(v);
+                if (test >= MIN_TNC_LEADER_VALUE && test <= MAX_TNC_LEADER_VALUE)
+                    snprintf(g_tnc_settings[which].leader, sizeof(g_tnc_settings[which].leader), "%d", test);
+            }
+            else if ((v = ini_get_value("trailer", p))) {
+                test = atoi(v);
+                if (test >= 0 && test <= MAX_TNC_TRAILER_VALUE)
+                    snprintf(g_tnc_settings[which].trailer, sizeof(g_tnc_settings[which].trailer), "%d", test);
+            }
+            else if ((v = ini_get_value("squelch", p))) {
+                test = atoi(v);
+                if (test >= MIN_TNC_SQUELCH_VALUE && test <= MAX_TNC_SQUELCH_VALUE)
+                    snprintf(g_tnc_settings[which].squelch, sizeof(g_tnc_settings[which].squelch), "%d", test);
+            }
+            else if ((v = ini_get_value("busydet", p))) {
+                test = atoi(v);
+                if (test >= MIN_TNC_BUSYDET_VALUE && test <= MAX_TNC_BUSYDET_VALUE)
+                    snprintf(g_tnc_settings[which].busydet, sizeof(g_tnc_settings[which].busydet), "%d", test);
+            }
+            else if ((v = ini_get_value("enpingack", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].en_pingack, sizeof(g_tnc_settings[which].en_pingack), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].en_pingack, sizeof(g_tnc_settings[which].en_pingack), "FALSE");
+            }
+            else if ((v = ini_get_value("listen", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].listen, sizeof(g_tnc_settings[which].listen), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].listen, sizeof(g_tnc_settings[which].listen), "FALSE");
+            }
+            else if ((v = ini_get_value("arq-sendcr", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].arq_sendcr, sizeof(g_tnc_settings[which].arq_sendcr), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].arq_sendcr, sizeof(g_tnc_settings[which].arq_sendcr), "FALSE");
+            }
+            else if ((v = ini_get_value("arq-timeout", p))) {
+                test = atoi(v);
+                if (test >= MIN_TNC_ARQ_TO && test <= MAX_TNC_ARQ_TO)
+                    snprintf(g_tnc_settings[which].arq_timeout, sizeof(g_tnc_settings[which].arq_timeout), "%d", test);
+            }
+            else if ((v = ini_get_value("arq-bandwidth", p))) {
+                if (ini_validate_arq_bw(v))
+                    snprintf(g_tnc_settings[which].arq_bandwidth, sizeof(g_tnc_settings[which].arq_bandwidth), "%s", v);
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+    g_num_tnc++;
+}
+
+int ini_get_tnc_set(const char *fn)
+{
+    FILE *inifp;
+    char *p, linebuf[MAX_INI_LINE_SIZE];
+    int which_tnc = 0;
+
+    inifp = fopen(fn, "r");
+    if (inifp == NULL)
+        return 0;
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (p == strstr(p, "[tnc]")) {
+                ini_read_tnc_set(inifp, which_tnc);
+                which_tnc++;
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+    fclose(inifp);
+    return 1;
+}
+
+void ini_read_log_set(FILE *inifp)
+{
+    char linebuf[MAX_INI_LINE_SIZE];
+    char *p, *v;
+
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (*p == '[') {
+                fseek(inifp, -(strlen(linebuf)), SEEK_CUR);
+                break; /* start of next section, done */
+            }
+            if ((v = ini_get_value("debug-log", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_log_settings.debug_en, sizeof(g_log_settings.debug_en), "TRUE");
+                else
+                    snprintf(g_log_settings.debug_en, sizeof(g_log_settings.debug_en), "FALSE");
+            } else if ((v = ini_get_value("traffic-log", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_log_settings.traffic_en, sizeof(g_log_settings.traffic_en), "TRUE");
+                else
+                    snprintf(g_log_settings.traffic_en, sizeof(g_log_settings.traffic_en), "FALSE");
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+}
+
+int ini_get_log_set(const char *fn)
+{
+    FILE *inifp;
+    char *p, linebuf[MAX_INI_LINE_SIZE];
+
+    /* populate with default values */
+    memset(&g_log_settings, 0, sizeof(LOG_SET));
+    snprintf(g_log_settings.debug_en, sizeof(g_log_settings.debug_en), DEFAULT_LOG_DEBUG_EN);
+    snprintf(g_log_settings.traffic_en, sizeof(g_log_settings.traffic_en),  DEFAULT_LOG_TRAFFIC_EN);
+
+    inifp = fopen(fn, "r");
+    if (inifp == NULL)
+        return 0;
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (p == strstr(p, "[log]")) {
+                ini_read_log_set(inifp);
+                break;
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+    fclose(inifp);
+    return 1;
+}
+
+void ini_read_arim_set(FILE *inifp)
+{
+#ifndef PORTABLE_BIN
+    FILE *destfp, *srcfp;
+    char file_path[MAX_DIR_PATH_SIZE];
+#endif
+    DIR *dirp;
+    char *p, *v, linebuf[MAX_INI_LINE_SIZE];
+    size_t len;
+    int test;
+
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (*p == '[') {
+                fseek(inifp, -(strlen(linebuf)), SEEK_CUR);
+                break; /* start of next section, done */
+            }
+            if ((v = ini_get_value("mycall", p))) {
+                if (ini_validate_mycall(v))
+                    snprintf(g_arim_settings.mycall, sizeof(g_arim_settings.mycall), "%s", v);
+            }
+            else if ((v = ini_get_value("send-repeats", p))) {
+                test = atoi(v);
+                if (test >= 0 && test <= MAX_ARIM_SEND_REPEATS)
+                    snprintf(g_arim_settings.send_repeats, sizeof(g_arim_settings.send_repeats), "%d", test);
+            }
+            else if ((v = ini_get_value("pilot-ping-thr", p))) {
+                test = atoi(v);
+                if (test >= MIN_ARIM_PILOT_PING_THR && test <= MAX_ARIM_PILOT_PING_THR)
+                    snprintf(g_arim_settings.pilot_ping_thr, sizeof(g_arim_settings.pilot_ping_thr), "%d", test);
+            }
+            else if ((v = ini_get_value("pilot-ping", p))) {
+                test = atoi(v);
+                if (test >= MIN_ARIM_PILOT_PING && test <= MAX_ARIM_PILOT_PING)
+                    snprintf(g_arim_settings.pilot_ping, sizeof(g_arim_settings.pilot_ping), "%d", test);
+                else
+                    snprintf(g_arim_settings.pilot_ping, sizeof(g_arim_settings.pilot_ping), "%d", 0);
+            }
+            else if ((v = ini_get_value("ack-timeout", p))) {
+                test = atoi(v);
+                if (test >= 0 && test <= MAX_ARIM_ACK_TIMEOUT)
+                    snprintf(g_arim_settings.ack_timeout, sizeof(g_arim_settings.ack_timeout), "%d", test);
+            }
+            else if ((v = ini_get_value("frame-timeout", p))) {
+                test = atoi(v);
+                if (test >= MIN_ARIM_FRAME_TIMEOUT && test <= MAX_ARIM_FRAME_TIMEOUT)
+                    snprintf(g_arim_settings.frame_timeout, sizeof(g_arim_settings.frame_timeout), "%d", test);
+            }
+            else if ((v = ini_get_value("files-dir", p))) {
+                /* may be absolute path; if not make it relative to the ARIM root directory */
+                if (v[0] == '/')
+                    snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s", v);
+                else
+                    snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s/%s", g_arim_path, v);
+                /* trim trailing '/' if present */
+                len = strlen(g_arim_settings.files_dir);
+                if (g_arim_settings.files_dir[len - 1] == '/')
+                    g_arim_settings.files_dir[len - 1] = '\0';
+                /* test directory */
+                dirp = opendir(g_arim_settings.files_dir);
+                if (!dirp) {
+                    if (errno == ENOENT && mkdir(g_arim_settings.files_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+                        return;
+                } else {
+                    closedir(dirp);
+                }
+
+#ifndef PORTABLE_BIN
+                snprintf(file_path, sizeof(file_path), ARIM_FILESDIR "/" DEFAULT_FILE_FNAME);
+                srcfp = fopen(file_path, "r");
+                if (srcfp == NULL)
+                    return;
+                snprintf(file_path, sizeof(file_path), "%s/%s", g_arim_settings.files_dir, DEFAULT_FILE_FNAME);
+                destfp = fopen(file_path, "w");
+                if (inifp == NULL) {
+                    fclose(srcfp);
+                    return;
+                }
+                p = fgets(linebuf, sizeof(linebuf), srcfp);
+                while (p) {
+                    fprintf(destfp, "%s", linebuf);
+                    p = fgets(linebuf, sizeof(linebuf), srcfp);
+                }
+                fclose(destfp);
+                fclose(srcfp);
+#endif
+            }
+            else if ((v = ini_get_value("add-files-dir", p))) {
+                if (g_arim_settings.add_files_dir_cnt < ARIM_ADD_FILES_DIR_MAX_CNT) {
+                    snprintf(g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt],
+                         MAX_DIR_PATH_SIZE, "%s", v);
+                    /* trim trailing '/' if present */
+                    len = strlen(g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt]);
+                    if (g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt][len - 1] == '/')
+                        g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt][len - 1] = '\0';
+                    ++g_arim_settings.add_files_dir_cnt;
+                }
+            }
+            else if ((v = ini_get_value("fecmode-downshift", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), "TRUE");
+                else
+                    snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), "FALSE");
+            }
+            else if ((v = ini_get_value("max-msg-days", p))) {
+                test = atoi(v);
+                if (test >= MIN_ARIM_MSG_DAYS && test <= MAX_ARIM_MSG_DAYS)
+                    snprintf(g_arim_settings.max_msg_days, sizeof(g_arim_settings.max_msg_days), "%d", test);
+            }
+            else if ((v = ini_get_value("max-file-size", p))) {
+                test = atoi(v);
+                if (test >= 0 && test <= MAX_FILE_SIZE)
+                    snprintf(g_arim_settings.max_file_size, sizeof(g_arim_settings.max_file_size), "%d", test);
+            }
+            else if ((v = ini_get_value("dynamic-file", p))) {
+                if (g_arim_settings.dyn_files_cnt < ARIM_DYN_FILES_MAX_CNT)
+                    snprintf(g_arim_settings.dyn_files[g_arim_settings.dyn_files_cnt++],
+                         ARIM_DYN_FILES_SIZE, "%s", v);
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+}
+
+int ini_get_arim_set(const char *fn)
+{
+    FILE *inifp;
+    char *p, linebuf[MAX_INI_LINE_SIZE];
+
+    /* populate with default values */
+    memset(&g_arim_settings, 0, sizeof(ARIM_SET));
+    snprintf(g_arim_settings.mycall, sizeof(g_arim_settings.mycall), DEFAULT_ARIM_MYCALL);
+    snprintf(g_arim_settings.send_repeats, sizeof(g_arim_settings.send_repeats), DEFAULT_ARIM_SEND_REPEATS);
+    snprintf(g_arim_settings.pilot_ping, sizeof(g_arim_settings.pilot_ping), DEFAULT_ARIM_PILOT_PING);
+    snprintf(g_arim_settings.pilot_ping_thr, sizeof(g_arim_settings.pilot_ping_thr), DEFAULT_ARIM_PILOT_PING_THR);
+    snprintf(g_arim_settings.ack_timeout, sizeof(g_arim_settings.ack_timeout), DEFAULT_ARIM_ACK_TIMEOUT);
+    snprintf(g_arim_settings.frame_timeout, sizeof(g_arim_settings.frame_timeout), DEFAULT_ARIM_FRAME_TIMEOUT);
+    snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s/%s", g_arim_path, DEFAULT_ARIM_FILES_DIR);
+    snprintf(g_arim_settings.max_file_size, sizeof(g_arim_settings.max_file_size), DEFAULT_ARIM_FILES_MAX_SIZE);
+    snprintf(g_arim_settings.max_msg_days, sizeof(g_arim_settings.max_msg_days), DEFAULT_ARIM_MSG_MAX_DAYS);
+    snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), DEFAULT_ARIM_FECMODE_DOWN);
+
+    inifp = fopen(fn, "r");
+    if (inifp == NULL)
+        return 0;
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (p == strstr(p, "[arim]")) {
+                ini_read_arim_set(inifp);
+                break;
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+    fclose(inifp);
+    return 1;
+}
+
+void ini_read_ui_set(FILE *inifp)
+{
+    char linebuf[MAX_INI_LINE_SIZE];
+    char *p, *v;
+
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (*p == '[') {
+                fseek(inifp, -(strlen(linebuf)), SEEK_CUR);
+                break; /* start of next section, done */
+            }
+            if ((v = ini_get_value("show-titles", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_ui_settings.show_titles, sizeof(g_ui_settings.show_titles), "TRUE");
+                else
+                    snprintf(g_ui_settings.show_titles, sizeof(g_ui_settings.show_titles), "FALSE");
+            }
+            else if ((v = ini_get_value("last-time-heard", p))) {
+                if (!strncasecmp(v, "ELAPSED", 7))
+                    snprintf(g_ui_settings.last_time_heard, sizeof(g_ui_settings.last_time_heard), "ELAPSED");
+                else
+                    snprintf(g_ui_settings.last_time_heard, sizeof(g_ui_settings.last_time_heard), "CLOCK");
+            }
+            else if ((v = ini_get_value("mon-timestamp", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_ui_settings.mon_timestamp, sizeof(g_ui_settings.mon_timestamp), "TRUE");
+                else
+                    snprintf(g_ui_settings.mon_timestamp, sizeof(g_ui_settings.mon_timestamp), "FALSE");
+            }
+            else if ((v = ini_get_value("color-code", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_ui_settings.color_code, sizeof(g_ui_settings.color_code), "TRUE");
+                else
+                    snprintf(g_ui_settings.color_code, sizeof(g_ui_settings.color_code), "FALSE");
+            }
+            else if ((v = ini_get_value("utc-time", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_ui_settings.utc_time, sizeof(g_ui_settings.utc_time), "TRUE");
+                else
+                    snprintf(g_ui_settings.utc_time, sizeof(g_ui_settings.utc_time), "FALSE");
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+}
+
+int ini_get_ui_set(const char *fn)
+{
+    FILE *inifp;
+    char *p, linebuf[MAX_INI_LINE_SIZE];
+
+    /* populate with default values */
+    memset(&g_ui_settings, 0, sizeof(LOG_SET));
+    snprintf(g_ui_settings.show_titles, sizeof(g_ui_settings.show_titles), DEFAULT_UI_SHOW_TITLES);
+    snprintf(g_ui_settings.last_time_heard, sizeof(g_ui_settings.last_time_heard),  DEFAULT_UI_LAST_TIME_HEARD);
+    snprintf(g_ui_settings.mon_timestamp, sizeof(g_ui_settings.mon_timestamp), DEFAULT_UI_MON_TIMESTAMP);
+    snprintf(g_ui_settings.color_code, sizeof(g_ui_settings.color_code), DEFAULT_UI_COLOR_CODE);
+    snprintf(g_ui_settings.utc_time, sizeof(g_ui_settings.utc_time), DEFAULT_UI_UTC_TIME);
+
+    inifp = fopen(fn, "r");
+    if (inifp == NULL)
+        return 0;
+    p = fgets(linebuf, sizeof(linebuf), inifp);
+    while (p) {
+        if (*p != '#') {
+            while (*p == ' ' || *p == '\t')
+                p++;
+            if (p == strstr(p, "[ui]")) {
+                ini_read_ui_set(inifp);
+                break;
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), inifp);
+    }
+    fclose(inifp);
+    return 1;
+}
+
+int ini_read_settings()
+{
+    int result;
+#ifndef PORTABLE_BIN
+    FILE *inifp, *srcfp;
+    char *p, *home_path, linebuf[MAX_INI_LINE_SIZE];
+    DIR *dirp;
+#endif
+
+#ifndef PORTABLE_BIN
+    home_path = getenv("HOME");
+    if (!home_path)
+        return 0;
+    snprintf(g_arim_path, sizeof(g_arim_path), "%s/%s", home_path, ARIM_NAME);
+    dirp = opendir(g_arim_path);
+    if (!dirp) {
+        if (errno == ENOENT && mkdir(g_arim_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+            return 0;
+        /* make symlinks to NEWS and Help PDF files */
+        snprintf(linebuf, sizeof(linebuf), "%s/doc", g_arim_path);
+        if (mkdir(linebuf, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+            return 0;
+        snprintf(linebuf, sizeof(linebuf), "%s/doc/NEWS", g_arim_path);
+        symlink(ARIM_DOCDIR "/NEWS", linebuf);
+        snprintf(linebuf, sizeof(linebuf), "%s/doc/arim-help.pdf", g_arim_path);
+        symlink(ARIM_DOCDIR "/arim-help.pdf", linebuf);
+    } else {
+        closedir(dirp);
+    }
+#else
+    snprintf(g_arim_path, sizeof(g_arim_path), ".");
+#endif
+    if (!g_config_clo)
+        snprintf(g_config_fname, sizeof(g_config_fname), "%s/%s", g_arim_path, DEFAULT_INI_FNAME);
+    if (access(g_config_fname, F_OK) != 0) {
+#ifndef PORTABLE_BIN
+        if (g_config_clo)  /* if default config file overridden on command line, fail */
+            return 0;
+        if (errno == ENOENT) {
+            inifp = fopen(g_config_fname, "w");
+            if (inifp == NULL)
+                return 0;
+            snprintf(g_config_fname, sizeof(g_config_fname), ARIM_FILESDIR "/" DEFAULT_INI_FNAME);
+            srcfp = fopen(g_config_fname, "r");
+            if (srcfp == NULL) {
+                fclose(inifp);
+                return 0;
+            }
+            p = fgets(linebuf, sizeof(linebuf), srcfp);
+            while (p) {
+                fprintf(inifp, "%s", linebuf);
+                p = fgets(linebuf, sizeof(linebuf), srcfp);
+            }
+            fclose(srcfp);
+            fclose(inifp);
+            g_new_install = 1;
+        }
+#else
+        return 0;
+#endif
+    }
+    result = 1;
+    if (g_print_config) {
+        /* if program invoked with --print-conf switch, print header */
+        printconf_fp = fopen(g_print_config_fname, "w");
+        fprintf(printconf_fp ? printconf_fp : stdout,
+                "\n==== Start ARIM Config File Listing: %s ====\n", g_config_fname);
+    }
+    if (!ini_get_tnc_set(g_config_fname) || !ini_get_log_set(g_config_fname) ||
+        !ini_get_arim_set(g_config_fname) || !ini_get_ui_set(g_config_fname)
+       )
+        result = 0;
+    if (g_print_config) {
+        /* if program invoked with --print-conf switch, print trailer */
+        fprintf(printconf_fp ? printconf_fp : stdout,
+                "==== End ARIM Config File Listing: %s ====\n\n", g_config_fname);
+        if (printconf_fp)
+            fclose(printconf_fp);
+    }
+    return result;
+}
+

@@ -1,0 +1,156 @@
+
+.TH "ARIM" 5 "2017-09-20" "ARIM Messaging Program" "arim"
+.SH NAME
+arim - related files
+.SH FILES
+\fI${HOME}/arim/arim.ini\fR
+.PP
+This is an "INI File" format configuration file for ARIM, which is read on program start up. It is divided into sections, each containing a list of \fBkeys\fR which specify program properties as name=value pairs, one to a line. Section names occupy a line by themselves and are enclosed in square brackets. Lines beginning with the '#' character are treated as comments. If a key is not present in the file the property is set to its default value. The following sections and keys are defined:
+.TP
+\fB[tnc]\fR
+Each ARDOP TNC is configured in a separate [tnc] section. The first [tnc] section in the file defines port 1, the second port 2, and so on. The limit is 10 TNC definitions.
+.RS 7
+.TP
+\fBipaddr\fR
+The IP address of the TNC, either in "dotted quad" numerical form or a host name e.g. "localhost" or "DELL-1520.example.net". Max length for host names is 253 characters. Default: localhost. NOTE: on Cygwin, 'localhost' may not work as the address for an ARDOP_Win instance running on the same Windows PC. Use the IP address of the Windows host instead, e.g. "192.168.1.54", as discovered by running ipconfig in the Cygwin terminal. Set this address in the ARDOP_Win TNC "Virtual TNC Setup" dialog box as well.
+.TP
+\fBport\fR
+The TCP port on which the TNC is listening. Default: 8515.
+mycall The station callsign, e.g. NW8L or NW8L-4, max length 10 characters. Call must be no longer than 7 characters and may have optional SSID in ranges: -A to -Z or -0 to -15. ARIM will respond to queries and messages addressed to this call. Messages will be stored in the inbox. Default: NOCALL.
+.TP
+\fBnetcall\fR
+A net callsign, e.g. RRNET, max length 10 characters. Any printable characters are allowed. When sending a message to this call, no ACK is expected. When receiving, ARIM will recognize messages addressed to this call and store them in the inbox but no ACK will be returned to prevent channel congestion. ARIM will not respond to queries addressed to the net call. Starting with ARIM v0.27, up to 8 net callsigns may be defined for a TNC. Default: one netcall, QST.
+.TP
+\fBgridsq\fR
+The station's grid square locator. It must be a well formed Maidenhead locator, either 4, 6 or 8 characters long. For example: DM65 or DM65qf or DM65qf15. Letter pairs are not case-sensitive. Default: DM65.
+.TP
+\fBbtime\fR The beacon interval time in minutes, or 0 to disable the beacon. Max time is 999 minutes. Default: 0.
+reset-btime-on-tx Controls whether or not the beacon timer is reset when the station transmits an ARDOP frame. This is useful to prevent beacon transmissions from interfering with traffic between stations, e.g. on a net. This setting has no effect when the beacon is disabled. Set to TRUE to enable beacon timer reset on transmit, FALSE to disable it. Default: FALSE.
+.TP
+\fBpname\fR
+A name assigned to the TNC and advertised by the beacon, e.g. RRNET/ARIM. This is also returned when the TNC receives the ARIM 'pname' query. Max length is 31 characters. Default: Empty.
+.TP
+\fBinfo\fR
+Information describing the TNC, returned in response to the 'info' query. Use the character pair \n to indicate a line break if you want to format the text into multiple lines; this will be converted to a newline character in the response. Max length is 127 characters. Default: Empty.
+.TP
+\fBfecmode\fR
+The initial ARDOP FECMODE. This is the frame type, in the format modulation.bandwidth.baudrate. Max length is 20 characters. Default: 8FSK.500.25.
+.TP
+\fBfecrepeats\fR
+The initial ARDOP FECREPEATS value. This is the number of times each FEC frame will be repeated by the sender. This may be useful when propagation is poor, but at thecost of reduced throughput - depending on FEC mode, an ARIM frame may extend across multiple ARDOP FEC frames, each of which will be repeated. Max value is 5. Default: 0.
+.TP
+\fBfecid\fR
+The initial ARDOP FECID value, which controls whether or not an ARDOP ID frame is sent by the TNC at the start of FEC transmissions. Set to TRUE to enable FECID, FALSE to disable it. Default: FALSE.
+.TP
+\fBleader\fR
+The initial ARDOP LEADER time in msec. The leader is a special 50 baud two tone signal which precedes data transmission, used by the receiving TNC for synchronization. This may need to be adjusted to compensate for loss of leader due to delays in PTT or VOX keying or audio path latencies in some SDR radios. Range is 120-2500. Default: 240.
+.TP
+\fBtrailer\fR
+The initial ARDOP TRAILER time in msec. Range is 0-200. Non-zero trailer time is only needed for certain SDR radios and is a function of the audio processing latency relative to release of PTT. For these cases try a value of 100-200 msec. Default: 0.
+.TP
+\fBsquelch\fR
+The initial ARDOP SQUELCH setting. This controls the sensitivity of the TNC's leader detector. Lower values mean greater sensitivity but also greater risk of false triggering. Range is 1-10. Default: 5.
+.TP
+\fBbusydet\fR
+The initial ARDOP BUSYDET setting. This controls the sensitivity of the TNC's busy detector. Lower values mean greater sensitivity but also greater risk of false triggering. Setting the value to 0 disables the busy detector. The busy detector should be disabled only in an emergency situation or in very high local noise environments. Range is 0-10. Default: 5.
+.TP
+\fBlisten\fR
+Controls whether or not the TNC listens for ARQ connect requests or pings from other stations. Set to TRUE to enable listening, FALSE to disable it. Default: TRUE.
+.TP
+\fBenpingack\fR
+Controls whether or not the TNC responds to pings from other stations. Set to TRUE to enable ping ACKs, FALSE to disable them. Default: TRUE. Note: works only with ARDOP TNC version 0.9.5 or higher.
+.TP
+\fBarq-bandwidth\fR
+Sets the ARQ connection bandwidth, either a maximum negotiated value, or a forced value. The value must be one of: 200MAX, 500MAX, 1000MAX, 2000MAX, 200FORCED, 500FORCED, 1000FORCED or 2000FORCED. Default is 2000MAX.
+arq-timeout The inactivity timeout for ARQ connections in seconds. Range is 30-600. Default: 120.
+.TP
+\fBarq-sendcr\fR
+Controls whether or not CRLF line endings are sent in ARQ mode, instead of Unix style LF endings. Set to TRUE to send CR, FALSE to send only LF. Default: TRUE.
+.RE
+.TP
+\fB[arim]\fR This section holds settings for the ARIM messaging protocol.
+.RS
+.TP
+\fBmycall\fR
+The callsign used as the "from" address for messages. Default: NOCALL.
+.TP
+\fBsend-repeats\fR
+The number of times an ARIM message will be repeated in the absence of an ACK response from the recipient. It is recommended that this value not exceed 3to prevent tying up the channel with repeats in poor conditions. Default: 0.
+ack-timeout The maximum time in seconds after sending a message that ARIM will wait for an ACK before repeating it. Applies when send-repeats is not 0. Max is 999 seconds. Default: 30.
+.TP
+\fBfecmode-downshift\fR
+Controls whether or not the FEC mode is progressively "downshifted", or changed to a more robust mode each time an ARIM message is repeated after a NAK or ACK timeout. Set to TRUE to enable, FALSE to disable downshifting. Default: FALSE.
+This works in tandem with the 'send-repeats' parameter. If 'fecmode-downshift' is TRUE and 'send-repeats' is nonzero, then progressively more robust FEC modes are used for re-transmissions after a NAK or timeout. The strategy is to move to the next member of the same modulation family that uses less bandwidth. The mode of last resort is 8FSK.200.25. For example, if the initial mode is 8PSK.2000.100, then downshifting would progress to 8PSK.1000.100, then 8PSK.500.100, and so on. The original FEC mode is restored after the message send operation completes. This is experimental. There are many kinds of channel impairments and no single downshift strategy is best for all. For details look at the FEC mode downshift table in the msg.c source code file.
+.TP
+\fBframe-timeout\fR
+The time in seconds after which an incomplete ARIM frame will be abandoned and the receive buffer cleared. Because an ARIM frame may be spread over many ARDOP frames, a failure to receive one or more ARDOP frames will cause an ARIM timeout. Max is 999 seconds. Default: 30.
+.TP
+\fBfiles-dir\fR
+The directory in which files available for other stations to read are located. This can be an absolute path or a relative path rooted in the ARIM working directory and must be terminated with a '/' character. Max length is 255 characters. Default: files/
+.TP
+\fBadd-files-dir\fR
+Specifies an additional shared files directory accessible to remote stations. This must be a path relative to the shared files root directory specified by the \fIfiles-dir\fR parameter. By default, only files in the shared files root directory may be listed or downloaded, and any directories it contains are hidden. If you need to share files organized into multiple directories, use the 'add-files-dir' parameter to expose them. For example:
+.PP
+.RS
+add-files-dir = forms/
+.PP
+This allows limited access to the 'forms' directory in the shared files root directory. A remote station may list, read or downloaded the files it contains, but any subdirectories are hidden. To grant full access to a directory, including the hierarchy of files and subdirectories rooted there, append the '*' wildcard character to the end of the path. For example:
+.PP
+add-files-dir = contests/*
+.PP
+This grants full access to the 'contests' directory in the shared files root directory. This exposes not only the files in 'contests', but also the hierarchy of subdirectories rooted there. Subdirectories such as contests/2017 or contests/2017/June are visible, and a remote station may list and download the files they contain.
+.PP
+Max length is 255 characters. NOTE: You may define no more than 16 add-files-dir parameters. Default: None.
+.RE
+.TP
+\fBmax-file-size\fR
+The maximum size of files that can be transferred in an ARIM message. The output of the flist query is filtered in accordance with this limit. To disable access to shared files, set this to 0. Max is 16384 bytes. Default: 4096.
+.TP
+\fBmax-msg-days\fR
+The maximum age, in days, for messages to be kept in the inbox, outbox and sent messages mailbox. Messages that exceed this limit are automatically purged whenever the corresponding message list view is opened in ARIM (using the 'li', 'lo' or 'ls' commands). Set to 0 to disable the automatic message purge feature. Default: 0.
+.TP
+\fBdynamic-file\fR
+A dynamic file definition of the form alias:command where alias is a "dummy" file name used to invoke the command command, with a colon ':' separating the two, for example:
+.PP
+.RS
+spwxfc:python /home/nw8l/scripts/forecast.py
+.PP
+Use absolute paths to script files when ARIM is built from source and installed. Relative paths can be used for "portable" binary installations where the script filesare contained in same directory as the arim executable file. Dynamic files are used to return the output of a script or system command in response to a file query. alias must be unique among any other dynamic file definitions and file names in the shared files folder. In response to the query sq file alias, command will be executed in a shell and its output returned in the response. command can be a batch file, a script invocation like python myscript or a system command like date or uname -a. The output size in bytes is limited by the max-file-size parameter. Errors generated by dynamic file scripts are written to a file named dyn-file-error-YYYYMMDD.login the log folder. Max length is 128 characters. NOTE: you may define no more than 16 dynamic-file parameters. Default: None.
+.RE
+.TP
+\fBpilot-ping\fR
+The number of times a pilot ping will be repeated in the absence of a PINGACK response from the recipient. It is recommended that this value not exceed 3 to prevent tying up the channel with repeats in poor conditions. Set to 0 to disable pilot pings; otherwise the range is 2-15. Default: 0.
+.TP
+\fBpilot-ping-thr\fR
+When pilot pings are enabled, this is the threshold by which signal reports from the target station are judged. If the reported constellation quality is above the threshold, the message (or query) send proceeds; if below this threshold it is cancelled. It is recommended that this value be 60 or higher; choose a threshold suitable for the FEC mode in use. Min is 50, Max is 100. Default: 60.
+.RE
+.TP
+\fB[log]\fR Logging settings appear in this section.
+.RS
+.TP
+\fBdebug-log\fR
+Set to TRUE to enable debug logging, FALSE to disable it. Default: FALSE.
+traffic-log Set to TRUE to enable traffic logging, FALSE to disable it. Default: TRUE.
+.RE
+.TP
+\fB[ui]\fR User interface settings appear in this section.
+.RS
+.TP
+\fBcolor-code\fR
+Set to TRUE for color coding of items in the traffic monitor view, calls heard list and TNC command view according to the scheme discussed in the Color Coded Display section. Set to TRUE to enable, FALSE to disable color coding. Default: TRUE.
+.TP
+\fBshow-titles\fR
+Set to TRUE to show titles for all views (panes) in the UI, FALSE to hide them. Default: TRUE.
+.TP
+\fBlast-time-heard\fR
+Selects the calls heard list timestamp format. Set to CLOCK to indicate time station was last heard, in HH:MM:SS format (either local time or UTC). Set to ELAPSED to indicate elapsed time since station last heard, in DD:HH:MM format. Default: CLOCK.
+.TP
+\fBmon-timestamp\fR
+Set to TRUE to enable timestamps in the traffic monitor view. Set to FALSE to disable them. Default: FALSE. Prior to version 0.12 this was located in the [arim] section.
+.TP
+\fButc-time\fR
+Selects the time zone used for timestamps in the UI and log output, and for the clock in the title bar. Set to TRUE for UTC, and FALSE for local time. Default: TRUE.
+.TE
+.SH SEE ALSO
+\fBarim\fR(1)
+
