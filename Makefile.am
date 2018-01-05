@@ -6,6 +6,9 @@ AM_CFLAGS = -Wall -g \
 if PORTABLE_BIN
 AM_CFLAGS += -DPORTABLE_BIN
 endif
+if NATIVE_LITTLE_ENDIAN
+AM_CFLAGS += -DNATIVE_LITTLE_ENDIAN
+endif
 
 if PORTABLE_BIN
 exedir = $(prefix)
@@ -36,35 +39,46 @@ EXTRA_DIST += $(PACKAGE_NAME)
 endif
 
 arim_SOURCES = \
-    main.c main.h \
-    arim.c arim.h \
-    arim_arq.c arim_arq.h \
-    arim_beacon.c arim_beacon.h \
-    arim_message.c arim_message.h \
-    arim_ping.c  arim_ping.h \
-    arim_proto.c arim_proto.h \
-    arim_query.c arim_query.h \
-    bufq.c bufq.h \
-    cmdproc.c cmdproc.h \
-    cmdthread.c cmdthread.h \
-    datathread.c datathread.h \
-    ini.c ini.h \
-    log.c log.h \
-    mbox.c mbox.h \
-    ui.c ui.h \
-    ui_dialog.c ui_dialog.h \
-    ui_fec_menu.c ui_fec_menu.h \
-    ui_files.c ui_files.h \
-    ui_help_menu.c ui_help_menu.h \
-    ui_msg.c ui_msg.h \
-    util.c util.h
+    src/main.c src/main.h \
+    src/arim.c src/arim.h \
+    src/arim_arq.c src/arim_arq.h \
+    src/arim_arq_msg.c src/arim_arq_msg.h \
+    src/arim_arq_files.c src/arim_arq_files.h \
+    src/arim_beacon.c src/arim_beacon.h \
+    src/arim_message.c src/arim_message.h \
+    src/arim_ping.c  src/arim_ping.h \
+    src/arim_proto.c src/arim_proto.h \
+    src/arim_proto_idle.c src/arim_proto_idle.h \
+    src/arim_proto_ping.c src/arim_proto_ping.h \
+    src/arim_proto_msg.c src/arim_proto_msg.h \
+    src/arim_proto_query.c src/arim_proto_query.h \
+    src/arim_proto_beacon.c src/arim_proto_beacon.h \
+    src/arim_proto_unproto.c src/arim_proto_unproto.h \
+    src/arim_proto_frame.c src/arim_proto_frame.h \
+    src/arim_proto_arq_conn.c src/arim_proto_arq_conn.h \
+    src/arim_proto_arq_file.c src/arim_proto_arq_file.h \
+    src/arim_proto_arq_msg.c src/arim_proto_arq_msg.h \
+    src/arim_query.c src/arim_query.h \
+    src/bufq.c src/bufq.h \
+    src/cmdproc.c src/cmdproc.h \
+    src/cmdthread.c src/cmdthread.h \
+    src/datathread.c src/datathread.h \
+    src/ini.c src/ini.h \
+    src/log.c src/log.h \
+    src/mbox.c src/mbox.h \
+    src/ui.c src/ui.h \
+    src/ui_dialog.c src/ui_dialog.h \
+    src/ui_fec_menu.c src/ui_fec_menu.h \
+    src/ui_files.c src/ui_files.h \
+    src/ui_help_menu.c src/ui_help_menu.h \
+    src/ui_msg.c src/ui_msg.h \
+    src/util.c src/util.h
 
 if PORTABLE_BIN
 uninstall-hook:
 	if test -d $(topdir); then rm -rf $(topdir); fi
 dist-hook:
-	rm -f $(distdir)/*.h
-	rm -f $(distdir)/*.c
+	rm -rf $(distdir)/src
 	rm -f $(distdir)/compile
 	rm -f $(distdir)/depcomp
 	rm -f $(distdir)/install-sh

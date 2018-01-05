@@ -1,0 +1,913 @@
+/***********************************************************************
+
+    ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
+
+    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+
+    This file is part of the ARIM messaging program.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+
+#include <sys/types.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <string.h>
+#include "main.h"
+#include "arim_beacon.h"
+#include "arim_message.h"
+#include "arim_proto.h"
+#include "arim_query.h"
+#include "arim_ping.h"
+#include "arim_arq.h"
+#include "arim_arq_files.h"
+#include "arim_arq_msg.h"
+#include "cmdthread.h"
+#include "datathread.h"
+#include "ini.h"
+#include "ui.h"
+#include "ui_dialog.h"
+#include "ui_files.h"
+#include "ui_msg.h"
+#include "util.h"
+
+int cmdproc_cmd(const char *cmd)
+{
+    int state, result1, result2, zoption = 0;
+    static char prevbuf[MAX_CMD_SIZE];
+    char *t, *fn, *destdir, buffer[MAX_CMD_SIZE], sendcr[TNC_ARQ_SENDCR_SIZE];
+    char msgbuffer[MIN_MSG_BUF_SIZE], status[MAX_STATUS_BAR_SIZE];
+    const char *p;
+
+    state = arim_get_state();
+    switch (state) {
+    case ST_ARQ_FILE_RCV_WAIT:
+    case ST_ARQ_FILE_RCV:
+        /* busy with file download */
+        ui_print_status("ARIM Busy: ARQ file download in progress", 1);
+        return 0;
+        break;
+    case ST_ARQ_FILE_SEND_WAIT:
+    case ST_ARQ_FILE_SEND:
+        /* busy with file upload */
+        ui_print_status("ARIM Busy: ARQ file upload in progress", 1);
+        return 0;
+        break;
+    case ST_ARQ_MSG_RCV:
+        /* busy with message receive */
+        ui_print_status("ARIM Busy: ARQ message download in progress", 1);
+        return 0;
+        break;
+    case ST_ARQ_MSG_SEND_WAIT:
+    case ST_ARQ_MSG_SEND:
+        /* busy with message upload */
+        ui_print_status("ARIM Busy: ARQ message upload in progress", 1);
+        return 0;
+        break;
+    case ST_ARQ_IN_CONNECT_WAIT:
+    case ST_ARQ_OUT_CONNECT_WAIT:
+        /* busy with connect attempt */
+        ui_print_status("ARIM Busy: ARQ connect in progress", 1);
+        return 0;
+        break;
+    case ST_ARQ_CONNECTED:
+        if (!strncasecmp(cmd, "/DIS", 4)) {
+            result1 = ui_show_dialog(
+               "\tAre you sure\n\tyou want to disconnect?\n \n\t[Y]es   [N]o", "yYnN");
+            if (result1 == 'y' || result1 == 'Y')
+                arim_arq_send_disconn_req();
+        } else {
+            if (!strncasecmp(cmd, "/FGET", 5)) {
+                arim_arq_files_on_loc_fget();
+            } else if (!strncasecmp(cmd, "/FPUT", 5)) {
+                /* check for -z option */
+                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
+                fn = msgbuffer;
+                while (*fn && *fn == ' ')
+                    ++fn;
+                if (*fn && (fn == strstr(fn, "-z"))) {
+                    zoption = 1;
+                    fn += 2;
+                } else {
+                    /* -z option not found, back up to start */
+                    fn = msgbuffer;
+                }
+                /* check for destination dir path */
+                destdir = fn;
+                while (*destdir && *destdir != '>')
+                    ++destdir;
+                if (*destdir == '>')
+                    *destdir++ = '\0';
+                else
+                    destdir = NULL;
+                arim_arq_files_on_loc_fput(fn, destdir, zoption);
+                return 1;
+            } else if (!strncasecmp(cmd, "/SM", 3)) {
+                /* check for -z option */
+                p = cmd + 3;
+                while (*p && *p == ' ')
+                    ++p;
+                if (*p && (p == strstr(p, "-z"))) {
+                    zoption = 1;
+                    p += 2;
+                } else {
+                    /* -z option not found, back up to start */
+                    p = cmd + 3;
+                }
+                snprintf(buffer, sizeof(buffer), "%s", p + 1);
+                /* check for message text on command line */
+                t = strtok(buffer, "\0");
+                if (!t) {
+                    /* no message text, open composer view */
+                    arim_copy_remote_call(buffer, sizeof(buffer));
+                    if (ui_create_msg(msgbuffer, sizeof(msgbuffer), buffer))
+                        arim_arq_msg_on_send_cmd(msgbuffer, zoption);
+                } else {
+                    snprintf(msgbuffer, sizeof(msgbuffer), "%s", t);
+                    arim_arq_msg_on_send_cmd(msgbuffer, zoption);
+                }
+                return 1;
+            }
+            arim_copy_arq_sendcr(sendcr, sizeof(sendcr));
+            if (!strncasecmp(sendcr, "TRUE", 4))
+                snprintf(buffer, sizeof(buffer), "%s\r\n", cmd);
+            else
+                snprintf(buffer, sizeof(buffer), "%s\n", cmd);
+            ui_queue_data_out(buffer);
+        }
+        return 1;
+        break;
+    default:
+        if (!strlen(cmd))
+            return 0;
+        break;
+    }
+    if (!strncmp(cmd, "!!", 2)) {
+        memcpy(buffer, prevbuf, sizeof(buffer));
+    } else {
+        snprintf(buffer, sizeof(buffer), "%s", cmd);
+        memcpy(prevbuf, buffer, sizeof(prevbuf));
+    }
+    switch (buffer[0]) {
+    case ':':
+        result1 = arim_get_state();
+        /* allow sending of text when TNC already busy with previous unproto send */
+        if (g_tnc_attached && (result1 == ST_IDLE || result1 == ST_SEND_UN_BUF_WAIT)) {
+            ui_queue_data_out(&buffer[1]);
+            if (!arim_get_buffer_cnt()) {
+                /* prime buffer count because update from TNC not immediate */
+                pthread_mutex_lock(&mutex_tnc_set);
+                snprintf(g_tnc_settings[g_cur_tnc].buffer,
+                    sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", strlen(&buffer[1]));
+                pthread_mutex_unlock(&mutex_tnc_set);
+            }
+            arim_on_event(EV_SEND_UNPROTO, 0);
+        } else {
+            ui_print_status("TNC Busy: cannot send unproto message", 1);
+        }
+        break;
+    case '!':
+        if (g_tnc_attached) {
+            ui_queue_cmd_out(&buffer[1]);
+        }
+        break;
+    case '.':
+        t = strtok(buffer, " \t\n");
+        if (t && !strncasecmp(t, ".crc", 4)) {
+            t = strtok(NULL, "\n\0");
+            if (t) {
+                result1 = ccitt_crc16((unsigned char *)t, strlen(t));
+                snprintf(status, sizeof(status), "crc: %04X", result1);
+                ui_print_status(status, 1);
+            }
+        }
+        break;
+    default:
+        t = strtok(buffer, " \t");
+        if (t && strlen(t) == 2 && !strncasecmp(t, "li", 2)) {
+            ui_print_status("Listing messages in inbox", 1);
+            ui_list_msg(MBOX_INBOX_FNAME, MBOX_TYPE_IN);
+        } else if (t && !strncasecmp(t, "lo", 2)) {
+            ui_print_status("Listing messages in outbox", 1);
+            ui_list_msg(MBOX_OUTBOX_FNAME, MBOX_TYPE_OUT);
+        } else if (t && !strncasecmp(t, "ls", 2)) {
+            ui_print_status("Listing sent messages", 1);
+            ui_list_msg(MBOX_SENTBOX_FNAME, MBOX_TYPE_SENT);
+        } else if (t && !strncasecmp(t, "lf", 2)) {
+            ui_print_status("Listing shared files directory", 1);
+            ui_list_shared_files();
+        } else if (t && !strncasecmp(t, "sm", 2)) {
+            t = strtok(NULL, " \t");
+            if (t && !strcmp(t, "-z")) {
+                ui_print_status("Send msg: -z option not supported in FEC mode", 1);
+                break;
+            }
+            if (!t || (!ini_validate_mycall(t) && !ini_validate_netcall(t))) {
+                ui_print_status("Send msg: cannot send, invalid callsign", 1);
+                break;
+            }
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            /* now get everything up to end of line */
+            t = strtok(NULL, "\0");
+            if (!t && ui_create_msg(msgbuffer, sizeof(msgbuffer), buffer)) {
+                if (g_tnc_attached) {
+                    if (arim_send_msg(msgbuffer, buffer)) {
+                        ui_print_status("ARIM Busy: sending message", 1);
+                    } else {
+                        arim_store_out(msgbuffer, buffer);
+                        ui_print_status("Send msg: cannot send, TNC busy; saved to Outbox", 1);
+                    }
+                } else {
+                    arim_store_out(msgbuffer, buffer);
+                    ui_print_status("Send msg: cannot send, no TNC attached; saved to Outbox", 1);
+                }
+            } else if (t) {
+                snprintf(msgbuffer, sizeof(msgbuffer), "%s", t);
+                if (g_tnc_attached) {
+                    if (arim_send_msg(msgbuffer, buffer)) {
+                        ui_print_status("ARIM Busy: sending message", 1);
+                    } else {
+                        arim_store_out(msgbuffer, buffer);
+                        ui_print_status("Send msg: cannot send, TNC busy; saved to Outbox", 1);
+                    }
+                } else {
+                    arim_store_out(msgbuffer, buffer);
+                    ui_print_status("Send msg: cannot send, no TNC attached; saved to Outbox", 1);
+                }
+            }
+        } else if (t && !strncasecmp(t, "sq", 2)) {
+            if (!g_tnc_attached) {
+                ui_print_status("Send query: cannot send, no TNC attached", 1);
+                break;
+            }
+            t = strtok(NULL, " \t");
+            if (!t || !ini_validate_mycall(t)) {
+                ui_print_status("Send query: invalid callsign", 1);
+                break;
+            }
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            /* now get everything up to end of line */
+            t = strtok(NULL, "\0");
+            if (!t)
+                break;
+            if (arim_send_query(t, buffer))
+                ui_print_status("ARIM Busy: sending query", 1);
+            else
+                ui_print_status("Send query: cannot send, TNC busy", 1);
+        } else if (t && !strncasecmp(t, "ping", 2)) {
+            if (!g_tnc_attached) {
+                ui_print_status("Send ping: cannot send, no TNC attached", 1);
+                break;
+            }
+            t = strtok(NULL, " \t");
+            if (!t || !ini_validate_mycall(t)) {
+                ui_print_status("Send ping: invalid callsign", 1);
+                break;
+            }
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            /* now get everything up to end of line */
+            t = strtok(NULL, "\0");
+            if (!t || (result1 = atoi(t)) < 2 || result1 > 15) {
+                ui_print_status("Send ping: invalid repeat count", 1);
+                break;
+            }
+            if (!arim_send_ping(t, buffer, 1))
+                ui_print_status("Send ping: cannot send, TNC busy", 1);
+        } else if (t && !strncasecmp(t, "conn", 2)) {
+            if (!g_tnc_attached) {
+                ui_print_status("ARQ Connect: cannot connect, no TNC attached", 1);
+                break;
+            }
+            t = strtok(NULL, " \t");
+            if (!t || !ini_validate_mycall(t)) {
+                ui_print_status("ARQ Connect: invalid callsign", 1);
+                break;
+            }
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            /* now get everything up to end of line */
+            t = strtok(NULL, "\0");
+            if (!t || (result1 = atoi(t)) < 2 || result1 > 15) {
+                ui_print_status("ARQ Connect: invalid repeat count", 1);
+                break;
+            }
+            if (!arim_arq_send_conn_req(t, buffer))
+                ui_print_status("ARQ Connect: cannot send connection request, TNC busy", 1);
+        } else if (t && !strncasecmp(t, "cm", 2)) {
+            t = strtok(NULL, " \t");
+            if (!t || (!ini_validate_mycall(t) && !ini_validate_netcall(t))) {
+                ui_print_status("Compose msg: cannot open, invalid callsign", 1);
+                break;
+            }
+            if (ui_create_msg(msgbuffer, sizeof(msgbuffer), t)) {
+                arim_store_out(msgbuffer, t);
+                ui_print_status("Compose msg: message saved to Outbox", 1);
+            }
+        } else if (t && !strncasecmp(t, "rr", 2) && show_recents) {
+            t = strtok(NULL, " \t");
+            if (!t || (result1 = atoi(t)) < 1) {
+                ui_print_status("Read recent: invalid msg number", 1);
+                break;
+            }
+            if (ui_get_recent(result1 - 1, buffer, sizeof(buffer))) {
+                ui_read_msg(MBOX_INBOX_FNAME, buffer, result1, 1);
+                ui_set_recent_flag(buffer, 'R');
+                ui_refresh_recents();
+            } else {
+                ui_print_status("Read recent: cannot read message", 1);
+            }
+        } else if (t && !strncasecmp(t, "att", 3) && !g_tnc_attached) {
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            result1 = atoi(t);
+            if (result1 > 0 && result1 <= g_num_tnc) {
+                result1--;
+                g_cur_tnc = result1;
+                g_cmdthread_ready = g_datathread_ready = 0;
+                g_cmdthread_stop = g_datathread_stop = 0;
+                result1 = pthread_create(&g_cmdthread, NULL, cmdthread_func, NULL);
+                if (!result1) {
+                    result2 = pthread_create(&g_datathread, NULL, datathread_func, NULL);
+                    if (result2) {
+                        g_cmdthread_stop = 1;
+                        pthread_join(g_cmdthread, NULL);
+                        g_cmdthread = 0;
+                    }
+                }
+                if (!result1 && !result2) {
+                    /* while waiting for threads to signal ready status,
+                       check stop flags and terminate if one or the other is set,
+                       because thread encountered an error when attempting to connect */
+                    do {
+                        if (g_cmdthread_stop) {
+                            pthread_join(g_cmdthread, NULL);
+                            g_cmdthread = 0;
+                            if (!g_datathread_stop) {
+                                /* shut down the other thread */
+                                g_datathread_stop = 1;
+                                pthread_join(g_datathread, NULL);
+                                g_datathread = 0;
+                                g_datathread_ready = 0;
+                            }
+                        }
+                        if (g_datathread_stop) {
+                            pthread_join(g_datathread, NULL);
+                            g_datathread = 0;
+                            if (!g_cmdthread_stop) {
+                                /* shut down the other thread */
+                                g_cmdthread_stop = 1;
+                                pthread_join(g_cmdthread, NULL);
+                                g_cmdthread = 0;
+                                g_cmdthread_ready = 0;
+                            }
+                        }
+                        /* are they both terminated? if so break */
+                        if (!g_cmdthread && !g_datathread)
+                            break;
+                    } while (!g_cmdthread_ready || !g_datathread_ready);
+                    if (g_cmdthread_ready && g_datathread_ready) {
+                        g_tnc_attached = 1;
+                        ui_set_title_dirty(TITLE_TNC_ATTACHED);
+                        arim_beacon_set(atoi(g_tnc_settings[g_cur_tnc].btime));
+                        ui_print_status("TNC connection successful", 1);
+                    } else {
+                        ui_print_status("Failed to connect to TNC", 1);
+                    }
+                } else {
+                    g_cmdthread = 0;
+                    g_datathread = 0;
+                    ui_print_status("Failed to start TNC service threads", 1);
+                }
+            } else {
+                ui_print_status("Invalid TNC number", 1);
+            }
+        } else if (!strncasecmp(t, "det", 3) && g_tnc_attached) {
+            ui_print_status("Detaching from TNC...", 1);
+            if (g_cmdthread) {
+                g_cmdthread_stop = 1;
+                pthread_join(g_cmdthread, NULL);
+                g_cmdthread = 0;
+            }
+            if (g_datathread) {
+                g_datathread_stop = 1;
+                pthread_join(g_datathread, NULL);
+                g_datathread = 0;
+            }
+            g_tnc_attached = 0;
+            ui_set_title_dirty(TITLE_TNC_DETACHED);
+            g_cur_tnc = 0;
+        } else if (!strncasecmp(t, "listen", 4)) {
+            if (g_tnc_attached) {
+                t = strtok(NULL, " \t");
+                if (!t)
+                    break;
+                result1 = !strncasecmp(t, "TRUE", 1);
+                result2 = !strncasecmp(t, "FALSE", 1);
+                pthread_mutex_lock(&mutex_tnc_set);
+                if (result1) {
+                    snprintf(g_tnc_settings[g_cur_tnc].listen, sizeof(g_tnc_settings[g_cur_tnc].listen), "%s", "TRUE");
+                } else if (result2) {
+                    snprintf(g_tnc_settings[g_cur_tnc].listen, sizeof(g_tnc_settings[g_cur_tnc].listen), "%s", "FALSE");
+                }
+                pthread_mutex_unlock(&mutex_tnc_set);
+                if (result1) {
+                    ui_queue_cmd_out("LISTEN TRUE");
+                    ui_print_status("Listening for ARQ connect requests and pings enabled", 1);
+                } else if (result2) {
+                    ui_queue_cmd_out("LISTEN FALSE");
+                    ui_print_status("Listening for ARQ connect requests and pings disabled", 1);
+                } else {
+                    ui_print_status("Invalid ARQ listen value, must be T(rue) or F(alse)", 1);
+                }
+            } else {
+                ui_print_status("Cannot set ARQ listen: no TNC attached", 1);
+            }
+        } else if (!strncasecmp(t, "arqset", 4)) {
+            if (g_tnc_attached) {
+                pthread_mutex_lock(&mutex_tnc_set);
+                snprintf(msgbuffer, sizeof(msgbuffer),
+                    "\tARQ SESSION SETTINGS\n \n"
+                    "\tarq-bandwidth: %.10s\n"
+                    "\tarq-timeout: %.3s\n"
+                    "\tarq-sendcr: %.5s\n \n\t[O]k",
+                        g_tnc_settings[g_cur_tnc].arq_bandwidth,
+                        g_tnc_settings[g_cur_tnc].arq_timeout,
+                        g_tnc_settings[g_cur_tnc].arq_sendcr);
+                pthread_mutex_unlock(&mutex_tnc_set);
+                ui_show_dialog(msgbuffer, " oO\n");
+            } else {
+                ui_print_status("Cannot show ARQ settings: no TNC attached", 1);
+            }
+        } else if (!strncasecmp(t, "arqto", 4)) {
+            if (g_tnc_attached) {
+                t = strtok(NULL, " \t");
+                if (!t)
+                    break;
+                result1 = atoi(t);
+                if (result1 >= MIN_TNC_ARQ_TO && result1 <= MAX_TNC_ARQ_TO) {
+                    pthread_mutex_lock(&mutex_tnc_set);
+                    snprintf(g_tnc_settings[g_cur_tnc].arq_timeout,
+                                sizeof(g_tnc_settings[g_cur_tnc].arq_timeout), "%d", result1);
+                    pthread_mutex_unlock(&mutex_tnc_set);
+                    snprintf(status, sizeof(status), "ARQTIMEOUT %d", result1);
+                    ui_queue_cmd_out(status);
+                    snprintf(status, sizeof(status), "ARQ connection timeout: %d", result1);
+                    ui_print_status(status, 1);
+                } else {
+                    ui_print_status("Invalid ARQ timeout, must be between 30 and 600 seconds", 1);
+                }
+            } else {
+                ui_print_status("Cannot show ARQ settings: no TNC attached", 1);
+            }
+        } else if (!strncasecmp(t, "arqbw", 4)) {
+            if (g_tnc_attached) {
+                t = strtok(NULL, " \t");
+                if (!t)
+                    break;
+                snprintf(buffer, sizeof(buffer), "%s", t);
+                /* force bandwidth specifier to uppercase */
+                result1 = strlen(buffer);
+                for (result2 = 0; result2 < result1; result2++)
+                    buffer[result2] = toupper(buffer[result2]);
+                if (ini_validate_arq_bw(buffer)) {
+                    pthread_mutex_lock(&mutex_tnc_set);
+                    snprintf(g_tnc_settings[g_cur_tnc].arq_bandwidth,
+                                sizeof(g_tnc_settings[g_cur_tnc].arq_bandwidth), "%s", buffer);
+                    pthread_mutex_unlock(&mutex_tnc_set);
+                    snprintf(status, sizeof(status), "ARQBW %s", buffer);
+                    ui_queue_cmd_out(status);
+                    snprintf(status, sizeof(status), "ARQ connection bandwidth: %s", buffer);
+                    ui_print_status(status, 1);
+                } else {
+                    ui_print_status("Invalid ARQ bandwidth value", 1);
+                }
+            } else {
+                ui_print_status("Cannot show ARQ settings: no TNC attached", 1);
+            }
+        } else if (!strncasecmp(t, "srset", 4)) {
+            snprintf(msgbuffer, sizeof(msgbuffer),
+                "\tMESSAGE SEND REPEAT SETTINGS\n \n"
+                "\tsend-repeats: %.1s\n"
+                "\tack-timeout: %.3s\n"
+                "\tfecmode-downshift: %.5s\n \n\t[O]k",
+                    g_arim_settings.send_repeats, g_arim_settings.ack_timeout,
+                    g_arim_settings.fecmode_downshift);
+            ui_show_dialog(msgbuffer, " oO\n");
+        } else if (!strncasecmp(t, "ppset", 4)) {
+            snprintf(msgbuffer, sizeof(msgbuffer),
+                "\tPILOT PING SETTINGS\n \n"
+                "\tpilot-ping: %.1s\n"
+                "\tpilot-ping-thr: %.3s\n \n\t[O]k",
+                   g_arim_settings.pilot_ping, g_arim_settings.pilot_ping_thr);
+            ui_show_dialog(msgbuffer, " oO\n");
+        } else if (!strncasecmp(t, "tncset", 4)) {
+            if (g_tnc_attached) {
+                pthread_mutex_lock(&mutex_tnc_set);
+                snprintf(msgbuffer, sizeof(msgbuffer),
+                "\tARDOP TNC SETTINGS\n \n"
+                "   ip addr: %-10.30s       port: %.5s\n"
+                "    mycall: %-10.10s     gridsq: %.10s\n"
+                "     fecid: %-10.8s fecrepeats: %.5s\n"
+                "   squelch: %-10.2s    busydet: %.2s\n"
+                "    leader: %-10.4s    trailer: %.4s\n"
+                "    listen: %-10.5s  enpingack: %.5s\n"
+                "     pname: %.31s\n"
+                " netcall 1: %-10.10s  netcall 2: %.10s\n"
+                " netcall 3: %-10.10s  netcall 4: %.10s\n"
+                " netcall 5: %-10.10s  netcall 6: %.10s\n"
+                " netcall 7: %-10.10s  netcall 8: %.10s\n"
+                "   version: %.25s\n \n\t[O]k",
+                g_tnc_settings[g_cur_tnc].ipaddr, g_tnc_settings[g_cur_tnc].port,
+                g_tnc_settings[g_cur_tnc].mycall, g_tnc_settings[g_cur_tnc].gridsq,
+                g_tnc_settings[g_cur_tnc].fecid, g_tnc_settings[g_cur_tnc].fecrepeats,
+                g_tnc_settings[g_cur_tnc].squelch, g_tnc_settings[g_cur_tnc].busydet,
+                g_tnc_settings[g_cur_tnc].leader, g_tnc_settings[g_cur_tnc].trailer,
+                g_tnc_settings[g_cur_tnc].listen, g_tnc_settings[g_cur_tnc].en_pingack,
+                g_tnc_settings[g_cur_tnc].name,
+                g_tnc_settings[g_cur_tnc].netcall[0], g_tnc_settings[g_cur_tnc].netcall[1],
+                g_tnc_settings[g_cur_tnc].netcall[2], g_tnc_settings[g_cur_tnc].netcall[3],
+                g_tnc_settings[g_cur_tnc].netcall[4], g_tnc_settings[g_cur_tnc].netcall[5],
+                g_tnc_settings[g_cur_tnc].netcall[6], g_tnc_settings[g_cur_tnc].netcall[7],
+                g_tnc_settings[g_cur_tnc].version);
+                pthread_mutex_unlock(&mutex_tnc_set);
+                ui_show_dialog(msgbuffer, " oO\n");
+            } else {
+                ui_print_status("Cannot show TNC settings: no TNC attached", 1);
+            }
+        } else if (!strncasecmp(t, "ackto", 4)) {
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            result1 = atoi(t);
+            if (result1 >= MIN_ARIM_ACK_TIMEOUT && result1 <= MAX_ARIM_ACK_TIMEOUT) {
+                snprintf(g_arim_settings.ack_timeout, sizeof(g_arim_settings.ack_timeout), "%d", result1);
+                snprintf(status, sizeof(status), "ARIM message ACK timeout: %d", result1);
+                ui_print_status(status, 1);
+            } else {
+                ui_print_status("Invalid ACK timeout, must be between 10 and 999 seconds", 1);
+            }
+        } else if (!strncasecmp(t, "srpts", 4)) {
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            result1 = atoi(t);
+            if (result1 >= 0 && result1 <= MAX_ARIM_SEND_REPEATS) {
+                snprintf(g_arim_settings.send_repeats, sizeof(g_arim_settings.send_repeats), "%d", result1);
+                snprintf(status, sizeof(status), "ARIM message send repeats: %d", result1);
+                ui_print_status(status, 1);
+            } else {
+                ui_print_status("Invalid send repeats value, must be between 0 and 5", 1);
+            }
+        } else if (!strncasecmp(t, "pping", 4)) {
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            result1 = atoi(t);
+            if (result1 == 0 || (result1 >= MIN_ARIM_PILOT_PING && result1 <= MAX_ARIM_PILOT_PING)) {
+                snprintf(g_arim_settings.pilot_ping, sizeof(g_arim_settings.pilot_ping), "%d", result1);
+                snprintf(status, sizeof(status), "ARIM message pilot ping: %d", result1);
+                ui_print_status(status, 1);
+            } else {
+                ui_print_status("Invalid pilot ping value, must be 0 (off) or between 2 and 5", 1);
+            }
+        } else if (!strncasecmp(t, "ppthr", 4)) {
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            result1 = atoi(t);
+            if (result1 >= MIN_ARIM_PILOT_PING_THR && result1 <= MAX_ARIM_PILOT_PING_THR) {
+                snprintf(g_arim_settings.pilot_ping_thr, sizeof(g_arim_settings.pilot_ping_thr), "%d", result1);
+                snprintf(status, sizeof(status), "ARIM pilot ping threshold: %d", result1);
+                ui_print_status(status, 1);
+            } else {
+                ui_print_status("Invalid pilot ping threshold, must be between 50 and 100", 1);
+            }
+        } else if (!strncasecmp(t, "enpingack", 4)) {
+            if (g_tnc_attached) {
+                t = strtok(NULL, " \t");
+                if (!t)
+                    break;
+                result1 = !strncasecmp(t, "TRUE", 1);
+                result2 = !strncasecmp(t, "FALSE", 1);
+                pthread_mutex_lock(&mutex_tnc_set);
+                if (result1) {
+                    snprintf(g_tnc_settings[g_cur_tnc].en_pingack, sizeof(g_tnc_settings[g_cur_tnc].en_pingack), "%s", "TRUE");
+                } else if (result2) {
+                    snprintf(g_tnc_settings[g_cur_tnc].en_pingack, sizeof(g_tnc_settings[g_cur_tnc].en_pingack), "%s", "FALSE");
+                }
+                pthread_mutex_unlock(&mutex_tnc_set);
+                if (result1) {
+                    ui_queue_cmd_out("ENABLEPINGACK TRUE");
+                    ui_print_status("Ping ACK enabled", 1);
+                } else if (result2) {
+                    ui_queue_cmd_out("ENABLEPINGACK FALSE");
+                    ui_print_status("Ping ACK disabled", 1);
+                } else {
+                    ui_print_status("Invalid enable ping ACK value, must be T(rue) or F(alse)", 1);
+                }
+            } else {
+                ui_print_status("Cannot set enable ping ACK: no TNC attached", 1);
+            }
+        } else if (!strncasecmp(t, "fecds", 4)) {
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            result1 = !strncasecmp(t, "TRUE", 1);
+            if (result1) {
+                snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), "%s", "TRUE");
+                ui_print_status("FEC mode downshift enabled", 1);
+            } else if (!strncasecmp(t, "FALSE", 1)) {
+                snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), "%s", "FALSE");
+                ui_print_status("FEC mode downshift disabled", 1);
+            } else {
+                ui_print_status("Invalid FEC mode downshift value, must be T(rue) or F(alse)", 1);
+            }
+        } else if (!strncasecmp(t, "mycall", 4)) {
+            if (!g_tnc_attached) {
+                ui_print_status("Cannot change mycall: no TNC attached", 1);
+                break;
+            }
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            result1 = ini_validate_mycall(buffer);
+            if (result1) {
+                snprintf(status, sizeof(status), "MYCALL %s", buffer);
+                ui_queue_cmd_out(status);
+                snprintf(status, sizeof(status), "mycall changed to: %s", buffer);
+                ui_print_status(status, 1);
+            } else {
+                ui_print_status("Invalid callsign, mycall not changed", 1);
+            }
+        } else if (!strncasecmp(t, "gridsq", 4)) {
+            if (!g_tnc_attached) {
+                ui_print_status("Cannot change gridsq: no TNC attached", 1);
+                break;
+            }
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            result1 = ini_validate_gridsq(buffer);
+            if (result1) {
+                snprintf(status, sizeof(status), "GRIDSQUARE %s", buffer);
+                ui_queue_cmd_out(status);
+                snprintf(status, sizeof(status), "gridsq changed to: %s", buffer);
+                ui_print_status(status, 1);
+            } else {
+                ui_print_status("Invalid grid square, gridsq not changed", 1);
+            }
+        } else if (!strncasecmp(t, "netcall", 4)) {
+            if (!g_tnc_attached) {
+                ui_print_status("Cannot change netcalls: no TNC attached", 1);
+                break;
+            }
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            if (!strncasecmp(t, "add", 3)) {
+                t = strtok(NULL, " \t");
+                if (!t)
+                    break;
+                snprintf(buffer, sizeof(buffer), "%s", t);
+                result1 = arim_get_netcall_cnt();
+                if (result1 < TNC_NETCALL_MAX_CNT) {
+                    if (ini_validate_netcall(buffer)) {
+                        pthread_mutex_lock(&mutex_tnc_set);
+                        snprintf(g_tnc_settings[g_cur_tnc].netcall[result1],
+                                sizeof(g_tnc_settings[g_cur_tnc].netcall[result1]), "%s", buffer);
+                        ++g_tnc_settings[g_cur_tnc].netcall_cnt;
+                        pthread_mutex_unlock(&mutex_tnc_set);
+                        snprintf(status, sizeof(status), "Added netcall: %s", buffer);
+                        ui_print_status(status, 1);
+                    } else {
+                        ui_print_status("Invalid net call, not added", 1);
+                    }
+                } else {
+                    ui_print_status("Cannot add netcall: list is full", 1);
+                }
+            } else if (!strncasecmp(t, "del", 3)) {
+                t = strtok(NULL, " \t");
+                if (!t)
+                    break;
+                snprintf(buffer, sizeof(buffer), "%s", t);
+                pthread_mutex_lock(&mutex_tnc_set);
+                result1 = g_tnc_settings[g_cur_tnc].netcall_cnt;
+                for (result2 = 0; result2 < result1; result2++) {
+                    if (!strcasecmp(buffer, g_tnc_settings[g_cur_tnc].netcall[result2]))
+                        break;
+                }
+                pthread_mutex_unlock(&mutex_tnc_set);
+                if (result2 < result1) {
+                    /* found it */
+                    pthread_mutex_lock(&mutex_tnc_set);
+                    memmove(g_tnc_settings[g_cur_tnc].netcall[result2],
+                            g_tnc_settings[g_cur_tnc].netcall[result2 + 1],
+                            (TNC_NETCALL_MAX_CNT - result2) * TNC_NETCALL_SIZE);
+                    --g_tnc_settings[g_cur_tnc].netcall_cnt;
+                    pthread_mutex_unlock(&mutex_tnc_set);
+                    snprintf(status, sizeof(status), "Deleted netcall: %s", buffer);
+                    ui_print_status(status, 1);
+                } else {
+                    ui_print_status("Cannot delete netcall: call not found", 1);
+                    break;
+                }
+            } else {
+                ui_print_status("Sorry, use 'netcall add call' or 'netcall del call'", 1);
+            }
+        } else if (!strncasecmp(t, "pname", 4)) {
+            if (!g_tnc_attached) {
+                ui_print_status("Cannot change pname: no TNC attached", 1);
+                break;
+            }
+            t = strtok(NULL, "\t");
+            if (!t)
+                break;
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            result1 = ini_validate_name(buffer);
+            if (result1) {
+                pthread_mutex_lock(&mutex_tnc_set);
+                snprintf(g_tnc_settings[g_cur_tnc].name, sizeof(g_tnc_settings[g_cur_tnc].name), "%s", buffer);
+                pthread_mutex_unlock(&mutex_tnc_set);
+                arim_beacon_set(-1);
+                snprintf(status, sizeof(status), "pname changed to: %s", buffer);
+                ui_print_status(status, 1);
+                ui_set_title_dirty(TITLE_TNC_ATTACHED);
+            } else {
+                ui_print_status("Invalid name, pname not changed", 1);
+            }
+        } else if (!strncasecmp(t, "btime", 4) && g_tnc_attached) {
+            t = strtok(NULL, " \t");
+            if (!t)
+                break;
+            result1 = atoi(t);
+            if (result1 >= 0 && result1 <= MAX_BEACON_TIME) {
+                arim_beacon_set(result1);
+                if (result1)
+                    ui_print_status("Beacon started", 1);
+                else
+                    ui_print_status("Beacon stopped", 1);
+            } else {
+                ui_print_status("Invalid beacon time, must be between 0 and 999 minutes", 1);
+            }
+        } else if (!strncasecmp(t, "btest", 4)) {
+            if (g_tnc_attached) {
+                if (arim_beacon_send())
+                    ui_print_status("ARIM Busy: sending beacon", 1);
+                else
+                    ui_print_status("TNC Busy: cannot send beacon", 1);
+            } else {
+                ui_print_status("Cannot send beacon: no TNC attached", 1);
+            }
+        } else if (!strncasecmp(t, "clrmon", 6)) {
+            ui_clear_data_in();
+            ui_print_status("Traffic Monitor view cleared", 1);
+        } else if (!strncasecmp(t, "clrheard", 8)) {
+            ui_clear_calls_heard();
+            ui_print_status("Calls Heard list cleared", 1);
+        } else if (!strncasecmp(t, "clrping", 7)) {
+            ui_clear_ptable();
+            ui_print_status("Ping History list cleared", 1);
+        } else if (!strncasecmp(t, "clrrec", 6)) {
+            ui_clear_recents();
+            ui_print_status("Recent Messages list cleared", 1);
+        }
+        break;
+    }
+    return 1;
+}
+
+int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
+{
+    /* called from data thread, not UI thread */
+    char *p, *t, buffer[MAX_CMD_SIZE];
+    size_t i, len, cnt;
+    int result;
+
+    respbuf[0] = '\0';
+    snprintf(buffer, sizeof(buffer), "%s", cmd);
+    t = strtok(buffer, " \t");
+    if (respbuf && !strncasecmp(t, "version", 4)) {
+        pthread_mutex_lock(&mutex_tnc_set);
+        snprintf(respbuf, respbufsize, "VERSION: ARIM " ARIM_VERSION ", %s\n",
+                    g_tnc_settings[g_cur_tnc].version);
+        pthread_mutex_unlock(&mutex_tnc_set);
+    } else if (respbuf && !strncasecmp(t, "pname", 4)) {
+        pthread_mutex_lock(&mutex_tnc_set);
+        snprintf(respbuf, respbufsize, "PNAME: %s\n",
+                    g_tnc_settings[g_cur_tnc].name);
+        pthread_mutex_unlock(&mutex_tnc_set);
+    } else if (respbuf && !strncasecmp(t, "info", 4)) {
+        pthread_mutex_lock(&mutex_tnc_set);
+        snprintf(respbuf, respbufsize, "INFO: %s\n",
+            g_tnc_settings[g_cur_tnc].info);
+        pthread_mutex_unlock(&mutex_tnc_set);
+        /* convert "\n" in info text to newline char in response */
+        t = respbuf + 1;
+        while (*t) {
+            if (*t == 'n' && *(t - 1) == '\\') {
+                *(t - 1) = ' ';
+                *t = '\n';
+            }
+            ++t;
+        }
+    } else if (respbuf && !strncasecmp(t, "gridsq", 4)) {
+        pthread_mutex_lock(&mutex_tnc_set);
+        snprintf(respbuf, respbufsize, "GRIDSQ: %s\n",
+                    g_tnc_settings[g_cur_tnc].gridsq);
+        pthread_mutex_unlock(&mutex_tnc_set);
+    } else if (respbuf && !strncasecmp(t, "heard", 4)) {
+        ui_get_heard_list(respbuf, respbufsize);
+    } else if (respbuf && !strncasecmp(t, "flist", 4)) {
+        t = strtok(NULL, "\0");
+        if (t) {
+            /* trim leading and trailing spaces */
+            while (*t && *t == ' ')
+                ++t;
+            len = strlen(t);
+            if (len) {
+                p = t + len - 1;
+                while (p > t && *p == ' ') {
+                    *p = '\0';
+                    --p;
+                }
+            }
+            if (strlen(t) == 0)
+                t = NULL;
+        }
+        result = ui_get_file_list(
+                    g_arim_settings.files_dir, t, respbuf, respbufsize);
+        /* return -1 on file access errors */
+        return (result ? 1 : -1);
+    } else if (respbuf && !strncasecmp(t, "file", 4)) {
+        t = strtok(NULL, "\0");
+        if (t) {
+            /* trim leading and trailing spaces */
+            while (*t && *t == ' ')
+                ++t;
+            len = strlen(t);
+            if (len) {
+                p = t + len - 1;
+                while (p > t && *p == ' ') {
+                    *p = '\0';
+                    --p;
+                }
+            }
+            /* check for dynamic file name */
+            for (i = 0; i < g_arim_settings.dyn_files_cnt; i++) {
+                if (!strncmp(g_arim_settings.dyn_files[i], t, len)) {
+                    if (g_arim_settings.dyn_files[i][len] == ':') {
+                        result = ui_get_dyn_file(t,
+                                &(g_arim_settings.dyn_files[i][len + 1]),
+                                respbuf, respbufsize);
+                        /* return -1 on dynamic file invocation errors */
+                        return (result ? 1 : -1);
+                    }
+                }
+            }
+            if (i == g_arim_settings.dyn_files_cnt)
+                /* no match on dynamic file so look for it in filesystem */
+                result = ui_get_file(t, respbuf, respbufsize);
+            /* return -1 on file access errors */
+            return (result ? 1 : -1);
+        } else {
+            snprintf(respbuf, respbufsize, "Error: no file name given.\n");
+            return -1;
+        }
+    } else if (respbuf && !strncasecmp(t, "netcalls", 4)) {
+        snprintf(respbuf, respbufsize, "NETCALLS:\n");
+        len = strlen(respbuf);
+        pthread_mutex_lock(&mutex_tnc_set);
+        cnt = g_tnc_settings[g_cur_tnc].netcall_cnt;
+        for (i = 0; i < cnt; i++) {
+            snprintf(buffer, sizeof(buffer), "%s\n", g_tnc_settings[g_cur_tnc].netcall[i]);
+            if (len + strlen(buffer) < respbufsize) {
+                strncat(respbuf, buffer, respbufsize - len - 1);
+                len = strlen(respbuf);
+            }
+        }
+        pthread_mutex_unlock(&mutex_tnc_set);
+        if (len + 1 < respbufsize)
+            strncat(respbuf, "\n", respbufsize - len - 1);
+    } else {
+        snprintf(respbuf, respbufsize, "Error: unknown query.\n");
+        return 0;
+    }
+    return 1;
+}
+

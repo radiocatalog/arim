@@ -2,6 +2,34 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.1
+-----------
+* Fix bug in ARQ mode where incoming commands were not
+  parsed properly if split across multiple ARDOP ARQ frames.
+* Ignore unexpected PINGACK frames received from TNC.
+* In ARQ IRS state, if link is lost, print a "timeout" notice
+  to the Traffic Monitor when ARIM times out and returns to
+  the idle state. Extend IRS timeout period to 90 seconds.
+* During an ARQ inbound or outbound connection attempt, if
+  link is lost, print a "timeout" notice to the Traffic
+  Monitor when ARIM times out and returns to the idle state.
+* In pilot ping mode, increase delay between receipt of PINGACK
+  frame and start of next transmission to guarantee that the
+  TNC is ready to proceed.
+* Add facility to send arbitrary TNC initialization commands
+  upon ATTACHING to a TNC. These commands are specified in the
+  arim.ini configuration file, in the [tnc] section, using new
+  parameter 'tnc-ini-cmd'. Up to 32 of these commands may be
+  defined for each TNC, each with a maximum length of 128
+  characters. For exammple:
+     tnc-init-cmd = SLOWCPU TRUE
+     tnc-init-cmd = DRIVELEVEL 90
+  This is useful for passing commands which are not understood
+  by ARIM, such as future radio control commands, and for TNC
+  test and development purposes. Commands are send verbatim
+  without validation of the command name or its parameters.
+* Update PDF Help file.
+
 Version 1.0
 -----------
 * Adapt to new ARDOP TNC Host Interface Specification effective

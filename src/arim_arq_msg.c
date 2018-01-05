@@ -1,0 +1,386 @@
+/***********************************************************************
+
+    ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
+
+    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+
+    This file is part of the ARIM messaging program.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include "main.h"
+#include "bufq.h"
+#include "arim_proto.h"
+#include "ui.h"
+#include "util.h"
+#include "ui_dialog.h"
+#include "log.h"
+#include "mbox.h"
+#include "zlib.h"
+#include "datathread.h"
+#include "arim_arq.h"
+
+static MSGQUEUEITEM msg_in;
+static MSGQUEUEITEM msg_out;
+static size_t msg_in_cnt, msg_out_cnt;
+static int zoption;
+
+int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
+{
+    char linebuf[MAX_LOG_LINE_SIZE];
+    size_t len;
+    z_stream zs;
+    char zbuffer[MIN_DATA_BUF_SIZE];
+    int zret;
+
+    zoption = use_zoption;
+    /* copy into buffer, will be sent later by arim_arq_msg_on_send_cmd() */
+    if (zoption) {
+        zs.zalloc = Z_NULL;
+        zs.zfree = Z_NULL;
+        zs.opaque = Z_NULL;
+        zs.avail_in = strlen(data);
+        zs.next_in = (Bytef *)data;
+        zs.avail_out = sizeof(zbuffer);
+        zs.next_out = (Bytef *)zbuffer;
+        zret = deflateInit(&zs, Z_BEST_COMPRESSION);
+        if (zret == Z_OK) {
+            zret = deflate(&zs, Z_FINISH);
+            deflateEnd(&zs);
+            if (zret != Z_STREAM_END) {
+                ui_show_dialog("\tCannot send message:\n"
+                               "\tcompression failed.\n \n\t[O]k", "oO \n");
+                snprintf(linebuf, sizeof(linebuf),
+                                "ARQ: Message upload failed, compression error");
+                ui_queue_debug_log(linebuf);
+                return 0;
+            }
+            memcpy(msg_out.data, zbuffer, zs.total_out);
+            msg_out.size = zs.total_out;
+        } else {
+            ui_show_dialog("\tCannot send message:\n"
+                           "\tcompression failed.\n \n\t[O]k", "oO \n");
+            snprintf(linebuf, sizeof(linebuf),
+                            "ARQ: Message upload failed, compression init error");
+            ui_queue_debug_log(linebuf);
+            return 0;
+        }
+    } else {
+        snprintf(msg_out.data, sizeof(msg_out.data), "%s", data);
+        msg_out.size = strlen(msg_out.data);
+    }
+    msg_out.check = ccitt_crc16((unsigned char *)msg_out.data, msg_out.size);
+    arim_copy_remote_call(msg_out.call, sizeof(msg_out.call));
+    /* enqueue command for TNC */
+    snprintf(linebuf, sizeof(linebuf),
+        "%s %s %zu %04X", zoption ? "/MPUT -z" : "/MPUT",
+            msg_out.call, msg_out.size, msg_out.check);
+    len = arim_arq_send_remote(linebuf);
+    /* prime buffer count because update from TNC not immediate */
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(g_tnc_settings[g_cur_tnc].buffer,
+        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
+    pthread_mutex_unlock(&mutex_tnc_set);
+    arim_on_event(EV_ARQ_MSG_SEND_CMD, 0);
+    return 1;
+}
+
+int arim_arq_msg_on_send_msg()
+{
+    char linebuf[MAX_LOG_LINE_SIZE];
+
+    pthread_mutex_lock(&mutex_msg_out);
+    msgq_push(&g_msg_out_q, &msg_out);
+    pthread_mutex_unlock(&mutex_msg_out);
+    /* prime buffer count because update from TNC not immediate */
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(g_tnc_settings[g_cur_tnc].buffer,
+        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", msg_out.size);
+    pthread_mutex_unlock(&mutex_tnc_set);
+    /* initialize cnt to prevent '0 of size' notification in monitor */
+    msg_out_cnt = msg_out.size;
+    snprintf(linebuf, sizeof(linebuf), "ARQ: Message upload buffered for sending");
+    ui_queue_debug_log(linebuf);
+    return 1;
+}
+
+size_t arim_arq_msg_on_send_buffer(size_t size)
+{
+    char linebuf[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+
+    /* ignore preliminary BUFFER response if TNC isn't done buffering data */
+    if (msg_out.size > TNC_DATA_BLOCK_SIZE && size == TNC_DATA_BLOCK_SIZE)
+        return size;
+    if (msg_out_cnt != size) {
+        msg_out_cnt = size;
+        snprintf(linebuf, sizeof(linebuf),
+            "ARQ: Message to %s sending %zu of %zu bytes",
+                msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
+        ui_queue_debug_log(linebuf);
+        snprintf(linebuf, sizeof(linebuf), "<< [@] Message to %s %zu of %zu bytes",
+                    msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
+        ui_queue_traffic_log(linebuf);
+        if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+            snprintf(linebuf, sizeof(linebuf),
+                "[%s] << [@] Message to %s %zu of %zu bytes",
+                     util_timestamp(timestamp, sizeof(timestamp)),
+                         msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
+        }
+        ui_queue_data_in(linebuf);
+    }
+    return size;
+}
+
+int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
+{
+    char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    unsigned int check;
+    z_stream zs;
+    char zbuffer[MIN_DATA_BUF_SIZE];
+    int zret;
+
+    /* buffer data, increment count of bytes */
+    if (msg_in_cnt + size > sizeof(msg_in.data)) {
+        /* overflow */
+        snprintf(linebuf, sizeof(linebuf),
+            "ARQ: Message download failed, buffer overflow %zu",
+                msg_in_cnt + size);
+        ui_queue_debug_log(linebuf);
+        snprintf(linebuf, sizeof(linebuf), "/ERROR Message buffer overflow");
+        arim_arq_send_remote(linebuf);
+        arim_on_event(EV_ARQ_MSG_ERROR, 0);
+        return 0;
+    }
+    memcpy(msg_in.data + msg_in_cnt, data, size);
+    msg_in_cnt += size;
+    msg_in.data[msg_in_cnt] = '\0';
+    snprintf(linebuf, sizeof(linebuf),
+        "ARQ: Message download reading %zu of %zu bytes", msg_in_cnt, msg_in.size);
+    ui_queue_debug_log(linebuf);
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(linebuf, sizeof(linebuf),
+        ">> [@] Message from %s %zu of %zu bytes",
+            remote_call, msg_in_cnt, msg_in.size);
+    ui_queue_traffic_log(linebuf);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(linebuf, sizeof(linebuf),
+             "[%s] >> [@] Message from %s %zu of %zu bytes",
+                 util_timestamp(timestamp, sizeof(timestamp)),
+                      remote_call, msg_in_cnt, msg_in.size);
+    }
+    ui_queue_data_in(linebuf);
+    arim_on_event(EV_ARQ_MSG_RCV_FRAME, 0);
+    if (msg_in_cnt >= msg_in.size) {
+        /* if excess data, take most recent msg_in_size bytes */
+        if (msg_in_cnt > msg_in.size) {
+            memmove(msg_in.data, msg_in.data + (msg_in_cnt - msg_in.size),
+                msg_in_cnt - msg_in.size);
+            msg_in_cnt = msg_in.size;
+        }
+        /* verify checksum */
+        check = ccitt_crc16((unsigned char *)msg_in.data, msg_in.size);
+        if (msg_in.check != check) {
+            snprintf(linebuf, sizeof(linebuf),
+               "ARQ: Message download failed, bad checksum %04X",  check);
+            ui_queue_debug_log(linebuf);
+            snprintf(linebuf, sizeof(linebuf), "/ERROR Bad checksum");
+            arim_arq_send_remote(linebuf);
+            arim_on_event(EV_ARQ_MSG_ERROR, 0);
+            return 0;
+        }
+        if (zoption) {
+            zs.zalloc = Z_NULL;
+            zs.zfree = Z_NULL;
+            zs.opaque = Z_NULL;
+            zs.avail_in = msg_in.size;
+            zs.next_in = (Bytef *)msg_in.data;
+            zs.avail_out = sizeof(zbuffer);
+            zs.next_out = (Bytef *)zbuffer;
+            zret = inflateInit(&zs);
+            if (zret == Z_OK) {
+                zret = inflate(&zs, Z_NO_FLUSH);
+                inflateEnd(&zs);
+                if (zret != Z_STREAM_END) {
+                    snprintf(linebuf, sizeof(linebuf),
+                        "ARQ: Message download failed, decompression error");
+                    ui_queue_debug_log(linebuf);
+                    snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
+                    arim_arq_send_remote(linebuf);
+                    arim_on_event(EV_ARQ_MSG_ERROR, 0);
+                    return 0;
+                }
+            } else {
+                snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: Message download failed, decompression initialization error");
+                ui_queue_debug_log(linebuf);
+                snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
+                arim_arq_send_remote(linebuf);
+                arim_on_event(EV_ARQ_MSG_ERROR, 0);
+                return 0;
+            }
+            memcpy(msg_in.data, zbuffer, zs.total_out);
+            msg_in.size = zs.total_out;
+            msg_in.data[msg_in.size] = '\0';
+            msg_in.check = ccitt_crc16((unsigned char *)msg_in.data, msg_in.size);
+        }
+        /* now store message to inbox */
+        arim_copy_mycall(target_call, sizeof(target_call));
+        snprintf(linebuf, sizeof(linebuf), "From %-10s %s To %-10s %04X",
+                remote_call, util_date_timestamp(timestamp,
+                        sizeof(timestamp)), target_call, msg_in.check);
+        pthread_mutex_lock(&mutex_recents);
+        cmdq_push(&g_recents_q, linebuf);
+        pthread_mutex_unlock(&mutex_recents);
+        if (!mbox_add_msg(MBOX_INBOX_FNAME,
+                 remote_call, target_call, msg_in.check, msg_in.data)) {
+            snprintf(linebuf, sizeof(linebuf),
+                "ARQ: Message download failed, could not open inbox");
+            ui_queue_debug_log(linebuf);
+            snprintf(linebuf, sizeof(linebuf), "/ERROR Unable to save message");
+            arim_arq_send_remote(linebuf);
+            arim_on_event(EV_ARQ_MSG_ERROR, 0);
+            return 0;
+        }
+        snprintf(linebuf, sizeof(linebuf),
+            "ARQ: Saved %s message %zu bytes, checksum %04X",
+               zoption ? "compressed" : "uncompressed",  msg_in_cnt, check);
+        ui_queue_debug_log(linebuf);
+        snprintf(linebuf, sizeof(linebuf),
+            "/OK Message %zu %04X saved", msg_in_cnt, check);
+        arim_arq_send_remote(linebuf);
+        arim_on_event(EV_ARQ_MSG_RCV_DONE, 0);
+    }
+    return 1;
+}
+
+int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
+{
+    char *p_check, *p_name, *p_size, *e;
+    char linebuf[MAX_LOG_LINE_SIZE];
+
+    zoption = 0;
+    /* inbound message transfer, get parameters */
+    p_size = p_check = 0;
+    e = cmd + 6;
+    while (*e && *e == ' ')
+        ++e;
+    if (*e && (e == strstr(e, "-z"))) {
+        zoption = 1;
+        e += 2;
+        while (*e && *e == ' ')
+            ++e;
+    }
+    p_name = e;
+    if (*p_name) {
+        while (*e && *e != ' ') {
+            ++e;
+        }
+        /* at end of callsign */
+        if (*e) {
+            *e = '\0';
+            ++e;
+            /* at start of size */
+            p_size = e;
+            while (*e && *e != ' ') {
+                ++e;
+            }
+            *e = '\0';
+            ++e;
+            /* at start of check */
+            p_check = e;
+        }
+        if (p_size && p_check) {
+            arim_on_event(EV_ARQ_MSG_RCV, 0);
+            snprintf(msg_in.call, sizeof(msg_in.call), "%s", p_name);
+            msg_in.size = atoi(p_size);
+            if (1 != sscanf(p_check, "%x", &msg_in.check))
+                msg_in.check = 0;
+            msg_in_cnt = 0;
+            snprintf(linebuf, sizeof(linebuf),
+                        "ARQ: Message download %s %zu %04X started",
+                           msg_in.call , msg_in.size, msg_in.check);
+            ui_queue_debug_log(linebuf);
+            /* cache any data remaining */
+            if ((cmd + size) > eol) {
+                arim_arq_msg_on_rcv_frame(eol, size - (eol - cmd));
+            }
+        } else {
+            snprintf(linebuf, sizeof(linebuf),
+                "ARQ: Message download %s failed, bad size/checksum parameter", p_name);
+            ui_queue_debug_log(linebuf);
+            snprintf(linebuf, sizeof(linebuf), "/ERROR Bad parameters");
+            arim_arq_send_remote(linebuf);
+            arim_on_event(EV_ARQ_MSG_ERROR, 0);
+        }
+    } else {
+        snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: Message download failed, bad /MPUT callsign");
+        ui_queue_debug_log(linebuf);
+        snprintf(linebuf, sizeof(linebuf), "/ERROR Bad callsign");
+        arim_arq_send_remote(linebuf);
+        arim_on_event(EV_ARQ_MSG_ERROR, 0);
+    }
+    return 1;
+}
+
+int arim_arq_msg_on_ok()
+{
+    char linebuf[MAX_LOG_LINE_SIZE];
+    z_stream zs;
+    char zbuffer[MIN_DATA_BUF_SIZE];
+    int zret;
+
+    if (zoption) {
+        zs.zalloc = Z_NULL;
+        zs.zfree = Z_NULL;
+        zs.opaque = Z_NULL;
+        zs.avail_in = msg_out.size;
+        zs.next_in = (Bytef *)msg_out.data;
+        zs.avail_out = sizeof(zbuffer);
+        zs.next_out = (Bytef *)zbuffer;
+        zret = inflateInit(&zs);
+        if (zret == Z_OK) {
+            zret = inflate(&zs, Z_NO_FLUSH);
+            inflateEnd(&zs);
+            if (zret != Z_STREAM_END) {
+                snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: Unable to save sent message, decompression failed");
+                ui_queue_debug_log(linebuf);
+            } else {
+                memcpy(msg_out.data, zbuffer, zs.total_out);
+                msg_out.size = zs.total_out;
+                msg_out.data[msg_out.size] = '\0';
+                msg_out.check = ccitt_crc16((unsigned char *)msg_out.data, msg_out.size);
+                arim_copy_mycall(linebuf, sizeof(linebuf));
+                /* store message to sent messages mailbox */
+                mbox_add_msg(MBOX_SENTBOX_FNAME,
+                    linebuf, msg_out.call, msg_out.check, msg_out.data);
+            }
+        } else {
+            snprintf(linebuf, sizeof(linebuf),
+                "ARQ: Unable to save sent message, decompression init error");
+            ui_queue_debug_log(linebuf);
+        }
+    }
+    return 1;
+}
+

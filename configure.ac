@@ -1,12 +1,12 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_COPYRIGHT([Copyright (C) 2016, 2017 Robert Cunnings, NW8L])
+AC_COPYRIGHT([Copyright (C) 2016, 2017, 2018 Robert Cunnings, NW8L])
 
 AC_PREREQ([2.69])
-AC_INIT([arim], [1.0], [nw8l@whitemesa.com])
-AC_CONFIG_SRCDIR([ui.c])
-AC_CONFIG_HEADERS([config.h])
+AC_INIT([arim], [1.1], [nw8l@whitemesa.com])
+AC_CONFIG_SRCDIR([src/ui.c])
+AC_CONFIG_HEADERS([src/config.h])
 AC_CANONICAL_TARGET
 AC_SUBST([ARIM_TARGET])
 
@@ -50,12 +50,19 @@ AM_COND_IF([HAVE_ZLIB],
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
+AC_C_INLINE
+AC_C_BIGENDIAN(
+  [little_endian=false], [little_endian=true]
+)
+AM_CONDITIONAL([NATIVE_LITTLE_ENDIAN], [test "x$little_endian" = xtrue])
+AM_COND_IF([NATIVE_LITTLE_ENDIAN],
+    AC_DEFINE([NATIVE_LITTLE_ENDIAN], [1], [little endian target]))
 
 # Checks for library functions.
 AC_FUNC_MKTIME
 AC_CHECK_FUNCS([gettimeofday memmove memset mkdir select socket strcasecmp strncasecmp strstr snprintf])
 
-AM_INIT_AUTOMAKE([-Wall])
+AM_INIT_AUTOMAKE([-Wall, subdir-objects])
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
 

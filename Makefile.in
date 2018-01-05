@@ -91,9 +91,10 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 @PORTABLE_BIN_TRUE@am__append_1 = -DPORTABLE_BIN
+@NATIVE_LITTLE_ENDIAN_TRUE@am__append_2 = -DNATIVE_LITTLE_ENDIAN
 @PORTABLE_BIN_TRUE@exe_PROGRAMS = arim$(EXEEXT)
 @PORTABLE_BIN_FALSE@bin_PROGRAMS = arim$(EXEEXT)
-@PORTABLE_BIN_TRUE@am__append_2 = $(PACKAGE_NAME)
+@PORTABLE_BIN_TRUE@am__append_3 = $(PACKAGE_NAME)
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -104,7 +105,7 @@ DIST_COMMON = $(srcdir)/Makefile.am $(top_srcdir)/configure \
 am__CONFIG_DISTCLEAN_FILES = config.status config.cache config.log \
  configure.lineno config.status.lineno
 mkinstalldirs = $(install_sh) -d
-CONFIG_HEADER = config.h
+CONFIG_HEADER = $(top_builddir)/src/config.h
 CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(exedir)" \
@@ -112,14 +113,26 @@ am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(exedir)" \
 	"$(DESTDIR)$(docsdir)" "$(DESTDIR)$(filesdir)" \
 	"$(DESTDIR)$(topdir)"
 PROGRAMS = $(bin_PROGRAMS) $(exe_PROGRAMS)
-am_arim_OBJECTS = main.$(OBJEXT) arim.$(OBJEXT) arim_arq.$(OBJEXT) \
-	arim_beacon.$(OBJEXT) arim_message.$(OBJEXT) \
-	arim_ping.$(OBJEXT) arim_proto.$(OBJEXT) arim_query.$(OBJEXT) \
-	bufq.$(OBJEXT) cmdproc.$(OBJEXT) cmdthread.$(OBJEXT) \
-	datathread.$(OBJEXT) ini.$(OBJEXT) log.$(OBJEXT) \
-	mbox.$(OBJEXT) ui.$(OBJEXT) ui_dialog.$(OBJEXT) \
-	ui_fec_menu.$(OBJEXT) ui_files.$(OBJEXT) \
-	ui_help_menu.$(OBJEXT) ui_msg.$(OBJEXT) util.$(OBJEXT)
+am__dirstamp = $(am__leading_dot)dirstamp
+am_arim_OBJECTS = src/main.$(OBJEXT) src/arim.$(OBJEXT) \
+	src/arim_arq.$(OBJEXT) src/arim_arq_msg.$(OBJEXT) \
+	src/arim_arq_files.$(OBJEXT) src/arim_beacon.$(OBJEXT) \
+	src/arim_message.$(OBJEXT) src/arim_ping.$(OBJEXT) \
+	src/arim_proto.$(OBJEXT) src/arim_proto_idle.$(OBJEXT) \
+	src/arim_proto_ping.$(OBJEXT) src/arim_proto_msg.$(OBJEXT) \
+	src/arim_proto_query.$(OBJEXT) src/arim_proto_beacon.$(OBJEXT) \
+	src/arim_proto_unproto.$(OBJEXT) \
+	src/arim_proto_frame.$(OBJEXT) \
+	src/arim_proto_arq_conn.$(OBJEXT) \
+	src/arim_proto_arq_file.$(OBJEXT) \
+	src/arim_proto_arq_msg.$(OBJEXT) src/arim_query.$(OBJEXT) \
+	src/bufq.$(OBJEXT) src/cmdproc.$(OBJEXT) \
+	src/cmdthread.$(OBJEXT) src/datathread.$(OBJEXT) \
+	src/ini.$(OBJEXT) src/log.$(OBJEXT) src/mbox.$(OBJEXT) \
+	src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
+	src/ui_fec_menu.$(OBJEXT) src/ui_files.$(OBJEXT) \
+	src/ui_help_menu.$(OBJEXT) src/ui_msg.$(OBJEXT) \
+	src/util.$(OBJEXT)
 arim_OBJECTS = $(am_arim_OBJECTS)
 arim_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
@@ -134,7 +147,7 @@ AM_V_at = $(am__v_at_@AM_V@)
 am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
 am__v_at_1 = 
-DEFAULT_INCLUDES = -I.@am__isrc@
+DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/src
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
 am__mv = mv -f
@@ -189,8 +202,7 @@ man5dir = $(mandir)/man5
 NROFF = nroff
 MANS = $(dist_man_MANS)
 DATA = $(docs_DATA) $(files_DATA) $(top_DATA)
-am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) \
-	$(LISP)config.h.in
+am__tagged_files = $(HEADERS) $(SOURCES) $(TAGS_FILES) $(LISP)
 # Read a list of newline-separated strings from the standard input,
 # and print each of them once, without duplicates.  Input order is
 # *not* preserved.
@@ -212,9 +224,9 @@ CTAGS = ctags
 CSCOPE = cscope
 AM_RECURSIVE_TARGETS = cscope
 am__DIST_COMMON = $(dist_man_MANS) $(srcdir)/Makefile.in \
-	$(srcdir)/config.h.in AUTHORS COPYING ChangeLog INSTALL NEWS \
-	README compile config.guess config.sub depcomp install-sh \
-	missing
+	$(top_srcdir)/src/config.h.in AUTHORS COPYING ChangeLog \
+	INSTALL NEWS README compile config.guess config.sub depcomp \
+	install-sh missing
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 distdir = $(PACKAGE)-$(VERSION)
 top_distdir = $(distdir)
@@ -336,7 +348,8 @@ top_srcdir = @top_srcdir@
 AM_CFLAGS = -Wall -g -DARIM_FILESDIR='"$(datadir)/$(PACKAGE_NAME)"' \
 	-DARIM_DOCDIR='"$(datarootdir)/doc/$(PACKAGE_NAME)"' \
 	-DARIM_NAME='"$(PACKAGE_NAME)"' \
-	-DARIM_VERSION='"$(PACKAGE_VERSION)"' $(am__append_1)
+	-DARIM_VERSION='"$(PACKAGE_VERSION)"' $(am__append_1) \
+	$(am__append_2)
 @PORTABLE_BIN_TRUE@exedir = $(prefix)
 @PORTABLE_BIN_TRUE@topdir = $(prefix)
 @PORTABLE_BIN_TRUE@top_DATA = arim.ini in.mbox out.mbox sent.mbox
@@ -350,33 +363,44 @@ AM_CFLAGS = -Wall -g -DARIM_FILESDIR='"$(datadir)/$(PACKAGE_NAME)"' \
 @PORTABLE_BIN_TRUE@docs_DATA = help/arim-help.pdf NEWS AUTHORS COPYING README
 @PORTABLE_BIN_FALSE@dist_man_MANS = arim.1 arim.5
 EXTRA_DIST = files/test.txt help/arim-help.pdf ChangeLog in.mbox \
-	out.mbox sent.mbox arim.ini $(am__append_2)
+	out.mbox sent.mbox arim.ini $(am__append_3)
 arim_SOURCES = \
-    main.c main.h \
-    arim.c arim.h \
-    arim_arq.c arim_arq.h \
-    arim_beacon.c arim_beacon.h \
-    arim_message.c arim_message.h \
-    arim_ping.c  arim_ping.h \
-    arim_proto.c arim_proto.h \
-    arim_query.c arim_query.h \
-    bufq.c bufq.h \
-    cmdproc.c cmdproc.h \
-    cmdthread.c cmdthread.h \
-    datathread.c datathread.h \
-    ini.c ini.h \
-    log.c log.h \
-    mbox.c mbox.h \
-    ui.c ui.h \
-    ui_dialog.c ui_dialog.h \
-    ui_fec_menu.c ui_fec_menu.h \
-    ui_files.c ui_files.h \
-    ui_help_menu.c ui_help_menu.h \
-    ui_msg.c ui_msg.h \
-    util.c util.h
+    src/main.c src/main.h \
+    src/arim.c src/arim.h \
+    src/arim_arq.c src/arim_arq.h \
+    src/arim_arq_msg.c src/arim_arq_msg.h \
+    src/arim_arq_files.c src/arim_arq_files.h \
+    src/arim_beacon.c src/arim_beacon.h \
+    src/arim_message.c src/arim_message.h \
+    src/arim_ping.c  src/arim_ping.h \
+    src/arim_proto.c src/arim_proto.h \
+    src/arim_proto_idle.c src/arim_proto_idle.h \
+    src/arim_proto_ping.c src/arim_proto_ping.h \
+    src/arim_proto_msg.c src/arim_proto_msg.h \
+    src/arim_proto_query.c src/arim_proto_query.h \
+    src/arim_proto_beacon.c src/arim_proto_beacon.h \
+    src/arim_proto_unproto.c src/arim_proto_unproto.h \
+    src/arim_proto_frame.c src/arim_proto_frame.h \
+    src/arim_proto_arq_conn.c src/arim_proto_arq_conn.h \
+    src/arim_proto_arq_file.c src/arim_proto_arq_file.h \
+    src/arim_proto_arq_msg.c src/arim_proto_arq_msg.h \
+    src/arim_query.c src/arim_query.h \
+    src/bufq.c src/bufq.h \
+    src/cmdproc.c src/cmdproc.h \
+    src/cmdthread.c src/cmdthread.h \
+    src/datathread.c src/datathread.h \
+    src/ini.c src/ini.h \
+    src/log.c src/log.h \
+    src/mbox.c src/mbox.h \
+    src/ui.c src/ui.h \
+    src/ui_dialog.c src/ui_dialog.h \
+    src/ui_fec_menu.c src/ui_fec_menu.h \
+    src/ui_files.c src/ui_files.h \
+    src/ui_help_menu.c src/ui_help_menu.h \
+    src/ui_msg.c src/ui_msg.h \
+    src/util.c src/util.h
 
-all: config.h
-	$(MAKE) $(AM_MAKEFLAGS) all-am
+all: all-am
 
 .SUFFIXES:
 .SUFFIXES: .c .o .obj
@@ -414,20 +438,20 @@ $(ACLOCAL_M4):  $(am__aclocal_m4_deps)
 	$(am__cd) $(srcdir) && $(ACLOCAL) $(ACLOCAL_AMFLAGS)
 $(am__aclocal_m4_deps):
 
-config.h: stamp-h1
-	@test -f $@ || rm -f stamp-h1
-	@test -f $@ || $(MAKE) $(AM_MAKEFLAGS) stamp-h1
+src/config.h: src/stamp-h1
+	@test -f $@ || rm -f src/stamp-h1
+	@test -f $@ || $(MAKE) $(AM_MAKEFLAGS) src/stamp-h1
 
-stamp-h1: $(srcdir)/config.h.in $(top_builddir)/config.status
-	@rm -f stamp-h1
-	cd $(top_builddir) && $(SHELL) ./config.status config.h
-$(srcdir)/config.h.in:  $(am__configure_deps) 
+src/stamp-h1: $(top_srcdir)/src/config.h.in $(top_builddir)/config.status
+	@rm -f src/stamp-h1
+	cd $(top_builddir) && $(SHELL) ./config.status src/config.h
+$(top_srcdir)/src/config.h.in:  $(am__configure_deps) 
 	($(am__cd) $(top_srcdir) && $(AUTOHEADER))
-	rm -f stamp-h1
+	rm -f src/stamp-h1
 	touch $@
 
 distclean-hdr:
-	-rm -f config.h stamp-h1
+	-rm -f src/config.h src/stamp-h1
 install-binPROGRAMS: $(bin_PROGRAMS)
 	@$(NORMAL_INSTALL)
 	@list='$(bin_PROGRAMS)'; test -n "$(bindir)" || list=; \
@@ -512,6 +536,72 @@ uninstall-exePROGRAMS:
 
 clean-exePROGRAMS:
 	-test -z "$(exe_PROGRAMS)" || rm -f $(exe_PROGRAMS)
+src/$(am__dirstamp):
+	@$(MKDIR_P) src
+	@: > src/$(am__dirstamp)
+src/$(DEPDIR)/$(am__dirstamp):
+	@$(MKDIR_P) src/$(DEPDIR)
+	@: > src/$(DEPDIR)/$(am__dirstamp)
+src/main.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/arim.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/arim_arq.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_arq_msg.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_arq_files.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_beacon.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_message.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_ping.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_idle.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_ping.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_msg.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_query.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_beacon.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_unproto.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_frame.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_arq_conn.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_arq_file.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_arq_msg.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_query.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/bufq.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/cmdproc.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/cmdthread.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/datathread.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ini.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/log.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/mbox.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/ui.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/ui_dialog.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_fec_menu.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_files.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_help_menu.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_msg.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/util.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 
 arim$(EXEEXT): $(arim_OBJECTS) $(arim_DEPENDENCIES) $(EXTRA_arim_DEPENDENCIES) 
 	@rm -f arim$(EXEEXT)
@@ -519,43 +609,58 @@ arim$(EXEEXT): $(arim_OBJECTS) $(arim_DEPENDENCIES) $(EXTRA_arim_DEPENDENCIES)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
+	-rm -f src/*.$(OBJEXT)
 
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arim.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arim_arq.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arim_beacon.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arim_message.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arim_ping.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arim_proto.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/arim_query.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/bufq.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cmdproc.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cmdthread.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/datathread.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ini.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/log.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/mbox.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ui.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ui_dialog.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ui_fec_menu.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ui_files.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ui_help_menu.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ui_msg.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/util.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_arq.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_arq_files.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_arq_msg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_beacon.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_message.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_ping.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_conn.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_file.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_msg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_beacon.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_frame.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_idle.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_msg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_ping.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_query.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_unproto.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_query.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/bufq.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/cmdproc.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/cmdthread.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/datathread.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ini.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/log.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/main.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/mbox.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_dialog.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_fec_menu.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_files.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_help_menu.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_msg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/util.Po@am__quote@
 
 .c.o:
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.o$$||'`;\
+@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ $< &&\
+@am__fastdepCC_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ $<
 
 .c.obj:
-@am__fastdepCC_TRUE@	$(AM_V_CC)$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ `$(CYGPATH_W) '$<'`
-@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/$*.Tpo $(DEPDIR)/$*.Po
+@am__fastdepCC_TRUE@	$(AM_V_CC)depbase=`echo $@ | sed 's|[^/]*$$|$(DEPDIR)/&|;s|\.obj$$||'`;\
+@am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $$depbase.Tpo -c -o $@ `$(CYGPATH_W) '$<'` &&\
+@am__fastdepCC_TRUE@	$(am__mv) $$depbase.Tpo $$depbase.Po
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(COMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
@@ -937,7 +1042,7 @@ distcleancheck: distclean
 	       exit 1; } >&2
 check-am: all-am
 check: check-am
-all-am: Makefile $(PROGRAMS) $(MANS) $(DATA) config.h
+all-am: Makefile $(PROGRAMS) $(MANS) $(DATA)
 installdirs:
 	for dir in "$(DESTDIR)$(bindir)" "$(DESTDIR)$(exedir)" "$(DESTDIR)$(man1dir)" "$(DESTDIR)$(man5dir)" "$(DESTDIR)$(docsdir)" "$(DESTDIR)$(filesdir)" "$(DESTDIR)$(topdir)"; do \
 	  test -z "$$dir" || $(MKDIR_P) "$$dir"; \
@@ -968,6 +1073,8 @@ clean-generic:
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
 	-test . = "$(srcdir)" || test -z "$(CONFIG_CLEAN_VPATH_FILES)" || rm -f $(CONFIG_CLEAN_VPATH_FILES)
+	-rm -f src/$(DEPDIR)/$(am__dirstamp)
+	-rm -f src/$(am__dirstamp)
 
 maintainer-clean-generic:
 	@echo "This command is intended for maintainers to use"
@@ -979,7 +1086,7 @@ clean-am: clean-binPROGRAMS clean-exePROGRAMS clean-generic \
 
 distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
-	-rm -rf ./$(DEPDIR)
+	-rm -rf src/$(DEPDIR)
 	-rm -f Makefile
 distclean-am: clean-am distclean-compile distclean-generic \
 	distclean-hdr distclean-tags
@@ -1028,7 +1135,7 @@ installcheck-am:
 maintainer-clean: maintainer-clean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
 	-rm -rf $(top_srcdir)/autom4te.cache
-	-rm -rf ./$(DEPDIR)
+	-rm -rf src/$(DEPDIR)
 	-rm -f Makefile
 maintainer-clean-am: distclean-am maintainer-clean-generic
 
@@ -1051,7 +1158,7 @@ uninstall-am: uninstall-binPROGRAMS uninstall-docsDATA \
 	$(MAKE) $(AM_MAKEFLAGS) uninstall-hook
 uninstall-man: uninstall-man1 uninstall-man5
 
-.MAKE: all install-am install-strip uninstall-am
+.MAKE: install-am install-strip uninstall-am
 
 .PHONY: CTAGS GTAGS TAGS all all-am am--refresh check check-am clean \
 	clean-binPROGRAMS clean-cscope clean-exePROGRAMS clean-generic \
@@ -1080,8 +1187,7 @@ uninstall-man: uninstall-man1 uninstall-man5
 @PORTABLE_BIN_TRUE@uninstall-hook:
 @PORTABLE_BIN_TRUE@	if test -d $(topdir); then rm -rf $(topdir); fi
 @PORTABLE_BIN_TRUE@dist-hook:
-@PORTABLE_BIN_TRUE@	rm -f $(distdir)/*.h
-@PORTABLE_BIN_TRUE@	rm -f $(distdir)/*.c
+@PORTABLE_BIN_TRUE@	rm -rf $(distdir)/src
 @PORTABLE_BIN_TRUE@	rm -f $(distdir)/compile
 @PORTABLE_BIN_TRUE@	rm -f $(distdir)/depcomp
 @PORTABLE_BIN_TRUE@	rm -f $(distdir)/install-sh
