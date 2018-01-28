@@ -42,51 +42,8 @@
 #include "ui_dialog.h"
 #include "log.h"
 #include "util.h"
-
-int ui_check_files_dir(const char *path)
-{
-    char allowed_path[MAX_DIR_PATH_SIZE], test_path[MAX_DIR_PATH_SIZE];
-    int i, wildcard = 0;
-    size_t len;
-
-    snprintf(test_path, sizeof(test_path), "%s", path);
-    /* trim trailing '/' if present */
-    len = strlen(test_path);
-    if (test_path[len - 1] == '/')
-        test_path[len - 1] = '\0';
-    /* iterate over allowed directory paths and check for a match */
-    for (i = 0; i < g_arim_settings.add_files_dir_cnt; i++) {
-        snprintf(allowed_path, sizeof(allowed_path), "%s/%s",
-                g_arim_settings.files_dir, g_arim_settings.add_files_dir[i]);
-        len = strlen(allowed_path);
-        if (len) {
-            /* check for wildcard path spec */
-            if (allowed_path[len - 1] == '*') {
-                if (len > 1 && allowed_path[len - 2] == '/') {
-                    allowed_path[len - 1] = '\0';
-                    --len;
-                    wildcard = 1;
-                } else {
-                    /* bad path spec */
-                    continue;
-                }
-            }
-        } else {
-            continue; /* empty */
-        }
-        if (wildcard) {
-            /* check for match with the stem of the path being tested */
-            if (!strncmp(allowed_path, test_path, len))
-                return 1;
-            /* remove trailing '/' for exact match test that follows */
-            allowed_path[len - 1] = '\0';
-        }
-        /* check for exact match with the path being tested */
-        if (!strcmp(allowed_path, test_path))
-            return 1;
-    }
-    return 0;
-}
+#include "auth.h"
+#include "cmdproc.h"
 
 int ui_send_file(char *msgbuffer, size_t msgbufsize,
                     const char *fn, const char *to_call)
@@ -146,43 +103,50 @@ int ui_get_dyn_file(const char *fn, const char *cmd,
 int ui_get_file(const char *fn, char *filebuf, size_t filebufsize)
 {
     FILE *fp;
-    char fpath[MAX_DIR_PATH_SIZE], dpath[MAX_DIR_PATH_SIZE];
+    struct stat stats;
+    char fpath[MAX_DIR_PATH_SIZE];
     size_t len, cnt = 0, max;
 
+    if (strstr(fn, "..")) {
+        /* prevent directory traversal */
+        snprintf(filebuf, filebufsize, "File: illegal file name.\n");
+        return 0;
+    }
+    snprintf(fpath, sizeof(fpath), "%s", fn);
+    if (strstr(basename(fpath), DEFAULT_DIGEST_FNAME)) {
+        /* deny access to password digest file */
+        snprintf(filebuf, filebufsize, "File: %s not found.\n", fn);
+        return 0;
+    }
     if (atoi(g_arim_settings.max_file_size) <= 0) {
         snprintf(filebuf, filebufsize, "File: file sharing disabled.\n");
         return 0;
     }
-    /* check if access to this dir is allowed */
-    snprintf(fpath, sizeof(fpath), "%s/%s", g_arim_settings.files_dir, fn);
-    snprintf(dpath, sizeof(dpath), "%s", dirname(fpath));
-    if (strcmp(g_arim_settings.files_dir, dpath)) {
-        /* if not the base shared files directory
-           path, check to see if it's allowed */
-        if (!ui_check_files_dir(dpath)) {
-            snprintf(filebuf, filebufsize, "File: %s not found.\n", fn);
-            return 0;
-        }
-    }
     max = atoi(g_arim_settings.max_file_size);
     snprintf(fpath, sizeof(fpath), "%s/%s", g_arim_settings.files_dir, fn);
-    if (strstr(fpath, "..")) {
-        snprintf(filebuf, filebufsize, "File: illegal file name.\n");
-        return 0;
-    }
-    fp = fopen(fpath, "r");
-    if (fp == NULL) {
+    if (stat(fpath, &stats) == 0) {
+        if (!S_ISDIR(stats.st_mode)) {
+            fp = fopen(fpath, "r");
+            if (fp == NULL) {
+                snprintf(filebuf, filebufsize, "File: %s not found.\n", fn);
+                return 0;
+            }
+            snprintf(filebuf, filebufsize, "File: %s\n\n", fn);
+            cnt = strlen(filebuf);
+            if (max > filebufsize - cnt)
+                max = filebufsize - cnt;
+            len = fread(filebuf + cnt, 1, max - 1, fp);
+            cnt += len;
+            fclose(fp);
+            filebuf[cnt] = '\0';
+        } else {
+            snprintf(filebuf, filebufsize, "File: %s is a directory.\n", fn);
+            return 0;
+        }
+    } else {
         snprintf(filebuf, filebufsize, "File: %s not found.\n", fn);
         return 0;
     }
-    snprintf(filebuf, filebufsize, "File: %s\n\n", fn);
-    cnt = strlen(filebuf);
-    if (max > filebufsize - cnt)
-        max = filebufsize - cnt;
-    len = fread(filebuf + cnt, 1, max - 1, fp);
-    cnt += len;
-    fclose(fp);
-    filebuf[cnt] = '\0';
     return 1;
 }
 
@@ -256,6 +220,10 @@ int ui_read_file(const char *fn, int index)
     if (index == -1) /* special case, configuration file */
         snprintf(status, sizeof(status),
                 "Config file: %d lines - use UP, DOWN keys to scroll, 'q' to quit",
+                    max_pad_rows);
+    else if (index == -2) /* special case, password digest file */
+        snprintf(status, sizeof(status),
+                "Password digest file: %d lines - use UP, DOWN keys to scroll, 'q' to quit",
                     max_pad_rows);
     else
         snprintf(status, sizeof(status),
@@ -367,9 +335,14 @@ int ui_get_file_list(const char *basedir, const char *dir,
     /* dir may be null if flist query has no argument */
     if (dir) {
         /* check if access to this dir is allowed */
+        if (strstr(dir, "..")) {
+            /* prevent directory traversal */
+            snprintf(listbuf, listbufsize, "File list: illegal directory name.\n");
+            return 0;
+        }
         snprintf(path, sizeof(path), "%s/%s", basedir, dir);
-        if (!ui_check_files_dir(path)) {
-            snprintf(listbuf, listbufsize, "File list: directory not found.\n");
+        if (!ini_check_add_files_dir(path) && !ini_check_ac_files_dir(path)) {
+            snprintf(listbuf, listbufsize, "File list: directory %s not found.\n", dir);
             return 0;
         }
     } else {
@@ -377,7 +350,7 @@ int ui_get_file_list(const char *basedir, const char *dir,
     }
     dirp = opendir(path);
     if (!dirp) {
-        snprintf(listbuf, listbufsize, "File list: cannot open directory.\n");
+        snprintf(listbuf, listbufsize, "File list: cannot open directory %s.\n", dir);
         return 0;
     }
     if (dir)
@@ -392,7 +365,8 @@ int ui_get_file_list(const char *basedir, const char *dir,
         snprintf(fn, sizeof(fn), "%s/%s", path, dent->d_name);
         if (stat(fn, &stats) == 0) {
             if (!S_ISDIR(stats.st_mode)) {
-                if (stats.st_size <= max_file_size) {
+                /* don't list password digest file */
+                if (!strstr(dent->d_name, DEFAULT_DIGEST_FNAME) && stats.st_size <= max_file_size) {
                     snprintf(linebuf, sizeof(linebuf),
                         "%20s%8jd\n", dent->d_name, (intmax_t)stats.st_size);
                     len = strlen(linebuf);
@@ -402,8 +376,15 @@ int ui_get_file_list(const char *basedir, const char *dir,
                     }
                 }
             } else if (strcmp(dent->d_name, "..") && strcmp(dent->d_name, ".")) {
-                if (ui_check_files_dir(fn)) {
+                if (ini_check_add_files_dir(fn)) {
                     snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "DIR");
+                    len = strlen(linebuf);
+                    if ((cnt + len) < listbufsize) {
+                        strncat(listbuf, linebuf, listbufsize - cnt - 1);
+                        cnt += len;
+                    }
+                } else if (ini_check_ac_files_dir(fn)) {
+                    snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "!DIR");
                     len = strlen(linebuf);
                     if ((cnt + len) < listbufsize) {
                         strncat(listbuf, linebuf, listbufsize - cnt - 1);
@@ -643,13 +624,16 @@ restart:
         snprintf(temp, sizeof(temp), "%s/%s", dpath, dent->d_name);
         if (stat(temp, &stats) == 0) {
             /* calculate max file name length, display line format is:
-               ----- ----------------------- --------- -----------------
-               nbr=5     name (variable)      size=9        time=17
-               ----- ----------------------- --------- -----------------
-               [  1] test.txt                      242 Aug 28 02:35 2017
-               ----- ----------------------- --------- -----------------
+               ----- -----------------------   -    --------- -----------------
+               nbr=5    name (variable)      flag=1   size=9       time=17
+               ----- -----------------------   -    --------- -----------------
+               [  1] test.txt                             242 Aug 28 02:35 2017
+               ----- -----------------------   -    --------- -----------------
+               [  2] admin                     !    DIRECTORY Aug 28 02:35 2017
+               ----- -----------------------   -    --------- -----------------
+               a flag value of '!' indicates an access controlled directory
             */
-            max_len = max_cols - (5 + 1 + 0 + 1 + 9 + 1 + 17) - 1;
+            max_len = max_cols - (5 + 1 + 0 + 1 + 1 + 9 + 1 + 17) - 1;
             snprintf(fn, sizeof(fn), "%s", dent->d_name);
             len = strlen(fn);
             p = temp;
@@ -663,25 +647,25 @@ restart:
             if (S_ISDIR(stats.st_mode)) {
                 if (strcmp(dent->d_name, ".")) {
                     if (strcmp(dent->d_name, "..")) {
-                        snprintf(list[i], max_cols + 1, "D[%3d] %-*s %9s %17s",
-                                 i + 1, max_len, fn, "DIRECTORY",
-                                    util_file_timestamp(stats.st_mtime,
+                        snprintf(list[i], max_cols + 1, "D[%3d] %-*s %c%9s %17s",
+                                 i + 1, max_len, fn, ini_check_ac_files_dir(temp) ? '!' : ' ',
+                                     "DIRECTORY", util_file_timestamp(stats.st_mtime,
                                         timestamp, sizeof(timestamp)));
                         /* store in path list */
                         snprintf(path[i], sizeof(path[0]), "%s/%s", dpath, dent->d_name);
                         ++i;
                     } else if (level) {
                         /* put parent directory at top of listing */
-                        snprintf(list[0], max_cols + 1, "D[%3d] %-*s %9s %17s",
-                                 1, max_len, fn, "DIRECTORY",
-                                    util_file_timestamp(stats.st_mtime,
+                        snprintf(list[0], max_cols + 1, "D[%3d] %-*s %c%9s %17s",
+                                 1, max_len, fn, ini_check_ac_files_dir(temp) ? '!' : ' ',
+                                     "DIRECTORY", util_file_timestamp(stats.st_mtime,
                                         timestamp, sizeof(timestamp)));
                         /* store in path list */
                         snprintf(path[0], sizeof(path[0]), "%s/%s", dpath, dent->d_name);
                     }
                 }
             } else {
-                snprintf(list[i], max_cols + 1, "F[%3d] %-*s %9jd %17s",
+                snprintf(list[i], max_cols + 1, "F[%3d] %-*s  %9jd %17s",
                          i + 1, max_len, fn, (intmax_t)stats.st_size,
                             util_file_timestamp(stats.st_mtime,
                                 timestamp, sizeof(timestamp)));
@@ -733,6 +717,10 @@ restart:
                 if (g_tnc_attached)
                     ui_queue_cmd_out(&linebuf[1]);
                 break;
+            } else if (!strncasecmp(linebuf, "passwd", 4)) {
+                cmdproc_cmd(linebuf);
+            } else if (!strncasecmp(linebuf, "delpass", 4)) {
+                cmdproc_cmd(linebuf);
             } else if (linebuf[0] == 'q') {
                 quit = 1;
             } else {
@@ -797,6 +785,11 @@ restart:
                         ui_print_status("Read file: cannot open configuration file", 1);
                     if (show_recents)
                         ui_refresh_recents();
+                } else if (!strncasecmp(p, "rp", 2)) {
+                    if (!ui_read_file(g_arim_digest_fname, -2))
+                        ui_print_status("Read file: cannot open password file", 1);
+                    if (show_recents)
+                        ui_refresh_recents();
                 } else if (!strncasecmp(p, "sf", 2)) {
                     if (!g_tnc_attached) {
                         ui_print_status("Send file: cannot send, no TNC attached", 1);
@@ -830,7 +823,15 @@ restart:
                                     /* initiate ARQ file upload */
                                     p = path[i] + strlen(g_arim_settings.files_dir) + 1;
                                     snprintf(fn, sizeof(fn), "%s", p);
-                                    arim_arq_files_on_loc_fput(fn, destdir, zoption);
+                                    arim_arq_files_on_client_fput(fn, destdir, zoption);
+                                    /* cache command */
+                                    if (destdir)
+                                        snprintf(msgbuffer, sizeof(msgbuffer), "%s %s > %s",
+                                                 zoption ? "/FPUT -z" : "/FPUT", fn, destdir);
+                                    else
+                                        snprintf(msgbuffer, sizeof(msgbuffer), "%s %s",
+                                                 zoption ? "/FPUT -z" : "/FPUT", fn);
+                                    arim_arq_cache_cmd(msgbuffer);
                                 } else {
                                     ui_print_status("Send file: cannot send, TNC busy", 1);
                                 }

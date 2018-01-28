@@ -1,5 +1,5 @@
 
-.TH "ARIM" 5 "2018-01-01" "ARIM Messaging Program" "arim"
+.TH "ARIM" 5 "2018-01-27" "ARIM Messaging Program" "arim"
 .SH NAME
 arim - related files
 .SH FILES
@@ -100,7 +100,14 @@ add-files-dir = contests/*
 .PP
 This grants full access to the 'contests' directory in the shared files root directory. This exposes not only the files in 'contests', but also the hierarchy of subdirectories rooted there. Subdirectories such as contests/2017 or contests/2017/June are visible, and a remote station may list and download the files they contain.
 .PP
-Max length is 255 characters. NOTE: You may define no more than 16 add-files-dir parameters. Default: None.
+Max length is 255 characters. NOTE: You may define no more than 16 \fIadd-files-dir\fR parameters. Default: None.
+.RE
+.TP
+\fBac-files-dir\fR
+Specifies an access-controlled shared files directory accessible only to remote stations that are \fIauthenticated\fR in an ARQ session. This must be a path relative to the shared files root directory specified by the \fIfiles-dir\fR parameter. File path syntax is the same as for the \fIadd-files-dir\fR parameter.
+.RS
+.PP
+Max length is 255 characters. NOTE: You may define no more than 16 \fIac-files-dir\fR parameters. Default: None.
 .RE
 .TP
 \fBmax-file-size\fR

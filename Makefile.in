@@ -116,23 +116,26 @@ PROGRAMS = $(bin_PROGRAMS) $(exe_PROGRAMS)
 am__dirstamp = $(am__leading_dot)dirstamp
 am_arim_OBJECTS = src/main.$(OBJEXT) src/arim.$(OBJEXT) \
 	src/arim_arq.$(OBJEXT) src/arim_arq_msg.$(OBJEXT) \
-	src/arim_arq_files.$(OBJEXT) src/arim_beacon.$(OBJEXT) \
-	src/arim_message.$(OBJEXT) src/arim_ping.$(OBJEXT) \
-	src/arim_proto.$(OBJEXT) src/arim_proto_idle.$(OBJEXT) \
-	src/arim_proto_ping.$(OBJEXT) src/arim_proto_msg.$(OBJEXT) \
-	src/arim_proto_query.$(OBJEXT) src/arim_proto_beacon.$(OBJEXT) \
+	src/arim_arq_auth.$(OBJEXT) src/arim_arq_files.$(OBJEXT) \
+	src/arim_beacon.$(OBJEXT) src/arim_message.$(OBJEXT) \
+	src/arim_ping.$(OBJEXT) src/arim_proto.$(OBJEXT) \
+	src/arim_proto_idle.$(OBJEXT) src/arim_proto_ping.$(OBJEXT) \
+	src/arim_proto_msg.$(OBJEXT) src/arim_proto_query.$(OBJEXT) \
+	src/arim_proto_beacon.$(OBJEXT) \
 	src/arim_proto_unproto.$(OBJEXT) \
 	src/arim_proto_frame.$(OBJEXT) \
 	src/arim_proto_arq_conn.$(OBJEXT) \
 	src/arim_proto_arq_file.$(OBJEXT) \
-	src/arim_proto_arq_msg.$(OBJEXT) src/arim_query.$(OBJEXT) \
+	src/arim_proto_arq_msg.$(OBJEXT) \
+	src/arim_proto_arq_auth.$(OBJEXT) src/arim_query.$(OBJEXT) \
 	src/bufq.$(OBJEXT) src/cmdproc.$(OBJEXT) \
 	src/cmdthread.$(OBJEXT) src/datathread.$(OBJEXT) \
 	src/ini.$(OBJEXT) src/log.$(OBJEXT) src/mbox.$(OBJEXT) \
 	src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
 	src/ui_fec_menu.$(OBJEXT) src/ui_files.$(OBJEXT) \
 	src/ui_help_menu.$(OBJEXT) src/ui_msg.$(OBJEXT) \
-	src/util.$(OBJEXT)
+	src/util.$(OBJEXT) src/auth.$(OBJEXT) \
+	src/blake2s-ref.$(OBJEXT)
 arim_OBJECTS = $(am_arim_OBJECTS)
 arim_LDADD = $(LDADD)
 AM_V_P = $(am__v_P_@AM_V@)
@@ -369,6 +372,7 @@ arim_SOURCES = \
     src/arim.c src/arim.h \
     src/arim_arq.c src/arim_arq.h \
     src/arim_arq_msg.c src/arim_arq_msg.h \
+    src/arim_arq_auth.c src/arim_arq_auth.h \
     src/arim_arq_files.c src/arim_arq_files.h \
     src/arim_beacon.c src/arim_beacon.h \
     src/arim_message.c src/arim_message.h \
@@ -384,6 +388,7 @@ arim_SOURCES = \
     src/arim_proto_arq_conn.c src/arim_proto_arq_conn.h \
     src/arim_proto_arq_file.c src/arim_proto_arq_file.h \
     src/arim_proto_arq_msg.c src/arim_proto_arq_msg.h \
+    src/arim_proto_arq_auth.c src/arim_proto_arq_auth.h \
     src/arim_query.c src/arim_query.h \
     src/bufq.c src/bufq.h \
     src/cmdproc.c src/cmdproc.h \
@@ -398,7 +403,9 @@ arim_SOURCES = \
     src/ui_files.c src/ui_files.h \
     src/ui_help_menu.c src/ui_help_menu.h \
     src/ui_msg.c src/ui_msg.h \
-    src/util.c src/util.h
+    src/util.c src/util.h \
+    src/auth.c src/auth.h \
+    src/blake2s-ref.c src/blake2.h src/blake2-impl.h
 
 all: all-am
 
@@ -548,6 +555,8 @@ src/arim_arq.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/arim_arq_msg.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_arq_auth.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/arim_arq_files.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/arim_beacon.$(OBJEXT): src/$(am__dirstamp) \
@@ -578,6 +587,8 @@ src/arim_proto_arq_file.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/arim_proto_arq_msg.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/arim_proto_arq_auth.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/arim_query.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/bufq.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
@@ -602,6 +613,9 @@ src/ui_help_menu.$(OBJEXT): src/$(am__dirstamp) \
 src/ui_msg.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/util.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/auth.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
+src/blake2s-ref.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 
 arim$(EXEEXT): $(arim_OBJECTS) $(arim_DEPENDENCIES) $(EXTRA_arim_DEPENDENCIES) 
 	@rm -f arim$(EXEEXT)
@@ -616,12 +630,14 @@ distclean-compile:
 
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_arq.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_arq_auth.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_arq_files.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_arq_msg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_beacon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_message.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_ping.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_auth.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_conn.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_file.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_msg.Po@am__quote@
@@ -633,6 +649,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_query.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_unproto.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_query.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/auth.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/blake2s-ref.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/bufq.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/cmdproc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/cmdthread.Po@am__quote@

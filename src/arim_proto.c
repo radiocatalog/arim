@@ -44,6 +44,7 @@
 #include "arim_proto_arq_conn.h"
 #include "arim_proto_arq_file.h"
 #include "arim_proto_arq_msg.h"
+#include "arim_proto_arq_auth.h"
 
 pthread_mutex_t mutex_arim_state = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_send_repeats = PTHREAD_MUTEX_INITIALIZER;
@@ -108,65 +109,79 @@ const char *states[] = {
     "ST_RCV_ARQ_CONN_PING_ACK_WAIT",    /* 20 */
     "ST_ARQ_CONNECTED",                 /* 21 */
     "ST_ARQ_FILE_SEND_WAIT",            /* 22 */
-    "ST_ARQ_FILE_SEND",                 /* 23 */
-    "ST_ARQ_FILE_RCV_WAIT",             /* 24 */
-    "ST_ARQ_FILE_RCV",                  /* 25 */
-    "ST_ARQ_MSG_RCV",                   /* 26 */
-    "ST_ARQ_MSG_SEND_WAIT",             /* 27 */
-    "ST_ARQ_MSG_SEND",                  /* 28 */
+    "ST_ARQ_FILE_SEND_WAIT_OK",         /* 23 */
+    "ST_ARQ_FILE_SEND",                 /* 24 */
+    "ST_ARQ_FILE_RCV_WAIT_OK",          /* 25 */
+    "ST_ARQ_FILE_RCV_WAIT",             /* 26 */
+    "ST_ARQ_FILE_RCV",                  /* 27 */
+    "ST_ARQ_MSG_RCV",                   /* 28 */
+    "ST_ARQ_MSG_SEND_WAIT",             /* 29 */
+    "ST_ARQ_MSG_SEND",                  /* 30 */
+    "ST_ARQ_AUTH_RCV_A2_WAIT",          /* 31 */
+    "ST_ARQ_AUTH_RCV_A3_WAIT",          /* 32 */
+    "ST_ARQ_AUTH_RCV_A4_WAIT",          /* 33 */
+    "ST_ARQ_AUTH_SEND_A1",              /* 34 */
+    "ST_ARQ_AUTH_SEND_A2",              /* 35 */
+    "ST_ARQ_AUTH_SEND_A3",              /* 36 */
 };
 
 const char *events[] = {
-    "EV_NULL",                   /*  0 */
-    "EV_PERIODIC",               /*  1 */
-    "EV_CANCEL",                 /*  2 */
-    "EV_FRAME_START",            /*  3 */
-    "EV_FRAME_END",              /*  4 */
-    "EV_FRAME_TO",               /*  5 */
-    "EV_SEND_MSG",               /*  6 */
-    "EV_SEND_MSG_PP",            /*  7 */
-    "EV_SEND_NET_MSG",           /*  8 */
-    "EV_RCV_MSG",                /*  9 */
-    "EV_RCV_ACK",                /* 10 */
-    "EV_RCV_NAK",                /* 11 */
-    "EV_RCV_NET_MSG",            /* 12 */
-    "EV_SEND_QRY",               /* 13 */
-    "EV_SEND_QRY_PP",            /* 14 */
-    "EV_RCV_RESP",               /* 15 */
-    "EV_RCV_QRY",                /* 16 */
-    "EV_SEND_BCN",               /* 17 */
-    "EV_SEND_UNPROTO",           /* 18 */
-    "EV_SEND_PING",              /* 19 */
-    "EV_SEND_PING_ACK",          /* 20 */
-    "EV_RCV_PING",               /* 21 */
-    "EV_RCV_PING_ACK",           /* 22 */
-    "EV_TNC_PTT",                /* 23 */
-    "EV_TNC_NEWSTATE",           /* 24 */
-    "EV_ARQ_PENDING",            /* 25 */
-    "EV_ARQ_CAN_PENDING",        /* 26 */
-    "EV_ARQ_CONNECT",            /* 27 */
-    "EV_ARQ_CONNECT_PP",         /* 28 */
-    "EV_ARQ_CONNECTED",          /* 29 */
-    "EV_ARQ_DISCONNECTED",       /* 30 */
-    "EV_ARQ_TARGET",             /* 31 */
-    "EV_ARQ_REJ_BUSY",           /* 32 */
-    "EV_ARQ_REJ_BW",             /* 33 */
-    "EV_ARQ_FILE_SEND",          /* 34 */
-    "EV_ARQ_FILE_SEND_CMD",      /* 35 */
-    "EV_ARQ_FILE_RCV_WAIT",      /* 36 */
-    "EV_ARQ_FILE_RCV",           /* 37 */
-    "EV_ARQ_FILE_RCV_FRAME",     /* 38 */
-    "EV_ARQ_FILE_RCV_DONE",      /* 39 */
-    "EV_ARQ_FILE_ERROR",         /* 40 */
-    "EV_ARQ_FILE_OK",            /* 41 */
-    "EV_ARQ_MSG_RCV",            /* 42 */
-    "EV_ARQ_MSG_RCV_FRAME",      /* 43 */
-    "EV_ARQ_MSG_RCV_DONE",       /* 44 */
-    "EV_ARQ_MSG_ERROR",          /* 45 */
-    "EV_ARQ_MSG_OK",             /* 46 */
-    "EV_ARQ_MSG_SEND_CMD",       /* 47 */
-    "EV_ARQ_MSG_SEND",           /* 48 */
-    "EV_ARQ_CANCEL_WAIT",        /* 49 */
+    "EV_NULL",                          /*  0 */
+    "EV_PERIODIC",                      /*  1 */
+    "EV_CANCEL",                        /*  2 */
+    "EV_FRAME_START",                   /*  3 */
+    "EV_FRAME_END",                     /*  4 */
+    "EV_FRAME_TO",                      /*  5 */
+    "EV_SEND_MSG",                      /*  6 */
+    "EV_SEND_MSG_PP",                   /*  7 */
+    "EV_SEND_NET_MSG",                  /*  8 */
+    "EV_RCV_MSG",                       /*  9 */
+    "EV_RCV_ACK",                       /* 10 */
+    "EV_RCV_NAK",                       /* 11 */
+    "EV_RCV_NET_MSG",                   /* 12 */
+    "EV_SEND_QRY",                      /* 13 */
+    "EV_SEND_QRY_PP",                   /* 14 */
+    "EV_RCV_RESP",                      /* 15 */
+    "EV_RCV_QRY",                       /* 16 */
+    "EV_SEND_BCN",                      /* 17 */
+    "EV_SEND_UNPROTO",                  /* 18 */
+    "EV_SEND_PING",                     /* 19 */
+    "EV_SEND_PING_ACK",                 /* 20 */
+    "EV_RCV_PING",                      /* 21 */
+    "EV_RCV_PING_ACK",                  /* 22 */
+    "EV_TNC_PTT",                       /* 23 */
+    "EV_TNC_NEWSTATE",                  /* 24 */
+    "EV_ARQ_PENDING",                   /* 25 */
+    "EV_ARQ_CAN_PENDING",               /* 26 */
+    "EV_ARQ_CONNECT",                   /* 27 */
+    "EV_ARQ_CONNECT_PP",                /* 28 */
+    "EV_ARQ_CONNECTED",                 /* 29 */
+    "EV_ARQ_DISCONNECTED",              /* 30 */
+    "EV_ARQ_TARGET",                    /* 31 */
+    "EV_ARQ_REJ_BUSY",                  /* 32 */
+    "EV_ARQ_REJ_BW",                    /* 33 */
+    "EV_ARQ_FILE_SEND",                 /* 34 */
+    "EV_ARQ_FILE_SEND_CMD",             /* 35 */
+    "EV_ARQ_FILE_SEND_CMD_CLIENT",      /* 36 */
+    "EV_ARQ_FILE_RCV_WAIT_OK",          /* 37 */
+    "EV_ARQ_FILE_RCV_WAIT",             /* 38 */
+    "EV_ARQ_FILE_RCV",                  /* 39 */
+    "EV_ARQ_FILE_RCV_FRAME",            /* 40 */
+    "EV_ARQ_FILE_RCV_DONE",             /* 41 */
+    "EV_ARQ_FILE_ERROR",                /* 42 */
+    "EV_ARQ_FILE_OK",                   /* 43 */
+    "EV_ARQ_MSG_RCV",                   /* 44 */
+    "EV_ARQ_MSG_RCV_FRAME",             /* 45 */
+    "EV_ARQ_MSG_RCV_DONE",              /* 46 */
+    "EV_ARQ_MSG_ERROR",                 /* 47 */
+    "EV_ARQ_MSG_OK",                    /* 48 */
+    "EV_ARQ_MSG_SEND_CMD",              /* 49 */
+    "EV_ARQ_MSG_SEND",                  /* 50 */
+    "EV_ARQ_CANCEL_WAIT",               /* 51 */
+    "EV_ARQ_AUTH_SEND_CMD",             /* 52 */
+    "EV_ARQ_AUTH_WAIT_CMD",             /* 53 */
+    "EV_ARQ_AUTH_OK",                   /* 54 */
+    "EV_ARQ_AUTH_ERROR",                /* 55 */
 };
 
 void arim_copy_mycall(char *call, size_t size)
@@ -304,13 +319,21 @@ int arim_is_arq_state()
     pthread_mutex_lock(&mutex_arim_state);
     state = arim_state;
     pthread_mutex_unlock(&mutex_arim_state);
-    if (state == ST_ARQ_CONNECTED ||
-        state == ST_ARQ_MSG_RCV ||
-        state == ST_ARQ_MSG_SEND_WAIT ||
-        state == ST_ARQ_MSG_SEND ||
-        state == ST_ARQ_FILE_RCV_WAIT ||
-        state == ST_ARQ_FILE_RCV ||
-        state == ST_ARQ_FILE_SEND_WAIT ||
+    if (state == ST_ARQ_CONNECTED         ||
+        state == ST_ARQ_MSG_RCV           ||
+        state == ST_ARQ_MSG_SEND_WAIT     ||
+        state == ST_ARQ_MSG_SEND          ||
+        state == ST_ARQ_AUTH_SEND_A1      ||
+        state == ST_ARQ_AUTH_SEND_A2      ||
+        state == ST_ARQ_AUTH_SEND_A3      ||
+        state == ST_ARQ_AUTH_RCV_A2_WAIT  ||
+        state == ST_ARQ_AUTH_RCV_A3_WAIT  ||
+        state == ST_ARQ_AUTH_RCV_A4_WAIT  ||
+        state == ST_ARQ_FILE_RCV_WAIT     ||
+        state == ST_ARQ_FILE_RCV_WAIT_OK  ||
+        state == ST_ARQ_FILE_RCV          ||
+        state == ST_ARQ_FILE_SEND_WAIT    ||
+        state == ST_ARQ_FILE_SEND_WAIT_OK ||
         state == ST_ARQ_FILE_SEND) {
             return 1;
     }
@@ -502,8 +525,14 @@ void arim_on_event(int event, int param)
     case ST_ARQ_FILE_SEND_WAIT:
         arim_proto_arq_file_send_wait(event, param);
         break;
+    case ST_ARQ_FILE_SEND_WAIT_OK:
+        arim_proto_arq_file_send_wait_ok(event, param);
+        break;
     case ST_ARQ_FILE_SEND:
         arim_proto_arq_file_send(event, param);
+        break;
+    case ST_ARQ_FILE_RCV_WAIT_OK:
+        arim_proto_arq_file_rcv_wait_ok(event, param);
         break;
     case ST_ARQ_FILE_RCV_WAIT:
         arim_proto_arq_file_rcv_wait(event, param);
@@ -528,6 +557,24 @@ void arim_on_event(int event, int param)
         break;
     case ST_RCV_RESP_WAIT:
         arim_proto_query_resp_wait(event, param);
+        break;
+    case ST_ARQ_AUTH_SEND_A1:
+        arim_proto_arq_auth_send_a1_wait(event, param);
+        break;
+    case ST_ARQ_AUTH_SEND_A2:
+        arim_proto_arq_auth_send_a2_wait(event, param);
+        break;
+    case ST_ARQ_AUTH_SEND_A3:
+        arim_proto_arq_auth_send_a3_wait(event, param);
+        break;
+    case ST_ARQ_AUTH_RCV_A2_WAIT:
+        arim_proto_arq_auth_rcv_a2_wait(event, param);
+        break;
+    case ST_ARQ_AUTH_RCV_A3_WAIT:
+        arim_proto_arq_auth_rcv_a3_wait(event, param);
+        break;
+    case ST_ARQ_AUTH_RCV_A4_WAIT:
+        arim_proto_arq_auth_rcv_a4_wait(event, param);
         break;
     case ST_RCV_FRAME_WAIT:
         arim_proto_frame_rcv_wait(event, param);

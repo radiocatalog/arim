@@ -111,6 +111,12 @@
 #define STATUS_ARQ_MSG_SEND         71
 #define STATUS_ARQ_MSG_SEND_ACK     72
 #define STATUS_ARQ_MSG_SEND_DONE    73
+#define STATUS_ARQ_AUTH_BUSY        74
+#define STATUS_ARQ_AUTH_OK          75
+#define STATUS_ARQ_AUTH_ERROR       76
+#define STATUS_ARQ_EAUTH_LOCAL      77
+#define STATUS_ARQ_EAUTH_REMOTE     78
+#define STATUS_ARQ_RUN_CACHED_CMD   79
 
 extern WINDOW *main_win;
 extern WINDOW *tnc_data_win;

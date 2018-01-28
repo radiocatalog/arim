@@ -30,6 +30,7 @@
 #include "arim_proto.h"
 #include "arim_ping.h"
 #include "arim_arq.h"
+#include "arim_arq_auth.h"
 #include "ini.h"
 #include "mbox.h"
 #include "ui.h"
@@ -277,12 +278,26 @@ void arim_proto_arq_conn_connected(int event, int param)
         prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_FILE_SEND);
         break;
+    case EV_ARQ_FILE_SEND_CMD_CLIENT:
+        /* wait for response from remote station */
+        arim_set_state(ST_ARQ_FILE_SEND_WAIT_OK);
+        ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
+        prev_time = time(NULL);
+        ui_set_status_dirty(STATUS_ARQ_FILE_SEND);
+        break;
     case EV_ARQ_FILE_RCV_WAIT:
-        /* wait for incoming /fput command */
+        /* after outgoing /FGET, wait for incoming /FPUT command */
         arim_set_state(ST_ARQ_FILE_RCV_WAIT);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_FILE_RCV_WAIT);
+        break;
+    case EV_ARQ_FILE_RCV_WAIT_OK:
+        /* after incoming /FPUT, wait for outgoing /OK response */
+        arim_set_state(ST_ARQ_FILE_RCV_WAIT_OK);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
+        ui_set_status_dirty(STATUS_ARQ_FILE_RCV);
         break;
     case EV_ARQ_FILE_RCV:
         /* start receiving file */
@@ -304,6 +319,26 @@ void arim_proto_arq_conn_connected(int event, int param)
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_MSG_RCV);
+        break;
+    case EV_ARQ_AUTH_SEND_CMD:
+        /* start sending auth command */
+        if (param == 1) {
+            arim_set_state(ST_ARQ_AUTH_SEND_A1);
+        } else {
+            /* auth challenge received, send a2 response */
+            arim_arq_auth_on_send_a2();
+            arim_set_state(ST_ARQ_AUTH_SEND_A2);
+        }
+        ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
+        prev_time = time(NULL);
+        ui_set_status_dirty(STATUS_ARQ_AUTH_BUSY);
+        break;
+    case EV_ARQ_AUTH_ERROR:
+        /* remote station can't authenticate this station */
+        arim_arq_auth_on_error();
+        arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        ui_set_status_dirty(STATUS_ARQ_EAUTH_LOCAL);
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */

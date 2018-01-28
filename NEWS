@@ -2,6 +2,297 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.2
+-----------
+* Introduce optional Mutual Authentication feature used to verify
+  the identities of the stations in an ARQ session. This works by
+  making each station prove to the other that it possesses a shared
+  secret (password) known only to the two stations involved. This is
+  done using a Digest Access Authentication scheme very similar to
+  that specified in RFC 2069 [1] with the exception that the MD5 hash
+  function is replaced by the more modern and secure Blake2 [2] hash
+  function. The exchange of proofs is accomplished without sending
+  the password itself over the air. The process is automatic and
+  requires no operator intervention. This feature can be used to:
+    * verify the identity of the station you connect to in ARQ mode.
+    * grant another station access to controlled resources located on
+      your station.
+  --------------------------
+  ARQ session authentication
+  --------------------------
+  Once an ARQ connection is established, the operator can invoke the
+  mutual authentication process manually using the '/auth' command.
+  If it succeeds, the identity of the remote station is proven and
+  the operator can read, upload or download files with confidence. If
+  it fails, because one station or the other doesn't know the shared
+  secret (password), the operator is presented with a warning
+  message and given the choice of either continuing or terminating
+  the ARQ session.
+  ------------------
+  ARQ access-control
+  ------------------
+  Shared files directories at a station can be designated as
+  "access-controlled" with the 'ac-files-dir' parameter in the ARIM
+  configuration file. These resources are available only to stations
+  that successfully authenticate themselves in an ARQ session. By
+  default, the authentication process is triggered automatically on
+  the first attempt by a station to access a controlled resource.
+  However, the operator can issue the '/auth' command pre-emptively
+  to authenticate with the remote station before attempting to access
+  controlled directories and their contents. If mutual authentication
+  is successful, the command is re-sent and subsequent accesses of
+  controlled resources on the remote station proceed normally.
+
+  Note that shared files directories defined by 'add-files-dir'
+  parameters in the ARIM configuration file are not
+  access-controlled. These are accessible to any station in ARQ and
+  FEC mode operations. Likewise, the root shared files directory is
+  always accessible to any station for file listing, uploads and
+  downloads.
+  ----------------------------------------------
+  The authentication challenge/response protocol
+  ----------------------------------------------
+  a. The process begins when the operator at one station (the
+  "client"), connects to another station (the "server") and:
+     * attempts to access a controlled resource for the first time
+  or
+     * sends the '/auth' command
+
+  b. At the server station, ARIM receives the command and recognizes
+  that authentication is required. It searches its password digest
+  file for an entry with the client station's call sign as the
+  "client" and its own call sign as the "server". If it cannot find
+  such an entry, it responds with '/EAUTH' and the operator at the
+  client station is informed that authentication has failed. If ARIM
+  does find such an entry, it responds with an authentiation
+  "challenge" in the form of the '/A1' command. The challenge
+  includes an opaque "nonce", a token whose content it controls and
+  which must be incorporated into the response made by the client
+  station.
+
+  c. At the client station, ARIM receives the '/A1' command. It
+  searches its password digest file for an entry with its own call
+  sign as the "client" and the server station's call sign as the
+  "server". If it cannot find such an entry, it responds with
+  '/EAUTH' and the operator at the client station is informed that
+  authentication has failed. If the needed entry is found, ARIM
+  computes a response token which proves that it knows the shared
+  secret. The response is H(HA1:nonce:HA2) where:
+     H(x) is: the Blake2 hash of an array of data 'x'.
+     HA1 is: H(client_call:server_call:password), the password hash
+        token stored in the password digest file at the client
+        station.
+     nonce is: the token sent by the challenger to influence the
+        response hash value.
+     HA2 is: H(method:path) where 'method' is 'FPUT', 'FGET', 'FLIST'
+        or 'FILE' and 'path' is the directory or file path referenced
+        by the command.
+  Thus the response to each challenge is unique, in a way dependent
+  on the nature of the request and the 'nonce' issued by the
+  challenger. This makes "replay" attacks difficult to mount and
+  recovery of the password from the response computationally
+  infeasible. ARIM sends the response token plus a challenge nonce to
+  the server station in the form of the '/A2' command.
+
+  d. At the server station, ARIM receives the '/A2' command and
+  checks the challenge response token it contains. It does this by
+  computing the response token it expects using the password digest
+  token (HA1) stored in the password digest file it owns. It compares
+  this with the response token received from the client station. If
+  they don't match, then the client station must not have the same
+  password digest that ARIM has stored locally. In this case ARIM
+  will send '/EAUTH' to the client station where the operator will be
+  informed that authentication has failed. If they match, then the
+  client station has proven it's authenticity and ARIM will send a
+  response the the challenge contained in the '/A2' command. As
+  before, this is computed as H(HA1:nonce:HA2), using the challenge
+  nonce received from the client station. ARIM sends this response to
+  the client station in the form of the '/A3' command.
+
+  e. At the client station, ARIM receives the '/A3' command and
+  checks the challenge response token it contains. It does this by
+  computing the response token it expects using the password digest
+  token (HA1) stored in the password digest file it owns. It compares
+  this with with the response token received from the server station.
+  If they don't match, the server station must not have the same
+  password digest that ARIM has stored locally. In this case ARIM
+  will inform the operator that authentication has failed. If they
+  match, then the server station has proven its authenticity and ARIM
+  re-sends the command that triggered the process, unless it was the
+  '/auth' command. In that case there is no work to do so ARIM simply
+  sends the '/OK' response to signal that the mutual authentication
+  is complete.
+  To strike a reasonable balance between security and the "air time"
+  cost of the challenge/response data exchanges, challenge nonces
+  contain 6 bytes of data and the Blake2 response hash is truncated
+  to 21 bytes, or 168 bits (big enough for excellent collision
+  resistance). These are sent in base64 encoded form making the
+  over-the-air sizes 8 and 28 bytes respectively.
+  -------------------
+  Password management
+  -------------------
+  Passwords are created at the ARIM command prompt with the 'passwd'
+  command and stored in digest ("hashed") form in a file. Passwords
+  are hashed with a "salt" (the call signs of the corresponding
+  stations), so that any given password results in unique hash for
+  different call sign pairs. This hash is identical to the 'HA1' term
+  used in the digest authentication scheme, so it can be read out of
+  the password digest file when needed, making it unnecessary to
+  store the original password. Mathematically, the Blake2 hash
+  function is a strong "one way" function; it is computationally
+  infeasible to recover the password from the hash. Because the
+  password hash is stored in a file the authentication process can
+  operate without operator intervention; there's no need to remember
+  and enter the password each time.
+  ---------------------------
+  Note on client/server roles
+  ---------------------------
+  In the context of an ARQ session, the term "client" refers to the
+  station where an operator triggers the authentication process by:
+     a. sending the '/auth' command to the other station
+     b. attempting to access a controlled resource at the other
+        when the ARQ session is not yet authenticated.
+  When this happens the other station assumes the role of "server"
+  and responds with an authentication challenge. These definitions
+  imply that an operator is always present at the client station, but
+  not at the server station, which is assumed to be operating
+  automatically. However, once an ARQ connection is established
+  between two stations, the operator at either end can seize the
+  client role by being the first to trigger the mutual authentication
+  process.
+  For authentication to succeed, the 'passwd' command must be invoked
+  at both stations like this:
+     passwd client_call server_call some-password
+  Let's assume that 'client-call' is KA8RYU, and 'server-call' is
+  NW8L-1. So at each station 'passwd' is invoked like this:
+     passwd KA8RYU NW8L-1 some-password
+  Now KA8RYU can connect to NW8L-1 and successfully authenticate if
+  challenged. However, this doesn't mean that the reverse is true:
+  NW8L-1 can't connect to KA8RYU and do the same. For this to happen
+  the 'passwd' command must be invoked at each station with NW8L-1 as
+  the client:
+     passwd NW8L-1 KA8RYU another-password
+  Now either station can connect to the other and play the role of
+  "client" to the other station's role of "server" in the
+  authentication process.  If we read the password digest file at
+  either station using the 'rp' command in the Shared Files viewer we
+  see something like this:
+     KA8RYU:NW8L-1:SEQo2oa1kOHXcBqRyDrn6wz7f8RDNAzNQAQxS31q
+     NW8L-1:KA8RYU:CnCI11S3AxSzCAtgckzqM4pKrkr+wxWaIGT0E6EU
+  There are two entries, one for KA8RYU as client to NW8L-1 as
+  server, and another for NW8L-1 as client to KA8RYU as server. This
+  allows both one-way and two-way relationships to be defined. For
+  instance, a station serving as a document repository can issue
+  passwords to multiple stations who connect to it as clients and
+  access the controlled files it offers. However, no such password is
+  issued to the repository station by the client stations; it cannot
+  connect to any of them in the client role and authenticate for the
+  purpose of accessing any controlled resources they publish.
+  ----------
+  References
+  ----------
+  [1] https://www.ietf.org/rfc/rfc2069.txt
+  [2] https://www.ietf.org/rfc/rfc7693.txt
+* Add optional 'access control' feature. This allows you to
+  designate shared files directories which are accessible only to
+  authenticated stations in an ARQ session. If an ARQ session is not
+  yet authenticated, the first attempt by an operator to access a
+  controlled directory or file with the '/FPUT', '/FGET', '/FLIST' or
+  '/FILE' commands triggers an authentication challenge from the
+  remote station. If both stations possess the shared secret
+  (password), then the authentication process succeeds and the
+  command is executed. If it fails, the operator is presented with a
+  warning message and given the choice of either continuing or
+  terminating the ARQ session. The authentication process requires no
+  operator intervention because the password is stored in digest
+  ("hashed") form in a file at each station. From that point on,
+  subsequent accesses of controlled directories proceed normally.
+  Use new configuration file parameter 'ac-files-dir' in the [arim]
+  section to specify an access-controlled shared files directory. For
+  example:
+     ac-files-dir = admin
+  or
+     ac-files-dir = admin/*
+  This parameter uses the same syntax as the 'add-files-dir'
+  parameter; see the ARIM Help document for details. The directory
+  path must be relative to the shared files root directory specified
+  by the 'files-dir' parameter. Up to 16 'ac-files-dir' parameters
+  may be defined.
+  -----
+  Note that shared files directories defined by 'add-files-dir'
+  parameters in the ARIM configuration file remain public, and that
+  the root shared files directory is always accessible to any station
+  for file listing, uploads and downloads.
+* Add new command 'passwd'. Use this to create or change a password
+  to allow another station to authenticate itself to your station,
+  or, vice versa, for use by your station to authenticate itself to
+  another station. For example:
+     passwd client_call server_call jabber#wocky
+  The first parameter is the call sign of the "client" station. This
+  is the station whose operator will connect to another station, the
+  "server" station and needs the password to authenticate if
+  challenged.  The second parameter is the call sign of the TNC at
+  the "server" station to which the client station connects. This is
+  the call sign set by the 'mycall' parameter in the corresponding
+  [tnc] section in the arim.ini configuration file at the server
+  station. The third parameter is the password, which may include any
+  printable character, and has a maximum length of 32 characters.
+  -----
+  See the "Note on client/server roles" section above for a
+  discussion of the client/server roles and password setup for
+  different cases.
+  -----
+  The password digest file is named "arim-digest" and is located in
+  the same directory as the arim.ini configuration file. To protect
+  against accidental disclosure of password file contents, any file
+  named 'arim-digest', or variations like 'arim-digest.bak', no
+  matter where located in the file system, are protected against
+  access by a remote station. Avoid easy-to-guess passwords, and
+  never include the call signs of the client or server stations in
+  the password.  While the base64 encoded Blake2 digest (HA1) may
+  look quite random, it contains only as much entropy as the original
+  password, so choose passwords well.
+* Add new command 'delpass'. Use this to delete a password entry
+  from the password file. For example:
+     delpass KA8RYU NW8L-1
+  Like the passwd command, the first parameter is the call sign of
+  the client station and the second is the call sign of the TNC at
+  the server station.
+* Add new command 'rp' to the "List Files" view . Use this to read
+  the "arim-digest" password digest file. Each line has three parts,
+  in this order: the client call sign, the server call sign, and the
+  Blake2 hash of the combination of both call signs and the password.
+  For example:
+     KA8RYU:NW8L-1:IhUyNUJ+J37BV9/dqyjM4sw3bUyDv8v6rFyy0tPx
+  The file is named "arim-digest" and is located in the same
+  directory as the arim.ini configuration file. This is useful for
+  keeping track of passwords you have stored.
+* Add new ARQ command '/auth'. This can be used to immediately
+  authenticate the remote station after you connect.
+* In file listings made with the 'flist' command, access-controlled
+  directories are marked with a '!' (bang) character, like this:
+     [16:16:34] >> [@]              medical    !DIR
+  to indicate that they are accessible only to authenticated stations
+  in an ARQ session. Access controlled directories are also marked
+  with a '!' in the Shared Files viewer:
+     [ 11] admin                      !DIRECTORY Jan 14 02:58 2018
+* Add new indicator '+' to the ARQ status field. If an ARQ session
+  is authenticated, then the '+' character is appended to the call
+  sign of the remote station.
+* Notes on interoperability with older versions of ARIM:
+  a. The ARQ mode file upload protocol (/fput command) in version
+  1.2 is changed slightly and is NOT compatible with previous
+  versions. Otherwise, version 1.2 is interoperable with older
+  versions of ARIM in ARQ mode.
+  b. FEC mode operations are unchanged; version 1.2 is fully
+  interoperable with older versions. Note that the contents of access
+  controlled directories are never accessible to FEC mode commands
+  like 'flist' and 'file'. However, the contents of the root shared
+  files directory and additional shared directories declared with the
+  'add-files-dir' parameter in the configuration file are always
+  accessible.
+* Update man pages, embedded Help and PDF Help file.
+
 Version 1.1
 -----------
 * Fix bug in ARQ mode where incoming commands were not
@@ -70,9 +361,9 @@ Version 0.35
   transfers executed in ARQ mode. Use the '-z' switch to invoke
   this feature as follows:
   - At the command prompt during an ARQ session, add the -z
-    switch to the '/FGET' or '/FPUT' commands:
-       /FGET -z test.txt
-       /FPUT -z test.txt
+    switch to the '/fget' or '/fput' commands:
+       /fget -z test.txt
+       /fput -z test.txt
   - In the message outbox viewer during an ARQ session, add the
     -z switch to the 'sm' command:
        sm -z 5
@@ -263,7 +554,7 @@ Version 0.31
 * New command line option '--config-file' (or '-f') allows you
   to specify an alternate configuration file when invoking arim.
   Use 'arim --help' to print out all command line options.
-* Improve error handling for /file, /FGET and /FPUT commands
+* Improve error handling for /file, /fget and /fput commands
   used in ARQ mode.
 * Bug fixes.
 

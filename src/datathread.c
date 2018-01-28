@@ -241,22 +241,40 @@ void datathread_send_data_out(int sock)
     state = arim_get_state();
     if (arim_test_frame(data, len))
         snprintf(buffer, sizeof(buffer), "<< [%c] %s", data[1], data);
-    else if (state == ST_ARQ_CONNECTED ||
-             state == ST_ARQ_FILE_RCV_WAIT ||
-             state == ST_ARQ_FILE_SEND_WAIT ||
-             state == ST_ARQ_FILE_SEND ||
-             state == ST_ARQ_MSG_SEND_WAIT ||
+    else if (state == ST_ARQ_CONNECTED         ||
+             state == ST_ARQ_FILE_RCV          ||
+             state == ST_ARQ_FILE_RCV_WAIT     ||
+             state == ST_ARQ_FILE_RCV_WAIT_OK  ||
+             state == ST_ARQ_FILE_SEND_WAIT    ||
+             state == ST_ARQ_FILE_SEND_WAIT_OK ||
+             state == ST_ARQ_FILE_SEND         ||
+             state == ST_ARQ_AUTH_SEND_A1      ||
+             state == ST_ARQ_AUTH_SEND_A2      ||
+             state == ST_ARQ_AUTH_SEND_A3      ||
+             state == ST_ARQ_AUTH_RCV_A2_WAIT  ||
+             state == ST_ARQ_AUTH_RCV_A3_WAIT  ||
+             state == ST_ARQ_AUTH_RCV_A4_WAIT  ||
+             state == ST_ARQ_MSG_SEND_WAIT     ||
              state == ST_ARQ_MSG_SEND)
         snprintf(buffer, sizeof(buffer), "<< [@] %s", data);
     else
         snprintf(buffer, sizeof(buffer), "<< [U] %s", data);
     datathread_queue_data_in(buffer);
     datathread_queue_traffic_log(buffer);
-    if (state != ST_ARQ_CONNECTED &&
-        state != ST_ARQ_FILE_RCV_WAIT &&
-        state != ST_ARQ_FILE_SEND_WAIT &&
-        state != ST_ARQ_FILE_SEND &&
-        state != ST_ARQ_MSG_SEND_WAIT &&
+    if (state != ST_ARQ_CONNECTED         &&
+        state != ST_ARQ_FILE_RCV          &&
+        state != ST_ARQ_FILE_RCV_WAIT     &&
+        state != ST_ARQ_FILE_RCV_WAIT_OK  &&
+        state != ST_ARQ_FILE_SEND_WAIT    &&
+        state != ST_ARQ_FILE_SEND_WAIT_OK &&
+        state != ST_ARQ_FILE_SEND         &&
+        state != ST_ARQ_AUTH_SEND_A1      &&
+        state != ST_ARQ_AUTH_SEND_A2      &&
+        state != ST_ARQ_AUTH_SEND_A3      &&
+        state != ST_ARQ_AUTH_RCV_A2_WAIT  &&
+        state != ST_ARQ_AUTH_RCV_A3_WAIT  &&
+        state != ST_ARQ_AUTH_RCV_A4_WAIT  &&
+        state != ST_ARQ_MSG_SEND_WAIT     &&
         state != ST_ARQ_MSG_SEND)
         ui_queue_cmd_out("FECSEND TRUE");
 }
@@ -324,10 +342,18 @@ void datathread_on_arq(char *data, size_t size)
         break;
     case ST_ARQ_CONNECTED:
     case ST_ARQ_FILE_RCV_WAIT:
+    case ST_ARQ_FILE_RCV_WAIT_OK:
     case ST_ARQ_FILE_SEND_WAIT:
+    case ST_ARQ_FILE_SEND_WAIT_OK:
     case ST_ARQ_FILE_SEND:
     case ST_ARQ_MSG_SEND_WAIT:
     case ST_ARQ_MSG_SEND:
+    case ST_ARQ_AUTH_RCV_A2_WAIT:
+    case ST_ARQ_AUTH_RCV_A3_WAIT:
+    case ST_ARQ_AUTH_RCV_A4_WAIT:
+    case ST_ARQ_AUTH_SEND_A1:
+    case ST_ARQ_AUTH_SEND_A2:
+    case ST_ARQ_AUTH_SEND_A3:
         arim_arq_on_data(data, size);
         break;
     default:

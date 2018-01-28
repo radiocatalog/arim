@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <libgen.h>
 #include "main.h"
+#include "ini.h"
 #include "bufq.h"
 #include "arim_proto.h"
 #include "ui.h"
@@ -40,6 +41,7 @@
 #include "zlib.h"
 #include "datathread.h"
 #include "arim_arq.h"
+#include "arim_arq_auth.h"
 
 static int zoption;
 static FILEQUEUEITEM file_in;
@@ -222,6 +224,21 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
         ui_queue_debug_log(linebuf);
         return 0;
     }
+    snprintf(fpath, sizeof(fpath), "%s", fn);
+    if (strstr(basename(fpath), DEFAULT_DIGEST_FNAME)) {
+        /* deny access to password digest file */
+        if (is_local) {
+            ui_show_dialog("\tCannot send file:\n"
+                           "\tpassword file not accessible.\n \n\t[O]k", "oO \n");
+        } else {
+            snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
+            arim_arq_send_remote(linebuf);
+        }
+        snprintf(linebuf, sizeof(linebuf),
+                        "ARQ: File upload %s failed, password digest file not accessible", fn);
+        ui_queue_debug_log(linebuf);
+        return 0;
+    }
     if (!is_local) {
         /* check if access to this dir is allowed */
         snprintf(fpath, sizeof(fpath), "%s/%s", g_arim_settings.files_dir, fn);
@@ -229,7 +246,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
         if (strcmp(g_arim_settings.files_dir, dpath)) {
             /* if not the base shared files directory
                path, check to see if it's allowed */
-            if (!ui_check_files_dir(dpath)) {
+            if (!ini_check_add_files_dir(dpath) && !ini_check_ac_files_dir(dpath)) {
                 snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
                 arim_arq_send_remote(linebuf);
                 snprintf(linebuf, sizeof(linebuf),
@@ -440,7 +457,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
         snprintf(dpath, sizeof(dpath), "%s/%s", g_arim_settings.files_dir, file_in.path);
         snprintf(fpath, sizeof(fpath), "%s/%s", g_arim_settings.files_dir, DEFAULT_DOWNLOAD_DIR);
         if ((strstr(file_in.path, "..") || strstr(file_in.name, "..")) ||
-            (strcmp(dpath, fpath) && !ui_check_files_dir(dpath))) {
+            (strcmp(dpath, fpath) && !ini_check_add_files_dir(dpath) && !ini_check_ac_files_dir(dpath))) {
             snprintf(linebuf, sizeof(linebuf),
                "ARQ: File download %s failed, directory %s not accessible", file_in.name, dpath);
             ui_queue_debug_log(linebuf);
@@ -530,7 +547,8 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
 int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
 {
     char *p_name, *p_path, *s, *e;
-    char linebuf[MAX_LOG_LINE_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
+    char dpath[MAX_DIR_PATH_SIZE], add_file_dir[MAX_DIR_PATH_SIZE];
     int result;
 
     zoption = 0;
@@ -538,6 +556,7 @@ int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
     /* empty outbound data buffer before handling file request */
     while (arim_get_buffer_cnt() > 0)
         sleep(1);
+    /* parse the parameters */
     s = cmd + 6;
     while (*s && *s == ' ')
         ++s;
@@ -585,12 +604,53 @@ int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
             *e = '\0';
             --e;
         }
-        result = arim_arq_files_send_file(p_name, p_path, 0);
-        /* if successful returns 1, otherwise -1 or 0 */
-        if (result == 1)
-            arim_on_event(EV_ARQ_FILE_SEND_CMD, 0);
-        else
-            arim_on_event(EV_ARQ_FILE_ERROR, 0);
+        /* check for directory component in name */
+        snprintf(add_file_dir, sizeof(add_file_dir), "%s", p_name);
+        e = add_file_dir + strlen(add_file_dir);
+        while (e > add_file_dir && *e != '/')
+            --e;
+        *e = '\0';
+        if (e > add_file_dir) {
+            snprintf(dpath, sizeof(dpath), "%s/%s", g_arim_settings.files_dir, add_file_dir);
+            if (!ini_check_ac_files_dir(dpath) && !ini_check_add_files_dir(dpath)) {
+                /* directory not found */
+                snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: File upload %s failed, file not found", p_name);
+                ui_queue_debug_log(linebuf);
+                snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
+                arim_arq_send_remote(linebuf);
+                arim_on_event(EV_ARQ_FILE_ERROR, 0);
+                return 0;
+            }
+            /* check to see if this is an access controlled dir */
+            if (ini_check_ac_files_dir(dpath) && !arim_arq_auth_get_status()) {
+                /* auth required, send /A1 challenge */
+                arim_copy_remote_call(remote_call, sizeof(remote_call));
+                if (arim_arq_auth_on_send_a1(remote_call, "FGET", p_name)) {
+                    arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
+                } else {
+                    /* no access for remote call, send /EAUTH response */
+                    snprintf(linebuf, sizeof(linebuf), "/EAUTH");
+                    arim_arq_send_remote(linebuf);
+                }
+            } else {
+                /* no auth required or session previously authenticated */
+                result = arim_arq_files_send_file(p_name, p_path, 0);
+                /* if successful returns 1, otherwise -1 or 0 */
+                if (result == 1)
+                    arim_on_event(EV_ARQ_FILE_SEND_CMD, 0);
+                else
+                    arim_on_event(EV_ARQ_FILE_ERROR, 0);
+            }
+        } else {
+            /* file located in root shared file dir */
+            result = arim_arq_files_send_file(p_name, p_path, 0);
+            /* if successful returns 1, otherwise -1 or 0 */
+            if (result == 1)
+                arim_on_event(EV_ARQ_FILE_SEND_CMD, 0);
+            else
+                arim_on_event(EV_ARQ_FILE_ERROR, 0);
+        }
     } else {
         snprintf(linebuf, sizeof(linebuf), "ARQ: Bad /FGET file name parameter");
         ui_queue_debug_log(linebuf);
@@ -601,10 +661,11 @@ int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
     return 1;
 }
 
-int arim_arq_files_on_fput(char *cmd, size_t size, char *eol)
+int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
 {
     char *p_check, *p_name, *p_path, *p_size, *s, *e;
-    char linebuf[MAX_LOG_LINE_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
+    char dpath[MAX_DIR_PATH_SIZE];
 
     zoption = 0;
     /* inbound file transfer, get parameters */
@@ -675,7 +736,6 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol)
             --e;
         }
         if (p_size && p_check) {
-            arim_on_event(EV_ARQ_FILE_RCV, 0);
             snprintf(file_in.name, sizeof(file_in.name), "%s", basename(p_name));
             snprintf(file_in.path, sizeof(file_in.path), "%s",
                          p_path ? p_path : DEFAULT_DOWNLOAD_DIR);
@@ -683,13 +743,61 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol)
             if (1 != sscanf(p_check, "%x", &file_in.check))
                 file_in.check = 0;
             file_in_cnt = 0;
-            snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File download %s to %s %zu %04X started",
-                            file_in.name, file_in.path, file_in.size, file_in.check);
-            ui_queue_debug_log(linebuf);
-            /* cache any data remaining */
-            if ((cmd + size) > eol) {
-                arim_arq_files_on_rcv_frame(eol, size - (eol - cmd));
+            if (arq_cs_role == ARQ_SERVER_STN) {
+                if (p_path) {
+                    snprintf(dpath, sizeof(dpath), "%s/%s", g_arim_settings.files_dir, p_path);
+                    if (!ini_check_ac_files_dir(dpath) && !ini_check_add_files_dir(dpath)) {
+                        /* directory not found */
+                        snprintf(linebuf, sizeof(linebuf),
+                            "ARQ: File download %s failed, directory not found", dpath);
+                        ui_queue_debug_log(linebuf);
+                        snprintf(linebuf, sizeof(linebuf), "/ERROR Directory not found");
+                        arim_arq_send_remote(linebuf);
+                        arim_on_event(EV_ARQ_FILE_ERROR, 0);
+                        return 0;
+                    }
+                    /* check to see if this is an access controlled dir */
+                    if (ini_check_ac_files_dir(dpath) && !arim_arq_auth_get_status()) {
+                        /* auth required, send a1 challenge */
+                        arim_copy_remote_call(remote_call, sizeof(remote_call));
+                        if (arim_arq_auth_on_send_a1(remote_call, "FPUT", p_name)) {
+                            arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
+                        } else {
+                            /* no access for remote call, send /EAUTH response */
+                            snprintf(linebuf, sizeof(linebuf), "/EAUTH");
+                            arim_arq_send_remote(linebuf);
+                        }
+                    } else {
+                        /* no auth required or session previously authenticated */
+                        snprintf(linebuf, sizeof(linebuf), "/OK");
+                        arim_arq_send_remote(linebuf);
+                        arim_on_event(EV_ARQ_FILE_RCV_WAIT_OK, 0);
+                        snprintf(linebuf, sizeof(linebuf),
+                                    "ARQ: File download %s to %s %zu %04X sending OK",
+                                        file_in.name, file_in.path, file_in.size, file_in.check);
+                        ui_queue_debug_log(linebuf);
+                    }
+                } else {
+                    /* file located in root shared file dir */
+                    snprintf(linebuf, sizeof(linebuf), "/OK");
+                    arim_arq_send_remote(linebuf);
+                    arim_on_event(EV_ARQ_FILE_RCV_WAIT_OK, 0);
+                    snprintf(linebuf, sizeof(linebuf),
+                                "ARQ: File download %s to %s %zu %04X sending OK",
+                                    file_in.name, file_in.path, file_in.size, file_in.check);
+                    ui_queue_debug_log(linebuf);
+                }
+            } else {
+                /* data arriving next if role is is 'client' */
+                arim_on_event(EV_ARQ_FILE_RCV, 0);
+                snprintf(linebuf, sizeof(linebuf),
+                            "ARQ: File download %s to %s %zu %04X started",
+                                file_in.name, file_in.path, file_in.size, file_in.check);
+                ui_queue_debug_log(linebuf);
+                /* cache any data remaining */
+                if ((cmd + size) > eol) {
+                    arim_arq_files_on_rcv_frame(eol, size - (eol - cmd));
+                }
             }
         } else {
             snprintf(linebuf, sizeof(linebuf),
@@ -710,14 +818,46 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol)
     return 1;
 }
 
-int arim_arq_files_on_loc_fget()
+int arim_arq_files_on_client_fget(const char *cmd, const char *fn, const char *destdir, int use_zoption)
 {
     /* called from cmd processor when user issues /FGET at prompt */
+    char linebuf[MAX_LOG_LINE_SIZE];
+    char fpath[MAX_DIR_PATH_SIZE];
+    char *e, *f;
+    size_t len;
+
+    snprintf(fpath, sizeof(fpath), "%s", fn);
+    /* replace stray '>' characters in file name string */
+    f = strstr(fpath, ">");
+    while (f) {
+        *f = ' ';
+        f = strstr(fpath, ">");
+    }
+    /* trim leading and trailing spaces */
+    f = fpath;
+    while (*f && *f == ' ')
+        ++f;
+    len = strlen(fpath);
+    e = &fpath[len - 1];
+    while (e > f && *e == ' ') {
+        *e = '\0';
+        --e;
+    }
+    if (!strlen(f)) {
+        ui_show_dialog("\tCannot get file:\n"
+                       "\tbad file name or path.\n \n\t[O]k", "oO \n");
+        snprintf(linebuf, sizeof(linebuf),
+                        "ARQ: File download failed, bad file name or path");
+        ui_queue_debug_log(linebuf);
+        return 0;
+    }
+    arim_arq_auth_set_ha2_info("FGET", f);
+    arim_arq_send_remote(cmd);
     arim_on_event(EV_ARQ_FILE_RCV_WAIT, 0);
     return 1;
 }
 
-int arim_arq_files_on_loc_fput(const char *fn, const char *destdir, int use_zoption)
+int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_zoption)
 {
     /* called from cmd processor when user issues /FPUT at prompt */
     char linebuf[MAX_LOG_LINE_SIZE];
@@ -751,6 +891,15 @@ int arim_arq_files_on_loc_fput(const char *fn, const char *destdir, int use_zopt
         ui_queue_debug_log(linebuf);
         return 0;
     }
+    if (strstr(basename(f), DEFAULT_DIGEST_FNAME)) {
+        /* deny access to password digest file */
+        ui_show_dialog("\tCannot send file:\n"
+                       "\tpassword file not accessible.\n \n\t[O]k", "oO \n");
+        snprintf(linebuf, sizeof(linebuf),
+                        "ARQ: File upload failed, password digest file not accessible");
+        ui_queue_debug_log(linebuf);
+        return 0;
+    }
     if (destdir) {
         snprintf(dpath, sizeof(dpath), "%s", destdir);
         /* replace stray '>' characters in destination dir string */
@@ -777,9 +926,57 @@ int arim_arq_files_on_loc_fput(const char *fn, const char *destdir, int use_zopt
     } else {
         d = NULL;
     }
-    if (arim_arq_files_send_file(f, d, 1) == 1)
+    if (arim_arq_files_send_file(f, d, 1) == 1) {
         /* if successful returns 1, otherwise -1 or 0 */
-        arim_on_event(EV_ARQ_FILE_SEND_CMD, 0);
+        arim_arq_auth_set_ha2_info("FPUT", basename(f)); /* base file name only for /FPUT */
+        arim_on_event(EV_ARQ_FILE_SEND_CMD_CLIENT, 0);
+    }
+    return 1;
+}
+
+int arim_arq_files_on_client_file(const char *cmd)
+{
+    char *s, *e;
+    char fpath[MAX_DIR_PATH_SIZE];
+
+    /* called from cmd processor when user issues /FILE at prompt */
+    snprintf(fpath, sizeof(fpath), "%s", cmd);
+    s = fpath + 5;
+    while (*s && *s == ' ')
+        ++s;
+    if (*s) {
+        /* trim trailing spaces */
+        e = s + strlen(s) - 1;
+        while (e > s && *e == ' ') {
+            *e = '\0';
+            --e;
+        }
+    }
+    arim_arq_auth_set_ha2_info("FILE", s);
+    arim_arq_send_remote(cmd);
+    return 1;
+}
+
+int arim_arq_files_on_client_flist(const char *cmd)
+{
+    char *s, *e;
+    char dpath[MAX_DIR_PATH_SIZE];
+
+    /* called from cmd processor when user issues /FLIST at prompt */
+    snprintf(dpath, sizeof(dpath), "%s", cmd);
+    s = dpath + 6;
+    while (*s && *s == ' ')
+        ++s;
+    if (*s) {
+        /* trim trailing spaces */
+        e = s + strlen(s) - 1;
+        while (e > s && *e == ' ') {
+            *e = '\0';
+            --e;
+        }
+    }
+    arim_arq_auth_set_ha2_info("FLIST", s);
+    arim_arq_send_remote(cmd);
     return 1;
 }
 

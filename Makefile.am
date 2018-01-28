@@ -43,6 +43,7 @@ arim_SOURCES = \
     src/arim.c src/arim.h \
     src/arim_arq.c src/arim_arq.h \
     src/arim_arq_msg.c src/arim_arq_msg.h \
+    src/arim_arq_auth.c src/arim_arq_auth.h \
     src/arim_arq_files.c src/arim_arq_files.h \
     src/arim_beacon.c src/arim_beacon.h \
     src/arim_message.c src/arim_message.h \
@@ -58,6 +59,7 @@ arim_SOURCES = \
     src/arim_proto_arq_conn.c src/arim_proto_arq_conn.h \
     src/arim_proto_arq_file.c src/arim_proto_arq_file.h \
     src/arim_proto_arq_msg.c src/arim_proto_arq_msg.h \
+    src/arim_proto_arq_auth.c src/arim_proto_arq_auth.h \
     src/arim_query.c src/arim_query.h \
     src/bufq.c src/bufq.h \
     src/cmdproc.c src/cmdproc.h \
@@ -72,7 +74,9 @@ arim_SOURCES = \
     src/ui_files.c src/ui_files.h \
     src/ui_help_menu.c src/ui_help_menu.h \
     src/ui_msg.c src/ui_msg.h \
-    src/util.c src/util.h
+    src/util.c src/util.h \
+    src/auth.c src/auth.h \
+    src/blake2s-ref.c src/blake2.h src/blake2-impl.h
 
 if PORTABLE_BIN
 uninstall-hook:

@@ -140,6 +140,7 @@ extern int g_num_tnc;
 #define ARIM_DYN_FILES_MAX_CNT       16
 #define ARIM_DYN_FILES_SIZE          128
 #define ARIM_ADD_FILES_DIR_MAX_CNT   16
+#define ARIM_AC_FILES_DIR_MAX_CNT    16
 #define ARIM_FECMODE_DOWN_SIZE       8
 #define ARIM_MAX_MSG_DAYS_SIZE       8
 
@@ -181,6 +182,8 @@ typedef struct arim_set {
     int dyn_files_cnt;
     char add_files_dir[ARIM_ADD_FILES_DIR_MAX_CNT][MAX_DIR_PATH_SIZE];
     int add_files_dir_cnt;
+    char ac_files_dir[ARIM_AC_FILES_DIR_MAX_CNT][MAX_DIR_PATH_SIZE];
+    int ac_files_dir_cnt;
 } ARIM_SET;
 
 extern ARIM_SET g_arim_settings;
@@ -226,6 +229,8 @@ extern int ini_validate_netcall(const char *call);
 extern int ini_validate_gridsq(const char *gridsq);
 extern int ini_validate_name(const char *name);
 extern int ini_validate_arq_bw(const char *val);
+extern int ini_check_add_files_dir(const char *path);
+extern int ini_check_ac_files_dir(const char *path);
 extern char g_arim_path[];
 extern char g_config_fname[];
 extern char g_print_config_fname[];

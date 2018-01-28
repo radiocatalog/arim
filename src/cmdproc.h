@@ -24,6 +24,13 @@
 #ifndef _CMDPROC_H_INCLUDED_
 #define _CMDPROC_H_INCLUDED_
 
+#define CMDPROC_OK            0
+#define CMDPROC_FAIL        (-1)
+#define CMDPROC_FILE_ERR    (-2)
+#define CMDPROC_DIR_ERR     (-3)
+#define CMDPROC_AUTH_REQ    (-4)
+#define CMDPROC_AUTH_ERR    (-5)
+
 extern int cmdproc_cmd(const char *cmd);
 extern int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize);
 

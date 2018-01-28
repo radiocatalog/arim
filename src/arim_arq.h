@@ -24,6 +24,9 @@
 #ifndef _ARIM_ARQ_H_INCLUDED_
 #define _ARIM_ARQ_H_INCLUDED_
 
+#define ARQ_CLIENT_STN  0
+#define ARQ_SERVER_STN  1
+
 extern int arim_arq_send_conn_req(const char *repeats, const char *to_call);
 extern int arim_arq_send_conn_req_ptt(int ptt_true);
 extern int arim_arq_send_conn_req_pp(void);
@@ -36,6 +39,8 @@ extern int arim_arq_on_data(char *data, size_t size);
 extern size_t arim_arq_on_cmd(const char *cmd, size_t size);
 extern size_t arim_arq_on_resp(const char *resp, size_t size);
 extern size_t arim_arq_send_remote(const char *msg);
+extern void arim_arq_cache_cmd(const char *cmd);
+extern void arim_arq_run_cached_cmd(void);
 
 #endif
 

@@ -25,10 +25,12 @@
 #define _ARIM_ARQ_FILES_H_INCLUDED_
 
 extern int arim_arq_files_on_send_cmd(void);
-extern int arim_arq_files_on_fput(char *cmd, size_t size, char *eol);
+extern int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role);
 extern int arim_arq_files_on_fget(char *cmd, size_t size, char *eol);
-extern int arim_arq_files_on_loc_fget(void);
-extern int arim_arq_files_on_loc_fput(const char *fn, const char *destdir, int use_zoption);
+extern int arim_arq_files_on_client_fget(const char *cmd, const char *fn, const char *destdir, int use_zoption);
+extern int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_zoption);
+extern int arim_arq_files_on_client_flist(const char *cmd);
+extern int arim_arq_files_on_client_file(const char *cmd);
 extern int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local);
 extern size_t arim_arq_files_on_send_buffer(size_t size);
 extern int arim_arq_files_on_rcv_frame(const char *data, size_t size);

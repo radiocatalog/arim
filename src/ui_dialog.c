@@ -24,11 +24,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <string.h>
 #include <curses.h>
 #include "main.h"
 #include "ui.h"
 #include "arim_proto.h"
+#include "auth.h"
 
 #define MAX_DIALOG_PROMPT_SIZE 512
 
@@ -135,5 +137,4 @@ int ui_show_dialog(const char *prompt, char *wanted_keys)
     dialog_win = NULL;
     return cmd;
 }
-
 

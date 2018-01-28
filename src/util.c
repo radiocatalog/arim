@@ -30,6 +30,7 @@
 #include "main.h"
 #include "ini.h"
 #include "util.h"
+#include "blake2.h"
 
 const char *days[] = {
     "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",

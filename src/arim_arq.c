@@ -33,10 +33,13 @@
 #include "ui.h"
 #include "util.h"
 #include "log.h"
+#include "arim_arq.h"
 #include "arim_arq_files.h"
 #include "arim_arq_msg.h"
+#include "arim_arq_auth.h"
 
 static int arq_rpts, arq_count, arq_cmd_size;
+static char cached_cmd[MAX_CMD_SIZE];
 
 int arim_arq_send_conn_req(const char *repeats, const char *to_call)
 {
@@ -155,8 +158,7 @@ int arim_arq_on_connected()
         arim_copy_mycall(target_call, sizeof(target_call));
     arim_copy_remote_call(remote_call, sizeof(remote_call));
     snprintf(buffer, sizeof(buffer),
-                ">> [@] %s>%s (Connected)",
-                remote_call, target_call);
+                ">> [@] %s>%s (Connected)", remote_call, target_call);
     ui_queue_traffic_log(buffer);
     if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
         snprintf(buffer, sizeof(buffer),
@@ -168,6 +170,7 @@ int arim_arq_on_connected()
     ui_queue_heard(buffer);
     show_recents = show_ptable = 0; /* close recents or ping history view if open */
     arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
     return 1;
 }
 
@@ -211,6 +214,7 @@ int arim_arq_on_disconnected()
     snprintf(buffer, sizeof(buffer), "7[@] %-10s ", remote_call);
     ui_queue_heard(buffer);
     arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
     return 1;
 }
 
@@ -236,6 +240,7 @@ int arim_arq_on_conn_timeout()
     }
     ui_queue_data_in(buffer);
     arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
     return 1;
 }
 
@@ -297,88 +302,206 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             /* remote station sends a file. If in a wait state already,
                abandon that transaction and respond to the /fput to avoid
                deadlock when commands are issued by both parties simultaneously */
-            if (state == ST_ARQ_FILE_SEND_WAIT || state == ST_ARQ_MSG_SEND_WAIT) {
+            switch (state) {
+            case ST_ARQ_FILE_SEND_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_AUTH_RCV_A2_WAIT:
+            case ST_ARQ_AUTH_RCV_A3_WAIT:
+            case ST_ARQ_MSG_SEND_WAIT:
                 arim_on_event(EV_ARQ_CANCEL_WAIT, 0);
                 state = arim_get_state();
+                break;
             }
-            if (state == ST_ARQ_CONNECTED || state == ST_ARQ_FILE_RCV_WAIT)
-                arim_arq_files_on_fput(cmdbuf, size, eol);
+            switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* /FPUT implies remote stn accepted our /A3, auth successful */
+                arim_arq_auth_on_ok();
+                /* fallthrough intentional */
+            case ST_ARQ_CONNECTED:
+                arim_arq_files_on_fput(cmdbuf, size, eol, ARQ_SERVER_STN);
+                break;
+            case ST_ARQ_FILE_RCV_WAIT:
+                arim_arq_files_on_fput(cmdbuf, size, eol, ARQ_CLIENT_STN);
+                break;
+            }
         } else if (!strncasecmp(cmdbuf, "/FGET ", 6)) {
             /* remote station requests a file. If in a wait state already,
                abandon that transaction and respond to the /fget to avoid
                deadlock when commands are issued by both parties simultaneously */
-            if (state == ST_ARQ_FILE_SEND_WAIT ||
-                state == ST_ARQ_FILE_RCV_WAIT ||
-                state == ST_ARQ_MSG_SEND_WAIT) {
+            switch (state) {
+            case ST_ARQ_FILE_SEND_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FILE_RCV_WAIT:
+            case ST_ARQ_FILE_RCV_WAIT_OK:
+            case ST_ARQ_AUTH_RCV_A2_WAIT:
+            case ST_ARQ_AUTH_RCV_A3_WAIT:
+            case ST_ARQ_MSG_SEND_WAIT:
                 arim_on_event(EV_ARQ_CANCEL_WAIT, 0);
                 state = arim_get_state();
+                break;
             }
-            if (state == ST_ARQ_CONNECTED)
+            switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* /FGET implies remote stn accepted our /A3, auth successful */
+                arim_arq_auth_on_ok();
+                /* fallthrough intentional */
+            case ST_ARQ_CONNECTED:
                 arim_arq_files_on_fget(cmdbuf, size, eol);
+                break;
+            }
         } else if (!strncasecmp(cmdbuf, "/MPUT ", 6)) {
             /* remote station sends a message. If in a wait state already,
                abandon that transaction and respond to the /mput to avoid
                deadlock when commands are issued by both parties simultaneously */
-            if (state == ST_ARQ_FILE_SEND_WAIT ||
-                state == ST_ARQ_FILE_RCV_WAIT ||
-                state == ST_ARQ_MSG_SEND_WAIT) {
+            switch (state) {
+            case ST_ARQ_FILE_SEND_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FILE_RCV_WAIT:
+            case ST_ARQ_FILE_RCV_WAIT_OK:
+            case ST_ARQ_AUTH_RCV_A2_WAIT:
+            case ST_ARQ_AUTH_RCV_A3_WAIT:
+            case ST_ARQ_MSG_SEND_WAIT:
                 arim_on_event(EV_ARQ_CANCEL_WAIT, 0);
                 state = arim_get_state();
+                break;
             }
-            if (state == ST_ARQ_CONNECTED)
+            switch (state) {
+            case ST_ARQ_CONNECTED:
                 arim_arq_msg_on_mput(cmdbuf, size, eol);
-        } else if (!strncasecmp(cmdbuf, "/ERROR ", 7)) {
-            if (state == ST_ARQ_FILE_RCV_WAIT ||
-                state == ST_ARQ_FILE_RCV ||
-                state == ST_ARQ_FILE_SEND) {
-                arim_on_event(EV_ARQ_FILE_ERROR, 0);
-            } else if (state == ST_ARQ_MSG_RCV ||
-                       state == ST_ARQ_MSG_SEND) {
-                arim_on_event(EV_ARQ_MSG_ERROR, 0);
+                break;
             }
-        } else if (!strncasecmp(cmdbuf, "/OK ", 4)) {
-            if (state == ST_ARQ_FILE_SEND) {
+        } else if (!strncasecmp(cmdbuf, "/A1", 3)) {
+            /* remote station sends a authentication challenge. This can only be
+               in response to a command recently sent by the local station which
+               references a authenticated file directory at the remote station. */
+            switch (state) {
+            case ST_ARQ_CONNECTED:
+            case ST_ARQ_FILE_RCV_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+                arim_arq_auth_on_a1(cmdbuf, size, eol);
+                break;
+            }
+        } else if (!strncasecmp(cmdbuf, "/A2", 3)) {
+            /* remote station sends a response to an /A1 authentication challenge
+               recently send by the local station. This response is itself a challenge
+               and it includes a nonce. */
+            if (state == ST_ARQ_AUTH_RCV_A2_WAIT)
+                arim_arq_auth_on_a2(cmdbuf, size, eol);
+        } else if (!strncasecmp(cmdbuf, "/A3", 3)) {
+            /* remote station sends a response to an /A2 authentication challenge
+               recently send by the local station. */
+            if (state == ST_ARQ_AUTH_RCV_A3_WAIT)
+                arim_arq_auth_on_a3(cmdbuf, size, eol);
+        } else if (!strncasecmp(cmdbuf, "/AUTH", 5)) {
+            /* remote station requests that we send an /A1 authentication challenge */
+            if (state == ST_ARQ_CONNECTED)
+                arim_arq_auth_on_challenge(cmdbuf, size, eol);
+        } else if (!strncasecmp(cmdbuf, "/ERROR", 6)) {
+            switch (state) {
+            case ST_ARQ_FILE_RCV:
+            case ST_ARQ_FILE_RCV_WAIT:
+            case ST_ARQ_FILE_SEND:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+                arim_on_event(EV_ARQ_FILE_ERROR, 0);
+                break;
+            case ST_ARQ_MSG_RCV:
+            case ST_ARQ_MSG_SEND:
+                arim_on_event(EV_ARQ_MSG_ERROR, 0);
+                break;
+            }
+        } else if (!strncasecmp(cmdbuf, "/EAUTH", 6)) {
+            switch (state) {
+            case ST_ARQ_FILE_RCV_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_AUTH_RCV_A2_WAIT:
+            case ST_ARQ_AUTH_RCV_A3_WAIT:
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+            case ST_ARQ_CONNECTED:
+                arim_on_event(EV_ARQ_AUTH_ERROR, 0);
+                break;
+            }
+        } else if (!strncasecmp(cmdbuf, "/OK", 3)) {
+            switch (state) {
+            case ST_ARQ_FILE_SEND:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
                 arim_on_event(EV_ARQ_FILE_OK, 0);
-            } else if (state == ST_ARQ_MSG_SEND) {
+                break;
+            case ST_ARQ_MSG_SEND:
                 arim_on_event(EV_ARQ_MSG_OK, 0);
                 arim_arq_msg_on_ok();
+                break;
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
+                break;
             }
-        } else if (state == ST_ARQ_CONNECTED) {
-            /* empty outbound data buffer before handling query or command */
-            while (arim_get_buffer_cnt() > 0)
-                sleep(1);
-            /* execute query or command, skip leading '/' character */
-            result = cmdproc_query(cmdbuf + 1, respbuf, sizeof(respbuf));
-            if (result == 1) {
-                /* success, append response to data out buffer */
-                size = strlen(respbuf);
-                if ((cnt + size) >= sizeof(buffer)) {
-                    /* overflow, reset buffer and return */
+        } else {
+            switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* receipt of cmd implies remote stn accepted our /A3, auth successful */
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
+                /* fallthrough intentional */
+            case ST_ARQ_CONNECTED:
+                /* empty outbound data buffer before handling query or command */
+                while (arim_get_buffer_cnt() > 0)
+                    sleep(1);
+                /* execute query or command, skip leading '/' character */
+                result = cmdproc_query(cmdbuf + 1, respbuf, sizeof(respbuf));
+                if (result == CMDPROC_OK) {
+                    /* success, append response to data out buffer */
+                    size = strlen(respbuf);
+                    if ((cnt + size) >= sizeof(buffer)) {
+                        /* overflow, reset buffer and return */
+                        cnt = 0;
+                        return cnt;
+                    }
+                    strncat(&buffer[cnt], respbuf, size);
+                    cnt += size;
+                } else if (result == CMDPROC_FILE_ERR) {
+                    /* file access error */
+                    size = strlen("/ERROR File not found");
+                    if ((cnt + size) >= sizeof(buffer)) {
+                        /* overflow, reset buffer and return */
+                        cnt = 0;
+                        return cnt;
+                    }
+                    strncat(&buffer[cnt], "/ERROR File not found", size);
+                    cnt += size;
+                } else if (result == CMDPROC_DIR_ERR) {
+                    /* directory access error */
+                    size = strlen("/ERROR Directory not found");
+                    if ((cnt + size) >= sizeof(buffer)) {
+                        /* overflow, reset buffer and return */
+                        cnt = 0;
+                        return cnt;
+                    }
+                    strncat(&buffer[cnt], "/ERROR Directory not found", size);
+                    cnt += size;
+                } else if (result == CMDPROC_AUTH_REQ) {
+                    /* authentication required */
                     cnt = 0;
                     return cnt;
+                } else if (result == CMDPROC_AUTH_ERR) {
+                    /* authentication error */
+                    size = strlen("/EAUTH");
+                    if ((cnt + size) >= sizeof(buffer)) {
+                        /* overflow, reset buffer and return */
+                        cnt = 0;
+                        return cnt;
+                    }
+                    strncat(&buffer[cnt], "/EAUTH", size);
+                    cnt += size;
+                } else {
+                    /* no such query defined */
+                    size = strlen("/ERROR Unknown query");
+                    if ((cnt + size) >= sizeof(buffer)) {
+                        /* overflow, reset buffer and return */
+                        cnt = 0;
+                        return cnt;
+                    }
+                    strncat(&buffer[cnt], "/ERROR Unknown query", size);
+                    cnt += size;
                 }
-                strncat(&buffer[cnt], respbuf, size);
-                cnt += size;
-            } else if (result == -1) {
-                /* file access error */
-                size = strlen("/ERROR File not found");
-                if ((cnt + size) >= sizeof(buffer)) {
-                    /* overflow, reset buffer and return */
-                    cnt = 0;
-                    return cnt;
-                }
-                strncat(&buffer[cnt], "/ERROR File not found", size);
-                cnt += size;
-            } else {
-                /* no such query defined */
-                size = strlen("/ERROR Unknown query");
-                if ((cnt + size) >= sizeof(buffer)) {
-                    /* overflow, reset buffer and return */
-                    cnt = 0;
-                    return cnt;
-                }
-                strncat(&buffer[cnt], "/ERROR Unknown query", size);
-                cnt += size;
+                break;
             }
         }
      } else if (cnt) {
@@ -452,7 +575,7 @@ size_t arim_arq_on_resp(const char *resp, size_t size)
 int arim_arq_on_data(char *data, size_t size)
 {
     /* called by datathread */
-    static char cmdbuffer[MAX_CMD_SIZE*2];
+    static char cmdbuffer[MAX_CMD_SIZE+2];
     char *s, *e, linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
 
     arim_copy_remote_call(remote_call, sizeof(remote_call));
@@ -508,5 +631,24 @@ int arim_arq_on_data(char *data, size_t size)
         arim_arq_on_resp(data, size);
     }
     return 1;
+}
+
+void arim_arq_run_cached_cmd()
+{
+    char cmdbuffer[MAX_CMD_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+
+    snprintf(cmdbuffer, sizeof(cmdbuffer), "%s", cached_cmd);
+    cmdproc_cmd(cmdbuffer);
+    snprintf(linebuf, sizeof(linebuf), "ARQ: Running cached command '%s'", cached_cmd);
+    ui_queue_debug_log(linebuf);
+}
+
+void arim_arq_cache_cmd(const char *cmd)
+{
+    char linebuf[MAX_LOG_LINE_SIZE];
+
+    snprintf(cached_cmd, sizeof(cached_cmd), "%s", cmd);
+    snprintf(linebuf, sizeof(linebuf), "ARQ: Caching command '%s'", cached_cmd);
+    ui_queue_debug_log(linebuf);
 }
 

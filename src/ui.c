@@ -34,6 +34,7 @@
 #include "arim_message.h"
 #include "arim_query.h"
 #include "arim_arq.h"
+#include "arim_arq_auth.h"
 #include "bufq.h"
 #include "cmdproc.h"
 #include "ini.h"
@@ -667,21 +668,26 @@ void ui_print_status_ind()
         case ST_ARQ_MSG_RCV:
         case ST_ARQ_MSG_SEND_WAIT:
         case ST_ARQ_MSG_SEND:
+        case ST_ARQ_FILE_RCV_WAIT_OK:
         case ST_ARQ_FILE_RCV_WAIT:
         case ST_ARQ_FILE_RCV:
         case ST_ARQ_FILE_SEND_WAIT:
+        case ST_ARQ_FILE_SEND_WAIT_OK:
         case ST_ARQ_FILE_SEND:
+        case ST_ARQ_AUTH_RCV_A2_WAIT:
+        case ST_ARQ_AUTH_RCV_A3_WAIT:
+        case ST_ARQ_AUTH_RCV_A4_WAIT:
+        case ST_ARQ_AUTH_SEND_A1:
+        case ST_ARQ_AUTH_SEND_A2:
+        case ST_ARQ_AUTH_SEND_A3:
             arim_copy_remote_call(remote_call, sizeof(remote_call));
             arim_copy_tnc_state(tnc_state, sizeof(tnc_state));
             arim_copy_arq_bw_hz(bw_hz, sizeof(bw_hz));
             if (!strncasecmp(tnc_state, "IRStoISS", 8))
                 tnc_state[3] = '\0';
-            if (state == ST_ARQ_CONNECTED)
-                snprintf(ind, sizeof(ind), "   ARQ:%s %s S:%-4.4s",
-                    remote_call, bw_hz, tnc_state);
-            else
-                snprintf(ind, sizeof(ind), " ! ARQ:%s %s S:%-4.4s",
-                    remote_call, bw_hz, tnc_state);
+             snprintf(ind, sizeof(ind),  " %c ARQ:%s%s %s S:%-4.4s",
+                 (state == ST_ARQ_CONNECTED ? ' ' : '!'), remote_call,
+                     (arim_arq_auth_get_status() ? "+" : ""), bw_hz, tnc_state);
             break;
         default:
             idle_busy = (state == ST_IDLE) ? 'I' : 'B';
@@ -1073,6 +1079,39 @@ void ui_check_status_dirty()
         break;
     case STATUS_ARQ_MSG_SEND_DONE:
         ui_print_status("ARIM Idle: ARQ message upload complete", 1);
+        break;
+    case STATUS_ARQ_AUTH_BUSY:
+        ui_print_status("ARIM Busy: ARQ session authentication in progress", 1);
+        break;
+    case STATUS_ARQ_AUTH_ERROR:
+        ui_print_status("ARIM Idle: ARQ session authentication failed", 1);
+        break;
+    case STATUS_ARQ_EAUTH_REMOTE:
+        ui_print_status("ARIM Idle: ARQ session authentication failed", 1);
+        ui_set_status_dirty(0); /* must clear flag before opening modal dialog */
+        cmd = ui_show_dialog("\tThis station cannot authenticate\n\tthe remote station!\n"
+                             "\tDo you want to disconnect now?\n \n\t[Y]es   [N]o", "yYnN");
+        if (cmd == 'y' || cmd == 'Y') {
+            arim_arq_send_disconn_req();
+            ui_print_status("Disconnecting...", 1);
+        }
+        break;
+    case STATUS_ARQ_EAUTH_LOCAL:
+        ui_print_status("ARIM Idle: ARQ session authentication failed", 1);
+        ui_set_status_dirty(0); /* must clear flag before opening modal dialog */
+        cmd = ui_show_dialog("\tRemote station cannot authenticate\n\tthis station!\n"
+                             "\tDo you want to disconnect now?\n \n\t[Y]es   [N]o", "yYnN");
+        if (cmd == 'y' || cmd == 'Y') {
+            arim_arq_send_disconn_req();
+            ui_print_status("Disconnecting...", 1);
+        }
+        break;
+    case STATUS_ARQ_AUTH_OK:
+        ui_print_status("ARIM Idle: ARQ session authenticated", 1);
+        break;
+    case STATUS_ARQ_RUN_CACHED_CMD:
+        ui_print_status("ARIM Busy: ARQ session authenticated", 1);
+        arim_arq_run_cached_cmd();
         break;
     }
     ui_set_status_dirty(0);

@@ -302,6 +302,102 @@ char *ini_get_value(const char *key, char *line)
     return NULL;
 }
 
+int ini_check_add_files_dir(const char *path)
+{
+    char allowed_path[MAX_DIR_PATH_SIZE], test_path[MAX_DIR_PATH_SIZE];
+    int i, wildcard = 0;
+    size_t len;
+
+    snprintf(test_path, sizeof(test_path), "%s", path);
+    /* don't allow directory traversal */
+    if (strstr(test_path, ".."))
+        return 0;
+    /* trim trailing '/' if present */
+    len = strlen(test_path);
+    if (test_path[len - 1] == '/')
+        test_path[len - 1] = '\0';
+    /* iterate over allowed directory paths and check for a match */
+    for (i = 0; i < g_arim_settings.add_files_dir_cnt; i++) {
+        snprintf(allowed_path, sizeof(allowed_path), "%s/%s",
+                g_arim_settings.files_dir, g_arim_settings.add_files_dir[i]);
+        len = strlen(allowed_path);
+        if (len) {
+            /* check for wildcard path spec */
+            if (allowed_path[len - 1] == '*') {
+                if (len > 1 && allowed_path[len - 2] == '/') {
+                    allowed_path[len - 1] = '\0';
+                    --len;
+                    wildcard = 1;
+                } else {
+                    /* bad path spec */
+                    continue;
+                }
+            }
+        } else {
+            continue; /* empty */
+        }
+        if (wildcard) {
+            /* check for match with the stem of the path being tested */
+            if (!strncmp(allowed_path, test_path, len))
+                return 1;
+            /* remove trailing '/' for exact match test that follows */
+            allowed_path[len - 1] = '\0';
+        }
+        /* check for exact match with the path being tested */
+        if (!strcmp(allowed_path, test_path))
+            return 1;
+    }
+    return 0;
+}
+
+int ini_check_ac_files_dir(const char *path)
+{
+    char allowed_path[MAX_DIR_PATH_SIZE], test_path[MAX_DIR_PATH_SIZE];
+    int i, wildcard = 0;
+    size_t len;
+
+    snprintf(test_path, sizeof(test_path), "%s", path);
+    /* don't allow directory traversal */
+    if (strstr(test_path, ".."))
+        return 0;
+    /* trim trailing '/' if present */
+    len = strlen(test_path);
+    if (test_path[len - 1] == '/')
+        test_path[len - 1] = '\0';
+    /* iterate over allowed directory paths and check for a match */
+    for (i = 0; i < g_arim_settings.ac_files_dir_cnt; i++) {
+        snprintf(allowed_path, sizeof(allowed_path), "%s/%s",
+                g_arim_settings.files_dir, g_arim_settings.ac_files_dir[i]);
+        len = strlen(allowed_path);
+        if (len) {
+            /* check for wildcard path spec */
+            if (allowed_path[len - 1] == '*') {
+                if (len > 1 && allowed_path[len - 2] == '/') {
+                    allowed_path[len - 1] = '\0';
+                    --len;
+                    wildcard = 1;
+                } else {
+                    /* bad path spec */
+                    continue;
+                }
+            }
+        } else {
+            continue; /* empty */
+        }
+        if (wildcard) {
+            /* check for match with the stem of the path being tested */
+            if (!strncmp(allowed_path, test_path, len))
+                return 1;
+            /* remove trailing '/' for exact match test that follows */
+            allowed_path[len - 1] = '\0';
+        }
+        /* check for exact match with the path being tested */
+        if (!strcmp(allowed_path, test_path))
+            return 1;
+    }
+    return 0;
+}
+
 void ini_read_tnc_set(FILE *inifp, int which)
 {
     char linebuf[MAX_INI_LINE_SIZE];
@@ -637,6 +733,17 @@ void ini_read_arim_set(FILE *inifp)
                     if (g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt][len - 1] == '/')
                         g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt][len - 1] = '\0';
                     ++g_arim_settings.add_files_dir_cnt;
+                }
+            }
+            else if ((v = ini_get_value("ac-files-dir", p))) {
+                if (g_arim_settings.ac_files_dir_cnt < ARIM_AC_FILES_DIR_MAX_CNT) {
+                    snprintf(g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt],
+                         MAX_DIR_PATH_SIZE, "%s", v);
+                    /* trim trailing '/' if present */
+                    len = strlen(g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt]);
+                    if (g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt][len - 1] == '/')
+                        g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt][len - 1] = '\0';
+                    ++g_arim_settings.ac_files_dir_cnt;
                 }
             }
             else if ((v = ini_get_value("fecmode-downshift", p))) {

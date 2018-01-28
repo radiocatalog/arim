@@ -25,8 +25,10 @@
 #define _ARIM_PROTO_ARQ_FILE_H_INCLUDED_
 
 extern void arim_proto_arq_file_send_wait(int event, int param);
+extern void arim_proto_arq_file_send_wait_ok(int event, int param);
 extern void arim_proto_arq_file_send(int event, int param);
 extern void arim_proto_arq_file_rcv_wait(int event, int param);
+extern void arim_proto_arq_file_rcv_wait_ok(int event, int param);
 extern void arim_proto_arq_file_rcv(int event, int param);
 
 #endif

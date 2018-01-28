@@ -37,6 +37,7 @@
 #include "log.h"
 #include "arim_beacon.h"
 #include "mbox.h"
+#include "auth.h"
 
 int g_cmdthread_stop;
 int g_cmdthread_ready;
@@ -161,11 +162,16 @@ int main(int argc, char *argv[])
         printf("Error: cannot initialize mailbox files\n");
         return 4;
     }
+    /* initialize password file */
+    if (!auth_init()) {
+        printf("Error: cannot initialize password file\n");
+        return 5;
+    }
     /* create the timer thread */
     result = pthread_create(&timerthread, NULL, timerthread_func, NULL);
     if (result) {
         perror("pthread_create");
-        return 5;
+        return 6;
     }
     /* initialize the ui */
     ui_init();

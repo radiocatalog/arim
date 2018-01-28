@@ -36,6 +36,7 @@
 #include "arim_arq.h"
 #include "arim_arq_files.h"
 #include "arim_arq_msg.h"
+#include "arim_arq_auth.h"
 #include "cmdthread.h"
 #include "datathread.h"
 #include "ini.h"
@@ -44,6 +45,8 @@
 #include "ui_files.h"
 #include "ui_msg.h"
 #include "util.h"
+#include "auth.h"
+#include "cmdproc.h"
 
 int cmdproc_cmd(const char *cmd)
 {
@@ -51,39 +54,46 @@ int cmdproc_cmd(const char *cmd)
     static char prevbuf[MAX_CMD_SIZE];
     char *t, *fn, *destdir, buffer[MAX_CMD_SIZE], sendcr[TNC_ARQ_SENDCR_SIZE];
     char msgbuffer[MIN_MSG_BUF_SIZE], status[MAX_STATUS_BAR_SIZE];
+    char call1[TNC_MYCALL_SIZE], call2[TNC_MYCALL_SIZE];
     const char *p;
 
     state = arim_get_state();
     switch (state) {
+    case ST_ARQ_FILE_RCV_WAIT_OK:
     case ST_ARQ_FILE_RCV_WAIT:
     case ST_ARQ_FILE_RCV:
         /* busy with file download */
         ui_print_status("ARIM Busy: ARQ file download in progress", 1);
         return 0;
-        break;
+    case ST_ARQ_FILE_SEND_WAIT_OK:
     case ST_ARQ_FILE_SEND_WAIT:
     case ST_ARQ_FILE_SEND:
         /* busy with file upload */
         ui_print_status("ARIM Busy: ARQ file upload in progress", 1);
         return 0;
-        break;
     case ST_ARQ_MSG_RCV:
         /* busy with message receive */
         ui_print_status("ARIM Busy: ARQ message download in progress", 1);
         return 0;
-        break;
     case ST_ARQ_MSG_SEND_WAIT:
     case ST_ARQ_MSG_SEND:
         /* busy with message upload */
         ui_print_status("ARIM Busy: ARQ message upload in progress", 1);
         return 0;
-        break;
     case ST_ARQ_IN_CONNECT_WAIT:
     case ST_ARQ_OUT_CONNECT_WAIT:
         /* busy with connect attempt */
         ui_print_status("ARIM Busy: ARQ connect in progress", 1);
         return 0;
-        break;
+    case ST_ARQ_AUTH_RCV_A2_WAIT:
+    case ST_ARQ_AUTH_RCV_A3_WAIT:
+    case ST_ARQ_AUTH_RCV_A4_WAIT:
+    case ST_ARQ_AUTH_SEND_A1:
+    case ST_ARQ_AUTH_SEND_A2:
+    case ST_ARQ_AUTH_SEND_A3:
+        /* busy with authentication exchange */
+        ui_print_status("ARIM Busy: ARQ mutual authentication in progress", 1);
+        return 0;
     case ST_ARQ_CONNECTED:
         if (!strncasecmp(cmd, "/DIS", 4)) {
             result1 = ui_show_dialog(
@@ -91,8 +101,30 @@ int cmdproc_cmd(const char *cmd)
             if (result1 == 'y' || result1 == 'Y')
                 arim_arq_send_disconn_req();
         } else {
+            arim_arq_cache_cmd(cmd);
             if (!strncasecmp(cmd, "/FGET", 5)) {
-                arim_arq_files_on_loc_fget();
+                /* check for -z option */
+                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
+                fn = msgbuffer;
+                while (*fn && *fn == ' ')
+                    ++fn;
+                if (*fn && (fn == strstr(fn, "-z"))) {
+                    zoption = 1;
+                    fn += 2;
+                } else {
+                    /* -z option not found, back up to start */
+                    fn = msgbuffer;
+                }
+                /* check for destination dir path */
+                destdir = fn;
+                while (*destdir && *destdir != '>')
+                    ++destdir;
+                if (*destdir == '>')
+                    *destdir++ = '\0';
+                else
+                    destdir = NULL;
+                arim_arq_files_on_client_fget(cmd, fn, destdir, zoption);
+                return 1;
             } else if (!strncasecmp(cmd, "/FPUT", 5)) {
                 /* check for -z option */
                 snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
@@ -114,7 +146,16 @@ int cmdproc_cmd(const char *cmd)
                     *destdir++ = '\0';
                 else
                     destdir = NULL;
-                arim_arq_files_on_loc_fput(fn, destdir, zoption);
+                arim_arq_files_on_client_fput(fn, destdir, zoption);
+                return 1;
+            } else if (!strncasecmp(cmd, "/FLIST", 6)) {
+                arim_arq_files_on_client_flist(cmd);
+                return 1;
+            } else if (!strncasecmp(cmd, "/FILE", 5)) {
+                arim_arq_files_on_client_file(cmd);
+                return 1;
+            } else if (!strncasecmp(cmd, "/AUTH", 5)) {
+                arim_arq_auth_on_client_challenge(cmd);
                 return 1;
             } else if (!strncasecmp(cmd, "/SM", 3)) {
                 /* check for -z option */
@@ -150,7 +191,6 @@ int cmdproc_cmd(const char *cmd)
             ui_queue_data_out(buffer);
         }
         return 1;
-        break;
     default:
         if (!strlen(cmd))
             return 0;
@@ -195,6 +235,17 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status(status, 1);
             }
         }
+        if (t && !strncasecmp(t, ".b64", 4)) {
+            t = strtok(NULL, "\n\0");
+            if (t) {
+                if (auth_base64_encode((unsigned char *)t, strlen(t), msgbuffer, sizeof(msgbuffer))) {
+                    snprintf(status, sizeof(status), "b64: %s", msgbuffer);
+                    ui_print_status(status, 1);
+                } else {
+                    ui_print_status("Failed to encode input", 1);
+                }
+            }
+        }
         break;
     default:
         t = strtok(buffer, " \t");
@@ -220,32 +271,32 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("Send msg: cannot send, invalid callsign", 1);
                 break;
             }
-            snprintf(buffer, sizeof(buffer), "%s", t);
+            snprintf(call1, sizeof(call1), "%s", t);
             /* now get everything up to end of line */
             t = strtok(NULL, "\0");
-            if (!t && ui_create_msg(msgbuffer, sizeof(msgbuffer), buffer)) {
+            if (!t && ui_create_msg(msgbuffer, sizeof(msgbuffer), call1)) {
                 if (g_tnc_attached) {
-                    if (arim_send_msg(msgbuffer, buffer)) {
+                    if (arim_send_msg(msgbuffer, call1)) {
                         ui_print_status("ARIM Busy: sending message", 1);
                     } else {
-                        arim_store_out(msgbuffer, buffer);
+                        arim_store_out(msgbuffer, call1);
                         ui_print_status("Send msg: cannot send, TNC busy; saved to Outbox", 1);
                     }
                 } else {
-                    arim_store_out(msgbuffer, buffer);
+                    arim_store_out(msgbuffer, call1);
                     ui_print_status("Send msg: cannot send, no TNC attached; saved to Outbox", 1);
                 }
             } else if (t) {
                 snprintf(msgbuffer, sizeof(msgbuffer), "%s", t);
                 if (g_tnc_attached) {
-                    if (arim_send_msg(msgbuffer, buffer)) {
+                    if (arim_send_msg(msgbuffer, call1)) {
                         ui_print_status("ARIM Busy: sending message", 1);
                     } else {
-                        arim_store_out(msgbuffer, buffer);
+                        arim_store_out(msgbuffer, call1);
                         ui_print_status("Send msg: cannot send, TNC busy; saved to Outbox", 1);
                     }
                 } else {
-                    arim_store_out(msgbuffer, buffer);
+                    arim_store_out(msgbuffer, call1);
                     ui_print_status("Send msg: cannot send, no TNC attached; saved to Outbox", 1);
                 }
             }
@@ -259,12 +310,12 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("Send query: invalid callsign", 1);
                 break;
             }
-            snprintf(buffer, sizeof(buffer), "%s", t);
+            snprintf(call1, sizeof(call1), "%s", t);
             /* now get everything up to end of line */
             t = strtok(NULL, "\0");
             if (!t)
                 break;
-            if (arim_send_query(t, buffer))
+            if (arim_send_query(t, call1))
                 ui_print_status("ARIM Busy: sending query", 1);
             else
                 ui_print_status("Send query: cannot send, TNC busy", 1);
@@ -278,14 +329,14 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("Send ping: invalid callsign", 1);
                 break;
             }
-            snprintf(buffer, sizeof(buffer), "%s", t);
+            snprintf(call1, sizeof(call1), "%s", t);
             /* now get everything up to end of line */
             t = strtok(NULL, "\0");
             if (!t || (result1 = atoi(t)) < 2 || result1 > 15) {
                 ui_print_status("Send ping: invalid repeat count", 1);
                 break;
             }
-            if (!arim_send_ping(t, buffer, 1))
+            if (!arim_send_ping(t, call1, 1))
                 ui_print_status("Send ping: cannot send, TNC busy", 1);
         } else if (t && !strncasecmp(t, "conn", 2)) {
             if (!g_tnc_attached) {
@@ -297,14 +348,14 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("ARQ Connect: invalid callsign", 1);
                 break;
             }
-            snprintf(buffer, sizeof(buffer), "%s", t);
+            snprintf(call1, sizeof(call1), "%s", t);
             /* now get everything up to end of line */
             t = strtok(NULL, "\0");
-            if (!t || (result1 = atoi(t)) < 2 || result1 > 15) {
+            if (!t || (result1 = atoi(t)) < 3 || result1 > 15) {
                 ui_print_status("ARQ Connect: invalid repeat count", 1);
                 break;
             }
-            if (!arim_arq_send_conn_req(t, buffer))
+            if (!arim_arq_send_conn_req(t, call1))
                 ui_print_status("ARQ Connect: cannot send connection request, TNC busy", 1);
         } else if (t && !strncasecmp(t, "cm", 2)) {
             t = strtok(NULL, " \t");
@@ -328,6 +379,77 @@ int cmdproc_cmd(const char *cmd)
                 ui_refresh_recents();
             } else {
                 ui_print_status("Read recent: cannot read message", 1);
+            }
+        } else if (t && !strncasecmp(t, "passwd", 4)) {
+            t = strtok(NULL, " \t");
+            if (!t || !ini_validate_mycall(t)) {
+                ui_print_status("Passwd: invalid remote station callsign", 1);
+                break;
+            }
+            snprintf(call1, sizeof(call1), "%s", t);
+            t = strtok(NULL, " \t");
+            if (!t || !ini_validate_mycall(t)) {
+                ui_print_status("Passwd: invalid local station callsign", 1);
+                break;
+            }
+            snprintf(call2, sizeof(call2), "%s", t);
+            /* now get everything up to end of line */
+            t = strtok(NULL, "\0");
+            if (!t) {
+                ui_print_status("Password: no password found", 1);
+                break;
+            } else {
+                snprintf(buffer, sizeof(buffer), "%s", t);
+                snprintf(msgbuffer, sizeof(msgbuffer),
+                         "\tChange/add password\n \n"
+                         "   For client station: %s\n"
+                         "on server station TNC: %s\n"
+                         "         New password: %s\n"
+                         " \n\tAre you sure?\n \n\t[Y]es   [N]o",
+                         call1, call2, buffer);
+                result1 = ui_show_dialog(msgbuffer, "yYnN");
+                if (result1 == 'y' || result1 == 'Y') {
+                    if (auth_store_passwd(call1, call2, buffer)) {
+                        snprintf(buffer, sizeof(buffer),
+                            "stored password for remote station: %s and local port: %s",
+                                call1, call2);
+                        ui_print_status(buffer, 1);
+                    } else {
+                        ui_print_status("Password: failed to store password in file", 1);
+                        break;
+                    }
+                }
+            }
+        } else if (t && !strncasecmp(t, "delpass", 4)) {
+            t = strtok(NULL, " \t");
+            if (!t || !ini_validate_mycall(t)) {
+                ui_print_status("Passwd: invalid remote station callsign", 1);
+                break;
+            }
+            snprintf(call1, sizeof(call1), "%s", t);
+            t = strtok(NULL, " \t");
+            if (!t || !ini_validate_mycall(t)) {
+                ui_print_status("Passwd: invalid local station callsign", 1);
+                break;
+            }
+            snprintf(call2, sizeof(call2), "%s", t);
+            snprintf(msgbuffer, sizeof(msgbuffer),
+                     "\tDelete password\n \n"
+                         "   For client station: %s\n"
+                         "on server station TNC: %s\n"
+                     " \n\tAre you sure?\n \n\t[Y]es   [N]o",
+                     call1, call2);
+            result1 = ui_show_dialog(msgbuffer, "yYnN");
+            if (result1 == 'y' || result1 == 'Y') {
+                if (auth_delete_passwd(call1, call2)) {
+                    snprintf(buffer, sizeof(buffer),
+                        "deleted password for remote station: %s and local port: %s",
+                            call1, call2);
+                    ui_print_status(buffer, 1);
+                } else {
+                    ui_print_status("Password: failed to delete password in file", 1);
+                    break;
+                }
             }
         } else if (t && !strncasecmp(t, "att", 3) && !g_tnc_attached) {
             t = strtok(NULL, " \t");
@@ -644,12 +766,12 @@ int cmdproc_cmd(const char *cmd)
             t = strtok(NULL, " \t");
             if (!t)
                 break;
-            snprintf(buffer, sizeof(buffer), "%s", t);
-            result1 = ini_validate_mycall(buffer);
+            snprintf(call1, sizeof(call1), "%s", t);
+            result1 = ini_validate_mycall(call1);
             if (result1) {
-                snprintf(status, sizeof(status), "MYCALL %s", buffer);
+                snprintf(status, sizeof(status), "MYCALL %s", call1);
                 ui_queue_cmd_out(status);
-                snprintf(status, sizeof(status), "mycall changed to: %s", buffer);
+                snprintf(status, sizeof(status), "mycall changed to: %s", call1);
                 ui_print_status(status, 1);
             } else {
                 ui_print_status("Invalid callsign, mycall not changed", 1);
@@ -684,16 +806,16 @@ int cmdproc_cmd(const char *cmd)
                 t = strtok(NULL, " \t");
                 if (!t)
                     break;
-                snprintf(buffer, sizeof(buffer), "%s", t);
+                snprintf(call1, sizeof(call1), "%s", t);
                 result1 = arim_get_netcall_cnt();
                 if (result1 < TNC_NETCALL_MAX_CNT) {
-                    if (ini_validate_netcall(buffer)) {
+                    if (ini_validate_netcall(call1)) {
                         pthread_mutex_lock(&mutex_tnc_set);
                         snprintf(g_tnc_settings[g_cur_tnc].netcall[result1],
-                                sizeof(g_tnc_settings[g_cur_tnc].netcall[result1]), "%s", buffer);
+                                sizeof(g_tnc_settings[g_cur_tnc].netcall[result1]), "%s", call1);
                         ++g_tnc_settings[g_cur_tnc].netcall_cnt;
                         pthread_mutex_unlock(&mutex_tnc_set);
-                        snprintf(status, sizeof(status), "Added netcall: %s", buffer);
+                        snprintf(status, sizeof(status), "Added netcall: %s", call1);
                         ui_print_status(status, 1);
                     } else {
                         ui_print_status("Invalid net call, not added", 1);
@@ -705,11 +827,11 @@ int cmdproc_cmd(const char *cmd)
                 t = strtok(NULL, " \t");
                 if (!t)
                     break;
-                snprintf(buffer, sizeof(buffer), "%s", t);
+                snprintf(call1, sizeof(call1), "%s", t);
                 pthread_mutex_lock(&mutex_tnc_set);
                 result1 = g_tnc_settings[g_cur_tnc].netcall_cnt;
                 for (result2 = 0; result2 < result1; result2++) {
-                    if (!strcasecmp(buffer, g_tnc_settings[g_cur_tnc].netcall[result2]))
+                    if (!strcasecmp(call1, g_tnc_settings[g_cur_tnc].netcall[result2]))
                         break;
                 }
                 pthread_mutex_unlock(&mutex_tnc_set);
@@ -721,7 +843,7 @@ int cmdproc_cmd(const char *cmd)
                             (TNC_NETCALL_MAX_CNT - result2) * TNC_NETCALL_SIZE);
                     --g_tnc_settings[g_cur_tnc].netcall_cnt;
                     pthread_mutex_unlock(&mutex_tnc_set);
-                    snprintf(status, sizeof(status), "Deleted netcall: %s", buffer);
+                    snprintf(status, sizeof(status), "Deleted netcall: %s", call1);
                     ui_print_status(status, 1);
                 } else {
                     ui_print_status("Cannot delete netcall: call not found", 1);
@@ -795,7 +917,8 @@ int cmdproc_cmd(const char *cmd)
 int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
 {
     /* called from data thread, not UI thread */
-    char *p, *t, buffer[MAX_CMD_SIZE];
+    char *p, *t, buffer[MAX_CMD_SIZE], remote_call[TNC_MYCALL_SIZE];
+    char dpath[MAX_DIR_PATH_SIZE];
     size_t i, len, cnt;
     int result;
 
@@ -850,10 +973,41 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
             if (strlen(t) == 0)
                 t = NULL;
         }
-        result = ui_get_file_list(
-                    g_arim_settings.files_dir, t, respbuf, respbufsize);
-        /* return -1 on file access errors */
-        return (result ? 1 : -1);
+        /* check to see if this is an access controlled dir */
+        snprintf(dpath, sizeof(dpath), "%s/%s", g_arim_settings.files_dir, t);
+        if (t && ini_check_ac_files_dir(dpath)) {
+            if (arim_is_arq_state()) {
+                if (arim_arq_auth_get_status()) {
+                    /* session previously authenticated, go ahead */
+                    result = ui_get_file_list(g_arim_settings.files_dir, t, respbuf, respbufsize);
+                    return (result ? CMDPROC_OK : CMDPROC_DIR_ERR);
+                } else {
+                    /* session not yet authenticated, send /A1 challenge */
+                    arim_copy_remote_call(remote_call, sizeof(remote_call));
+                    if (arim_arq_auth_on_send_a1(remote_call, "FLIST", t)) {
+                        arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
+                        snprintf(buffer, sizeof(buffer),
+                                    "ARQ: Listing of dir %s requires authentication", t);
+                        ui_queue_debug_log(buffer);
+                        return CMDPROC_AUTH_REQ;
+                    } else {
+                        /* not accessible to remote station, send /EAUTH response */
+                        snprintf(buffer, sizeof(buffer),
+                                "ARQ: Listing of dir %s no password for: %s", t, remote_call);
+                        ui_queue_debug_log(buffer);
+                        return CMDPROC_AUTH_ERR;
+                    }
+                }
+            } else {
+                /* access controlled dirs not accessible in FEC mode */
+                snprintf(respbuf, respbufsize, "File list: directory %s not found.\n", t);
+                return CMDPROC_DIR_ERR;
+            }
+        } else {
+            /* no authentication required */
+            result = ui_get_file_list(g_arim_settings.files_dir, t, respbuf, respbufsize);
+            return (result ? CMDPROC_OK : CMDPROC_DIR_ERR);
+        }
     } else if (respbuf && !strncasecmp(t, "file", 4)) {
         t = strtok(NULL, "\0");
         if (t) {
@@ -872,22 +1026,65 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
             for (i = 0; i < g_arim_settings.dyn_files_cnt; i++) {
                 if (!strncmp(g_arim_settings.dyn_files[i], t, len)) {
                     if (g_arim_settings.dyn_files[i][len] == ':') {
-                        result = ui_get_dyn_file(t,
-                                &(g_arim_settings.dyn_files[i][len + 1]),
-                                respbuf, respbufsize);
-                        /* return -1 on dynamic file invocation errors */
-                        return (result ? 1 : -1);
+                        result = ui_get_dyn_file(t, &(g_arim_settings.dyn_files[i][len + 1]),
+                                                    respbuf, respbufsize);
+                        return (result ? CMDPROC_OK : CMDPROC_FILE_ERR);
                     }
                 }
             }
-            if (i == g_arim_settings.dyn_files_cnt)
-                /* no match on dynamic file so look for it in filesystem */
-                result = ui_get_file(t, respbuf, respbufsize);
-            /* return -1 on file access errors */
-            return (result ? 1 : -1);
+            if (i == g_arim_settings.dyn_files_cnt) {
+                /* check for directory component in name */
+                snprintf(dpath, sizeof(dpath), "%s/%s", g_arim_settings.files_dir, t);
+                p = dpath + strlen(dpath);
+                while (p > dpath && *p != '/') {
+                    *p = '\0';
+                    --p;
+                }
+                if (p > dpath) {
+                    /* check to see if this is an access controlled dir */
+                    if (ini_check_ac_files_dir(dpath)) {
+                        if (arim_is_arq_state()) {
+                            if (arim_arq_auth_get_status()) {
+                                /* session previously authenticated, go ahead */
+                                result = ui_get_file(t, respbuf, respbufsize);
+                                return (result ? CMDPROC_OK : CMDPROC_FILE_ERR);
+                            } else {
+                                /* session not yet authenticated, send /A1 challenge */
+                                arim_copy_remote_call(remote_call, sizeof(remote_call));
+                                if (arim_arq_auth_on_send_a1(remote_call, "FILE", t)) {
+                                    arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
+                                    snprintf(buffer, sizeof(buffer),
+                                                "ARQ: Read of file  %s requires authentication", t);
+                                    ui_queue_debug_log(buffer);
+                                    return CMDPROC_AUTH_REQ;
+                                } else {
+                                    /* no access for remote call, send /EAUTH response */
+                                    snprintf(buffer, sizeof(buffer),
+                                            "ARQ: Read of file %s no password for: %s", t, remote_call);
+                                    ui_queue_debug_log(buffer);
+                                    return CMDPROC_AUTH_ERR;
+                                }
+                            }
+                        } else {
+                            /* access controlled dirs not accessible in FEC mode */
+                            snprintf(respbuf, respbufsize, "File: %s not found.\n", t);
+                            return CMDPROC_FILE_ERR;
+                        }
+                    } else {
+                        /* file not located in access controlled dir */
+                        result = ui_get_file(t, respbuf, respbufsize);
+                        return (result ? CMDPROC_OK : CMDPROC_FILE_ERR);
+                    }
+                } else {
+                    /* file located in root shared file dir */
+                    result = ui_get_file(t, respbuf, respbufsize);
+                    return (result ? CMDPROC_OK : CMDPROC_FILE_ERR);
+                }
+            }
         } else {
-            snprintf(respbuf, respbufsize, "Error: no file name given.\n");
-            return -1;
+            if (!arim_is_arq_state())
+                snprintf(respbuf, respbufsize, "Error: empty file name.\n");
+            return CMDPROC_FILE_ERR;
         }
     } else if (respbuf && !strncasecmp(t, "netcalls", 4)) {
         snprintf(respbuf, respbufsize, "NETCALLS:\n");
@@ -906,8 +1103,8 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
             strncat(respbuf, "\n", respbufsize - len - 1);
     } else {
         snprintf(respbuf, respbufsize, "Error: unknown query.\n");
-        return 0;
+        return CMDPROC_FAIL;
     }
-    return 1;
+    return CMDPROC_OK;
 }
 

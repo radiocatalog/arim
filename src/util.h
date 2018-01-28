@@ -25,7 +25,6 @@
 #define _UTIL_H_INCLUDED_
 
 #define MAX_TIMESTAMP_SIZE   32
-#define AUTH_DIGEST_SIZE     18
  
 extern char *util_timestamp(char *buffer, size_t maxsize);
 extern char *util_timestamp_usec(char *buffer, size_t maxsize);
