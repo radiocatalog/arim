@@ -94,7 +94,7 @@ dist-hook:
 	rm -f $(distdir)/INSTALL
 	rm -f $(distdir)/ChangeLog
 	mkdir $(distdir)/doc
-	mv $(distdir)/help/arim-help.pdf $(distdir)/doc/arim-help.pdf
+	mv $(distdir)/help/arim-help.pdf $(distdir)/doc/arim-help-v$(PACKAGE_VERSION).pdf
 	mv $(distdir)/AUTHORS $(distdir)/doc/AUTHORS
 	mv $(distdir)/README $(distdir)/doc/README
 	mv $(distdir)/COPYING $(distdir)/doc/COPYING

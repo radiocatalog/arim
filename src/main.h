@@ -61,7 +61,7 @@
 #define ARDOP_PINGACK_TIMEOUT   6
 #define ARDOP_CONNREQ_TIMEOUT   30
 #define ARDOP_CONN_TIMEOUT      60
-#define ARDOP_CONN_SEND_TIMEOUT 20
+#define ARDOP_CONN_SEND_TIMEOUT 45
 
 #define MBOX_TYPE_IN           0
 #define MBOX_TYPE_OUT          1

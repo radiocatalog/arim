@@ -43,6 +43,10 @@
 #include "ui.h"
 #include "util.h"
 
+/* max channel busy decay time about 3 sec */
+#define MAX_CHANNEL_BUSY_TIME  15
+static int tnc_busy, tnc_not_busy;
+
 void cmdthread_queue_debug_log(const char *text)
 {
     char buffer[MAX_CMD_SIZE];
@@ -72,17 +76,6 @@ void cmdthread_queue_cmd_out(const char *text)
     pthread_mutex_lock(&mutex_cmd_out);
     cmdq_push(&g_cmd_out_q, text);
     pthread_mutex_unlock(&mutex_cmd_out);
-}
-
-int cmdthread_tnc_is_idle()
-{
-    int buffer_cnt, not_fec_send;
-
-    pthread_mutex_lock(&mutex_tnc_set);
-    buffer_cnt = atoi(g_tnc_settings[g_cur_tnc].buffer);
-    not_fec_send = strncmp(g_tnc_settings[g_cur_tnc].state, "FECSEND", 7);
-    pthread_mutex_unlock(&mutex_tnc_set);
-    return (!buffer_cnt && not_fec_send);
 }
 
 void cmdthread_next_cmd_out(int sock)
@@ -264,6 +257,20 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 snprintf(g_tnc_settings[g_cur_tnc].busydet,
                     sizeof(g_tnc_settings[g_cur_tnc].busydet), "%s", val);
                 pthread_mutex_unlock(&mutex_tnc_set);
+            } else if (!strncasecmp(start, "BUSY", 4)) {
+                if (!strncasecmp(val, "TRUE", 4)) {
+                    tnc_not_busy = 0;
+                    tnc_busy += MAX_CHANNEL_BUSY_TIME/3;
+                    if (tnc_busy > MAX_CHANNEL_BUSY_TIME)
+                        tnc_busy = MAX_CHANNEL_BUSY_TIME;
+                    pthread_mutex_lock(&mutex_tnc_set);
+                    snprintf(g_tnc_settings[g_cur_tnc].busy,
+                        sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "TRUE");
+                    pthread_mutex_unlock(&mutex_tnc_set);
+                    cmdthread_queue_debug_log("Cmd thread: TNC is BUSY");
+                } else {
+                    tnc_not_busy = 1;
+                }
             } else if (!strncasecmp(start, "LEADER", 6)) {
                 pthread_mutex_lock(&mutex_tnc_set);
                 snprintf(g_tnc_settings[g_cur_tnc].leader,
@@ -273,6 +280,11 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 pthread_mutex_lock(&mutex_tnc_set);
                 snprintf(g_tnc_settings[g_cur_tnc].trailer,
                     sizeof(g_tnc_settings[g_cur_tnc].trailer), "%s", val);
+                pthread_mutex_unlock(&mutex_tnc_set);
+            } else if (!strncasecmp(start, "ARQBW", 5)) {
+                pthread_mutex_lock(&mutex_tnc_set);
+                snprintf(g_tnc_settings[g_cur_tnc].arq_bandwidth,
+                    sizeof(g_tnc_settings[g_cur_tnc].arq_bandwidth), "%s", val);
                 pthread_mutex_unlock(&mutex_tnc_set);
             } else if (!strncasecmp(start, "VERSION", 7)) {
                 pthread_mutex_lock(&mutex_tnc_set);
@@ -318,6 +330,8 @@ void *cmdthread_func(void *data)
     }
     freeaddrinfo(res);
     g_cmdthread_ready = 1;
+    tnc_not_busy = 1;
+    tnc_busy = 0;
 
     cmdthread_queue_cmd_out("INITIALIZE");
     snprintf(buffer, sizeof(buffer), "MYCALL %s", g_tnc_settings[g_cur_tnc].mycall);
@@ -381,6 +395,22 @@ void *cmdthread_func(void *data)
                 cmdthread_queue_debug_log("Cmd thread: Socket select error (FD_ISSET)");
                 break;
             }
+        }
+        /* manage increment and decrement of TNC BUSY state counter */
+        if (tnc_not_busy && tnc_busy) {
+            --tnc_busy; /* no longer busy, decrement */
+            if (!tnc_busy) {
+                /* counter has decayed to 0, set busy FALSE */
+                pthread_mutex_lock(&mutex_tnc_set);
+                snprintf(g_tnc_settings[g_cur_tnc].busy,
+                    sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
+                pthread_mutex_unlock(&mutex_tnc_set);
+                cmdthread_queue_debug_log("Cmd thread: TNC not BUSY");
+            }
+        } else if (tnc_busy) {
+            ++tnc_busy; /* still busy, increment */
+            if (tnc_busy > MAX_CHANNEL_BUSY_TIME)
+                tnc_busy = MAX_CHANNEL_BUSY_TIME;
         }
         if (g_cmdthread_stop) {
             break;

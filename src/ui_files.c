@@ -45,6 +45,8 @@
 #include "auth.h"
 #include "cmdproc.h"
 
+#define MAX_CMD_HIST            10+1
+
 int ui_send_file(char *msgbuffer, size_t msgbufsize,
                     const char *fn, const char *to_call)
 {
@@ -60,9 +62,9 @@ int ui_send_file(char *msgbuffer, size_t msgbufsize,
     fclose(fp);
     msgbuffer[len] = '\0';
     /* send the file */
-    if (strlen(to_call) > 0)
-        arim_send_msg(msgbuffer, to_call);
-    return 1;
+    if (strlen(to_call) < 1)
+        return 0;
+    return arim_send_msg(msgbuffer, to_call);
 }
 
 int ui_get_dyn_file(const char *fn, const char *cmd,
@@ -412,9 +414,11 @@ int ui_get_file_list(const char *basedir, const char *dir,
             }
         }
     }
-    if ((cnt + 1) < listbufsize) {
-        listbuf[cnt] = '\n';
-        ++cnt;
+    snprintf(linebuf, sizeof(linebuf), "End\n");
+    len = strlen(linebuf);
+    if ((cnt + len) < listbufsize) {
+        strncat(listbuf, linebuf, listbufsize - cnt - 1);
+        cnt += len;
     }
     listbuf[cnt] = '\0';
     return 1;
@@ -453,8 +457,10 @@ void ui_print_file_list_title(const char *path)
 
 int ui_files_get_line(char *cmd_line, size_t max_len)
 {
+    static char cmd_hist[MAX_CMD_HIST][MAX_CMD_SIZE+1];
+    static int prev_cmd = 0, next_cmd = 0, cnt_hist = 0;
     size_t len = 0, cur = 0;
-    int ch,  quit = 0;
+    int ch, temp, hist_cmd, quit = 0;
 
     wmove(prompt_win, prompt_row, prompt_col);
     wclrtoeol(prompt_win);
@@ -462,6 +468,8 @@ int ui_files_get_line(char *cmd_line, size_t max_len)
 
     curs_set(1);
     keypad(prompt_win, TRUE);
+    memset(cmd_line, 0, max_len);
+    hist_cmd = prev_cmd;
     while (!quit) {
         if ((status_timer && --status_timer == 0) ||
             (data_buf_scroll_timer && --data_buf_scroll_timer == 0)) {
@@ -483,6 +491,15 @@ int ui_files_get_line(char *cmd_line, size_t max_len)
             curs_set(1);
             break;
         case '\n':
+            if (strlen(cmd_line) && strcmp(cmd_hist[prev_cmd], cmd_line)) {
+                snprintf(cmd_hist[next_cmd], sizeof(cmd_hist[next_cmd]), "%s", cmd_line);
+                if (cnt_hist < MAX_CMD_HIST)
+                    ++cnt_hist;
+                prev_cmd = hist_cmd = next_cmd;
+                ++next_cmd;
+                if (next_cmd == MAX_CMD_HIST)
+                    next_cmd = 0;
+            }
             quit = 1;
             break;
         case 27:
@@ -550,6 +567,46 @@ int ui_files_get_line(char *cmd_line, size_t max_len)
             if (cur < len) {
                 ++cur;
                 wmove(prompt_win, prompt_row, prompt_col + cur);
+            }
+            break;
+        case 14: /* CTRL-N */
+            if (hist_cmd != next_cmd) {
+                temp = hist_cmd;
+                ++hist_cmd;
+                if (hist_cmd >= MAX_CMD_HIST)
+                    hist_cmd = 0;
+                if (hist_cmd != next_cmd) {
+                    snprintf(cmd_line, max_len, "%s", cmd_hist[hist_cmd]);
+                } else {
+                    cmd_line[0] = '\0';
+                }
+                if (hist_cmd == next_cmd)
+                    hist_cmd = temp;
+                cur = len = strlen(cmd_line);
+                wmove(prompt_win, prompt_row, prompt_col);
+                wclrtoeol(prompt_win);
+                waddstr(prompt_win, cmd_line);
+                wrefresh(prompt_win);
+            }
+            break;
+        case 16: /* CTRL-P */
+            if (hist_cmd != next_cmd) {
+                temp = hist_cmd;
+                snprintf(cmd_line, max_len, "%s", cmd_hist[hist_cmd]);
+                --hist_cmd;
+                if (hist_cmd < 0) {
+                    if (cnt_hist == MAX_CMD_HIST)
+                        hist_cmd = MAX_CMD_HIST-1;
+                    else
+                        hist_cmd = 0;
+                }
+                if (hist_cmd == next_cmd)
+                    hist_cmd = temp;
+                cur = len = strlen(cmd_line);
+                wmove(prompt_win, prompt_row, prompt_col);
+                wclrtoeol(prompt_win);
+                waddstr(prompt_win, cmd_line);
+                wrefresh(prompt_win);
             }
             break;
         default:

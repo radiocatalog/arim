@@ -112,7 +112,7 @@ int ini_validate_mycall(const char *call)
     size_t len;
 
     len = strlen(call);
-    if (len > MAX_TNC_MYCALL_STRLEN)
+    if (len > MAX_TNC_MYCALL_STRLEN || len < 3)
         return 0;
 
     p = call;
@@ -293,9 +293,6 @@ char *ini_get_value(const char *key, char *line)
                 --e;
             *(e + 1) = '\0';
             v = s;
-            /* if program invoked with --print-conf switch, print key/value pair */
-            if (g_print_config)
-                fprintf(printconf_fp ? printconf_fp : stdout, "%s\n", p);
             return v;
         }
     }
@@ -419,6 +416,7 @@ void ini_read_tnc_set(FILE *inifp, int which)
     snprintf(g_tnc_settings[which].trailer, sizeof(g_tnc_settings[which].trailer), DEFAULT_TNC_TRAILER);
     snprintf(g_tnc_settings[which].squelch, sizeof(g_tnc_settings[which].squelch), DEFAULT_TNC_SQUELCH);
     snprintf(g_tnc_settings[which].busydet, sizeof(g_tnc_settings[which].busydet), DEFAULT_TNC_BUSYDET);
+    snprintf(g_tnc_settings[which].busy, sizeof(g_tnc_settings[which].busy), DEFAULT_TNC_BUSY);
     snprintf(g_tnc_settings[which].state, sizeof(g_tnc_settings[which].state), DEFAULT_TNC_STATE);
     snprintf(g_tnc_settings[which].listen, sizeof(g_tnc_settings[which].listen), DEFAULT_TNC_LISTEN);
     snprintf(g_tnc_settings[which].en_pingack, sizeof(g_tnc_settings[which].en_pingack), DEFAULT_TNC_EN_PINGACK);
@@ -427,6 +425,9 @@ void ini_read_tnc_set(FILE *inifp, int which)
     snprintf(g_tnc_settings[which].arq_timeout, sizeof(g_tnc_settings[which].arq_timeout), DEFAULT_TNC_ARQ_TO);
     snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), DEFAULT_TNC_RESET_BT_TX);
 
+    /* if program invoked with --print-conf switch, print section header */
+    if (g_print_config)
+        fprintf(printconf_fp ? printconf_fp : stdout, "%s\n", "[tnc]");
     p = fgets(linebuf, sizeof(linebuf), inifp);
     while (p) {
         if (*p != '#') {
@@ -439,110 +440,180 @@ void ini_read_tnc_set(FILE *inifp, int which)
             if ((v = ini_get_value("ipaddr", p))) {
                 if (ini_validate_ipaddr(v))
                     snprintf(g_tnc_settings[which].ipaddr, sizeof(g_tnc_settings[which].ipaddr), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "ipaddr", g_tnc_settings[which].ipaddr);
             }
             else if ((v = ini_get_value("port", p))) {
                 test = atoi(v);
                 if (test > 0 && test < 0xFFFF)
                     snprintf(g_tnc_settings[which].port, sizeof(g_tnc_settings[which].port), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "port", g_tnc_settings[which].port);
             }
             else if ((v = ini_get_value("mycall", p))) {
                 if (ini_validate_mycall(v))
                     snprintf(g_tnc_settings[which].mycall, sizeof(g_tnc_settings[which].mycall), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "mycall", g_tnc_settings[which].mycall);
             }
             else if ((v = ini_get_value("netcall", p))) {
                 if (ini_validate_netcall(v) && g_tnc_settings[which].netcall_cnt < TNC_NETCALL_MAX_CNT)
-                    snprintf(g_tnc_settings[which].netcall[g_tnc_settings[which].netcall_cnt++],
+                    snprintf(g_tnc_settings[which].netcall[g_tnc_settings[which].netcall_cnt],
                          TNC_NETCALL_SIZE, "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "netcall",
+                                g_tnc_settings[which].netcall[g_tnc_settings[which].netcall_cnt]);
+                ++g_tnc_settings[which].netcall_cnt;
             }
             else if ((v = ini_get_value("gridsq", p))) {
                 if (ini_validate_gridsq(v))
                     snprintf(g_tnc_settings[which].gridsq, sizeof(g_tnc_settings[which].gridsq), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "gridsq", g_tnc_settings[which].gridsq);
             }
             else if ((v = ini_get_value("reset-btime-on-tx", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), "TRUE");
                 else
                     snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "reset-btime-on-tx", g_tnc_settings[which].reset_btime_tx);
             }
             else if ((v = ini_get_value("btime", p))) {
                 test = atoi(v);
                 if (test >= 0 && test <= MAX_TNC_BTIME_VALUE)
                     snprintf(g_tnc_settings[which].btime, sizeof(g_tnc_settings[which].btime), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "btime", g_tnc_settings[which].btime);
             }
             else if ((v = ini_get_value("name", p))) {
                 if (ini_validate_name(v))
                     snprintf(g_tnc_settings[which].name, sizeof(g_tnc_settings[which].name), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "name", g_tnc_settings[which].name);
             }
             else if ((v = ini_get_value("info", p))) {
                 if (ini_validate_info(v))
                     snprintf(g_tnc_settings[which].info, sizeof(g_tnc_settings[which].info), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "info", g_tnc_settings[which].info);
             }
             else if ((v = ini_get_value("fecrepeats", p))) {
                 test = atoi(v);
                 if (test >= 0 && test <= MAX_TNC_FECREPEATS_VALUE)
                     snprintf(g_tnc_settings[which].fecrepeats, sizeof(g_tnc_settings[which].fecrepeats), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "fecrepeats", g_tnc_settings[which].fecrepeats);
             }
             else if ((v = ini_get_value("fecid", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_tnc_settings[which].fecid, sizeof(g_tnc_settings[which].fecid), "TRUE");
                 else
                     snprintf(g_tnc_settings[which].fecid, sizeof(g_tnc_settings[which].fecid), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "fecid", g_tnc_settings[which].fecid);
             }
             else if ((v = ini_get_value("fecmode", p))) {
                 if (ini_validate_fecmode(v))
                     snprintf(g_tnc_settings[which].fecmode, sizeof(g_tnc_settings[which].fecmode), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "fecmode", g_tnc_settings[which].fecmode);
             }
             else if ((v = ini_get_value("leader", p))) {
                 test = atoi(v);
                 if (test >= MIN_TNC_LEADER_VALUE && test <= MAX_TNC_LEADER_VALUE)
                     snprintf(g_tnc_settings[which].leader, sizeof(g_tnc_settings[which].leader), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "leader", g_tnc_settings[which].leader);
             }
             else if ((v = ini_get_value("trailer", p))) {
                 test = atoi(v);
                 if (test >= 0 && test <= MAX_TNC_TRAILER_VALUE)
                     snprintf(g_tnc_settings[which].trailer, sizeof(g_tnc_settings[which].trailer), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "trailer", g_tnc_settings[which].trailer);
             }
             else if ((v = ini_get_value("squelch", p))) {
                 test = atoi(v);
                 if (test >= MIN_TNC_SQUELCH_VALUE && test <= MAX_TNC_SQUELCH_VALUE)
                     snprintf(g_tnc_settings[which].squelch, sizeof(g_tnc_settings[which].squelch), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "squelch", g_tnc_settings[which].squelch);
             }
             else if ((v = ini_get_value("busydet", p))) {
                 test = atoi(v);
                 if (test >= MIN_TNC_BUSYDET_VALUE && test <= MAX_TNC_BUSYDET_VALUE)
                     snprintf(g_tnc_settings[which].busydet, sizeof(g_tnc_settings[which].busydet), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "busydet", g_tnc_settings[which].busydet);
             }
             else if ((v = ini_get_value("enpingack", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_tnc_settings[which].en_pingack, sizeof(g_tnc_settings[which].en_pingack), "TRUE");
                 else
                     snprintf(g_tnc_settings[which].en_pingack, sizeof(g_tnc_settings[which].en_pingack), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "enpingack", g_tnc_settings[which].en_pingack);
             }
             else if ((v = ini_get_value("listen", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_tnc_settings[which].listen, sizeof(g_tnc_settings[which].listen), "TRUE");
                 else
                     snprintf(g_tnc_settings[which].listen, sizeof(g_tnc_settings[which].listen), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "listen", g_tnc_settings[which].listen);
             }
             else if ((v = ini_get_value("arq-sendcr", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_tnc_settings[which].arq_sendcr, sizeof(g_tnc_settings[which].arq_sendcr), "TRUE");
                 else
                     snprintf(g_tnc_settings[which].arq_sendcr, sizeof(g_tnc_settings[which].arq_sendcr), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-sendcr", g_tnc_settings[which].arq_sendcr);
             }
             else if ((v = ini_get_value("arq-timeout", p))) {
                 test = atoi(v);
                 if (test >= MIN_TNC_ARQ_TO && test <= MAX_TNC_ARQ_TO)
                     snprintf(g_tnc_settings[which].arq_timeout, sizeof(g_tnc_settings[which].arq_timeout), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-timeout", g_tnc_settings[which].arq_timeout);
             }
             else if ((v = ini_get_value("arq-bandwidth", p))) {
                 if (ini_validate_arq_bw(v))
                     snprintf(g_tnc_settings[which].arq_bandwidth, sizeof(g_tnc_settings[which].arq_bandwidth), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-bandwidth", g_tnc_settings[which].arq_bandwidth);
             }
             else if ((v = ini_get_value("tnc-init-cmd", p))) {
                 if (g_tnc_settings[which].tnc_init_cmds_cnt < TNC_INIT_CMDS_MAX_CNT)
-                    snprintf(g_tnc_settings[which].tnc_init_cmds[g_tnc_settings[which].tnc_init_cmds_cnt++],
+                    snprintf(g_tnc_settings[which].tnc_init_cmds[g_tnc_settings[which].tnc_init_cmds_cnt],
                          TNC_INIT_CMD_SIZE, "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "tnc-init-cmd",
+                                g_tnc_settings[which].tnc_init_cmds[g_tnc_settings[which].tnc_init_cmds_cnt]);
+                ++g_tnc_settings[which].tnc_init_cmds_cnt;
             }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);
@@ -580,6 +651,9 @@ void ini_read_log_set(FILE *inifp)
     char linebuf[MAX_INI_LINE_SIZE];
     char *p, *v;
 
+    /* if program invoked with --print-conf switch, print section header */
+    if (g_print_config)
+        fprintf(printconf_fp ? printconf_fp : stdout, "%s\n", "[log]");
     p = fgets(linebuf, sizeof(linebuf), inifp);
     while (p) {
         if (*p != '#') {
@@ -594,11 +668,17 @@ void ini_read_log_set(FILE *inifp)
                     snprintf(g_log_settings.debug_en, sizeof(g_log_settings.debug_en), "TRUE");
                 else
                     snprintf(g_log_settings.debug_en, sizeof(g_log_settings.debug_en), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "debug-log", g_log_settings.debug_en);
             } else if ((v = ini_get_value("traffic-log", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_log_settings.traffic_en, sizeof(g_log_settings.traffic_en), "TRUE");
                 else
                     snprintf(g_log_settings.traffic_en, sizeof(g_log_settings.traffic_en), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "traffic-log", g_log_settings.traffic_en);
             }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);
@@ -645,6 +725,9 @@ void ini_read_arim_set(FILE *inifp)
     size_t len;
     int test;
 
+    /* if program invoked with --print-conf switch, print section header */
+    if (g_print_config)
+        fprintf(printconf_fp ? printconf_fp : stdout, "%s\n", "[arim]");
     p = fgets(linebuf, sizeof(linebuf), inifp);
     while (p) {
         if (*p != '#') {
@@ -657,16 +740,25 @@ void ini_read_arim_set(FILE *inifp)
             if ((v = ini_get_value("mycall", p))) {
                 if (ini_validate_mycall(v))
                     snprintf(g_arim_settings.mycall, sizeof(g_arim_settings.mycall), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "mycall", g_arim_settings.mycall);
             }
             else if ((v = ini_get_value("send-repeats", p))) {
                 test = atoi(v);
                 if (test >= 0 && test <= MAX_ARIM_SEND_REPEATS)
                     snprintf(g_arim_settings.send_repeats, sizeof(g_arim_settings.send_repeats), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "send-repeats", g_arim_settings.send_repeats);
             }
             else if ((v = ini_get_value("pilot-ping-thr", p))) {
                 test = atoi(v);
                 if (test >= MIN_ARIM_PILOT_PING_THR && test <= MAX_ARIM_PILOT_PING_THR)
                     snprintf(g_arim_settings.pilot_ping_thr, sizeof(g_arim_settings.pilot_ping_thr), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "pilot-ping-thr", g_arim_settings.pilot_ping_thr);
             }
             else if ((v = ini_get_value("pilot-ping", p))) {
                 test = atoi(v);
@@ -674,16 +766,25 @@ void ini_read_arim_set(FILE *inifp)
                     snprintf(g_arim_settings.pilot_ping, sizeof(g_arim_settings.pilot_ping), "%d", test);
                 else
                     snprintf(g_arim_settings.pilot_ping, sizeof(g_arim_settings.pilot_ping), "%d", 0);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "pilot-ping", g_arim_settings.pilot_ping);
             }
             else if ((v = ini_get_value("ack-timeout", p))) {
                 test = atoi(v);
                 if (test >= 0 && test <= MAX_ARIM_ACK_TIMEOUT)
                     snprintf(g_arim_settings.ack_timeout, sizeof(g_arim_settings.ack_timeout), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "ack-timeout", g_arim_settings.ack_timeout);
             }
             else if ((v = ini_get_value("frame-timeout", p))) {
                 test = atoi(v);
                 if (test >= MIN_ARIM_FRAME_TIMEOUT && test <= MAX_ARIM_FRAME_TIMEOUT)
                     snprintf(g_arim_settings.frame_timeout, sizeof(g_arim_settings.frame_timeout), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "frame-timeout", g_arim_settings.frame_timeout);
             }
             else if ((v = ini_get_value("files-dir", p))) {
                 /* may be absolute path; if not make it relative to the ARIM root directory */
@@ -723,6 +824,9 @@ void ini_read_arim_set(FILE *inifp)
                 fclose(destfp);
                 fclose(srcfp);
 #endif
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "files-dir", g_arim_settings.files_dir);
             }
             else if ((v = ini_get_value("add-files-dir", p))) {
                 if (g_arim_settings.add_files_dir_cnt < ARIM_ADD_FILES_DIR_MAX_CNT) {
@@ -732,6 +836,10 @@ void ini_read_arim_set(FILE *inifp)
                     len = strlen(g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt]);
                     if (g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt][len - 1] == '/')
                         g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt][len - 1] = '\0';
+                    /* if program invoked with --print-conf switch, print key/value pair */
+                    if (g_print_config)
+                        fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "add-files-dir",
+                                    g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt]);
                     ++g_arim_settings.add_files_dir_cnt;
                 }
             }
@@ -743,6 +851,9 @@ void ini_read_arim_set(FILE *inifp)
                     len = strlen(g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt]);
                     if (g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt][len - 1] == '/')
                         g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt][len - 1] = '\0';
+                    if (g_print_config)
+                        fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "ac-files-dir",
+                                    g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt]);
                     ++g_arim_settings.ac_files_dir_cnt;
                 }
             }
@@ -751,21 +862,35 @@ void ini_read_arim_set(FILE *inifp)
                     snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), "TRUE");
                 else
                     snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "fecmode-downshift", g_arim_settings.fecmode_downshift);
             }
             else if ((v = ini_get_value("max-msg-days", p))) {
                 test = atoi(v);
                 if (test >= MIN_ARIM_MSG_DAYS && test <= MAX_ARIM_MSG_DAYS)
                     snprintf(g_arim_settings.max_msg_days, sizeof(g_arim_settings.max_msg_days), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "max-msg-days", g_arim_settings.max_msg_days);
             }
             else if ((v = ini_get_value("max-file-size", p))) {
                 test = atoi(v);
                 if (test >= 0 && test <= MAX_FILE_SIZE)
                     snprintf(g_arim_settings.max_file_size, sizeof(g_arim_settings.max_file_size), "%d", test);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "max-file-size", g_arim_settings.max_file_size);
             }
             else if ((v = ini_get_value("dynamic-file", p))) {
                 if (g_arim_settings.dyn_files_cnt < ARIM_DYN_FILES_MAX_CNT)
-                    snprintf(g_arim_settings.dyn_files[g_arim_settings.dyn_files_cnt++],
+                    snprintf(g_arim_settings.dyn_files[g_arim_settings.dyn_files_cnt],
                          ARIM_DYN_FILES_SIZE, "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "dynamic-file",
+                                g_arim_settings.dyn_files[g_arim_settings.dyn_files_cnt]);
+                ++g_arim_settings.dyn_files_cnt;
             }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);
@@ -814,6 +939,9 @@ void ini_read_ui_set(FILE *inifp)
     char linebuf[MAX_INI_LINE_SIZE];
     char *p, *v;
 
+    /* if program invoked with --print-conf switch, print section header */
+    if (g_print_config)
+        fprintf(printconf_fp ? printconf_fp : stdout, "%s\n", "[ui]");
     p = fgets(linebuf, sizeof(linebuf), inifp);
     while (p) {
         if (*p != '#') {
@@ -828,30 +956,45 @@ void ini_read_ui_set(FILE *inifp)
                     snprintf(g_ui_settings.show_titles, sizeof(g_ui_settings.show_titles), "TRUE");
                 else
                     snprintf(g_ui_settings.show_titles, sizeof(g_ui_settings.show_titles), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "show-titles", g_ui_settings.show_titles);
             }
             else if ((v = ini_get_value("last-time-heard", p))) {
                 if (!strncasecmp(v, "ELAPSED", 7))
                     snprintf(g_ui_settings.last_time_heard, sizeof(g_ui_settings.last_time_heard), "ELAPSED");
                 else
                     snprintf(g_ui_settings.last_time_heard, sizeof(g_ui_settings.last_time_heard), "CLOCK");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "last-time-heard", g_ui_settings.last_time_heard);
             }
             else if ((v = ini_get_value("mon-timestamp", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_ui_settings.mon_timestamp, sizeof(g_ui_settings.mon_timestamp), "TRUE");
                 else
                     snprintf(g_ui_settings.mon_timestamp, sizeof(g_ui_settings.mon_timestamp), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "mon-timestamp", g_ui_settings.mon_timestamp);
             }
             else if ((v = ini_get_value("color-code", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_ui_settings.color_code, sizeof(g_ui_settings.color_code), "TRUE");
                 else
                     snprintf(g_ui_settings.color_code, sizeof(g_ui_settings.color_code), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "color-code", g_ui_settings.color_code);
             }
             else if ((v = ini_get_value("utc-time", p))) {
                 if (ini_validate_bool(v))
                     snprintf(g_ui_settings.utc_time, sizeof(g_ui_settings.utc_time), "TRUE");
                 else
                     snprintf(g_ui_settings.utc_time, sizeof(g_ui_settings.utc_time), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "utc-time", g_ui_settings.utc_time);
             }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);

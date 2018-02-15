@@ -26,11 +26,13 @@
 
 extern int msg_view_restart;
 
-extern int ui_forward_msg(char *msgbuffer, size_t msgbufsize, const char *fn,
-                        const char *hdr, const char *to_call);
-extern int ui_send_msg(char *msgbuffer, size_t msgbufsize, const char *fn, const char *hdr);
+extern int ui_forward_msg(char *msgbuffer, size_t msgbufsize,const char *fn,
+                              const char *hdr, const char *to_call);
+extern int ui_send_msg(char *msgbuffer, size_t msgbufsize,
+                           const char *fn, const char *hdr);
 extern int ui_kill_msg(const char *fn, const char *hdr);
-extern int ui_read_msg(const char *fn, const char *hdr, int msgnbr, int is_recent);
+extern int ui_read_msg(const char *fn, const char *hdr,
+                           int msgnbr, int is_recent);
 extern void ui_list_msg(const char *fn, int mbox_type);
 extern int ui_create_msg(char *buffer, size_t bufsize, const char *to);
 

@@ -40,8 +40,9 @@ int arim_send_query(const char *query, const char *to_call)
     unsigned int check;
     size_t len = 0;
 
-    if (!g_tnc_attached || !arim_is_idle())
-            return 0;
+    if (!arim_is_idle() || !arim_tnc_is_idle())
+        return 0;
+
     if (atoi(g_arim_settings.pilot_ping)) {
         snprintf(prev_msg, sizeof(prev_msg), "%s", query);
         snprintf(prev_to_call, sizeof(prev_to_call), "%s", to_call);

@@ -30,6 +30,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <time.h>
+#include <ctype.h>
 #include "main.h"
 #include "ini.h"
 #include "mbox.h"
@@ -251,6 +252,174 @@ int mbox_clear_flag(const char *fn, const char *hdr, int flag)
     unlink(fpath);
     fclose(tempfp);
     rename(tempfn, fpath);
+    return 1;
+}
+
+int mbox_get_msg_list(char *msgbuffer, size_t msgbufsize,
+                         const char *fn, const char *to_call)
+{
+    FILE *mboxfp;
+    size_t len, cnt = 0;
+    int numlines = 0;
+    char linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_DIR_PATH_SIZE];
+    char *p, test[TNC_MYCALL_SIZE+8], header[MAX_MBOX_HDR_SIZE];
+    int i;
+
+    snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
+    mboxfp = fopen(fpath, "r");
+    if (mboxfp == NULL)
+        return 0;
+    flockfile(mboxfp);
+    memset(msgbuffer, 0, msgbufsize);
+    /* print preamble */
+    snprintf(header, sizeof(header), "Messages for %s:\n", to_call);
+    len = strlen(header);
+    if ((cnt + len) < msgbufsize) {
+        strncat(msgbuffer, header, msgbufsize - cnt - 1);
+        cnt += strlen(header);
+        ++numlines;
+    }
+    /* find and copy messages addressed to 'to_call' */
+    snprintf(test, sizeof(test), " TO %s ", to_call);
+    p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    while (p) {
+        if (!strncmp(p, "From ", 5)) {
+            /* message header, see if to_call matches */
+            memset(header, 0, sizeof(header));
+            len = strlen(linebuf);
+            for (i = 0; i < len; i++)
+                header[i] = toupper(linebuf[i]);
+            if (strstr(header, test)) {
+                /* print header into buffer */
+                linebuf[59] = '\0';
+                snprintf(header, sizeof(header), "%3d %s\n", numlines, &linebuf[16]);
+                len = strlen(header);
+                if ((cnt + len) < msgbufsize) {
+                    strncat(msgbuffer, header, msgbufsize - cnt - 1);
+                    cnt += len;
+                    ++numlines;
+                }
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    }
+    if (numlines < 2) {
+        snprintf(header, sizeof(header), "   No messages.\n");
+        len = strlen(header);
+        if ((cnt + len) < msgbufsize) {
+            strncat(msgbuffer, header, msgbufsize - cnt - 1);
+            cnt += strlen(header);
+            ++numlines;
+        }
+    }
+    snprintf(header, sizeof(header), "End\n");
+    len = strlen(header);
+    if ((cnt + len) < msgbufsize) {
+        strncat(msgbuffer, header, msgbufsize - cnt - 1);
+        cnt += strlen(header);
+        ++numlines;
+    }
+    funlockfile(mboxfp);
+    fclose(mboxfp);
+    return numlines;
+}
+
+int mbox_get_headers_to(char headers[][MAX_MBOX_HDR_SIZE],
+                            int max_hdrs, const char *fn, const char *to_call)
+{
+    FILE *mboxfp;
+    char linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_DIR_PATH_SIZE];
+    char *p, test[TNC_MYCALL_SIZE+8], header[MAX_MBOX_HDR_SIZE];
+    int i, len, cnt = 0;
+
+    snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
+    mboxfp = fopen(fpath, "r");
+    if (mboxfp == NULL)
+        return 0;
+    flockfile(mboxfp);
+    /* find and copy messages addressed to 'to_call' */
+    snprintf(test, sizeof(test), " TO %s ", to_call);
+    p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    while (p) {
+        if (!strncmp(p, "From ", 5)) {
+            /* message header, see if to_call matches */
+            memset(header, 0, sizeof(header));
+            len = strlen(linebuf);
+            for (i = 0; i < len; i++)
+                header[i] = toupper(linebuf[i]);
+            if (strstr(header, test)) {
+                /* print header into buffer */
+                snprintf(headers[cnt++], MAX_MBOX_HDR_SIZE, "%s", linebuf);
+                if (cnt == max_hdrs)
+                    break;
+            }
+        }
+        p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    }
+    funlockfile(mboxfp);
+    fclose(mboxfp);
+    return cnt;
+}
+
+int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
+                         const char *fn, const char *hdr)
+{
+    FILE *mboxfp;
+    size_t len, cnt = 0;
+    char *p, linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_DIR_PATH_SIZE];
+
+    snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
+    mboxfp = fopen(fpath, "r");
+    if (mboxfp == NULL)
+        return 0;
+    flockfile(mboxfp);
+    memset(msgbuffer, 0, msgbufsize);
+    /* find matching header in file */
+    p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    while (p && strncmp(linebuf, hdr, strlen(hdr))) {
+        p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    }
+    if (p) {
+        /* got it, skip over headers */
+        do {
+            p = fgets(linebuf, sizeof(linebuf), mboxfp);
+            if (p && *p == '\n') {
+                /* found blank line between headers and body, stop */
+                break;
+            }
+        } while (p);
+        /* now copy body of message into msg buffer */
+        do {
+            p = fgets(linebuf, sizeof(linebuf), mboxfp);
+            if (p) {
+                len = strlen(linebuf);
+                /* check for 'From ' char sequence escaped with '>' char(s) */
+                while (*p && *p == '>')
+                    ++p;
+                if (p > linebuf && !strncmp(p, "From ", 5)) {
+                    /* found one, unescape line by removing first '>' char */
+                    if ((cnt + len - 1) < msgbufsize) {
+                        strncat(msgbuffer, &linebuf[1], msgbufsize - cnt - 1);
+                        cnt += len - 1;
+                    }
+                } else if (p && !strncmp(p, "From ", 5)) {
+                    /* unescaped mbox header from next msg in file, stop */
+                    break;
+                } else {
+                    /* write into msg buffer */
+                    if ((cnt + len) < msgbufsize) {
+                        strncat(msgbuffer, linebuf, msgbufsize - cnt - 1);
+                        cnt += len;
+                    }
+                }
+            }
+        } while (p);
+        /* remove empty line added when stored to mbox file */
+        if (msgbuffer[cnt - 1] == '\n' && msgbuffer[cnt - 2] == '\n')
+            msgbuffer[cnt - 2] = '\0';
+    }
+    funlockfile(mboxfp);
+    fclose(mboxfp);
     return 1;
 }
 
@@ -594,7 +763,7 @@ int mbox_fwd_msg(char *msgbuffer, size_t msgbufsize, const char *fn, const char 
 }
 
 int mbox_send_msg(char *msgbuffer, size_t msgbufsize,
-                char *to_call, int to_call_size, const char *fn, const char *hdr)
+                char *to_call, size_t to_call_size, const char *fn, const char *hdr)
 {
     FILE *mboxfp, *tempfp;
     size_t len, cnt = 0;

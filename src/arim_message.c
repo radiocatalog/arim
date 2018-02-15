@@ -40,7 +40,7 @@ int arim_send_msg(const char *msg, const char *to_call)
     unsigned int check;
     size_t len = 0;
 
-    if (!g_tnc_attached || !arim_is_idle())
+    if (!arim_is_idle() || !arim_tnc_is_idle())
         return 0;
     /* store message if needed later for sending after pilot pings
        or to store it in outbox if send fails or is canceled */

@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <ctype.h>
 #include "main.h"
 #include "bufq.h"
 #include "arim_proto.h"
@@ -37,11 +38,15 @@
 #include "zlib.h"
 #include "datathread.h"
 #include "arim_arq.h"
+#include "arim_arq_auth.h"
+#include "arim_arq_msg.h"
+#include "auth.h"
 
 static MSGQUEUEITEM msg_in;
 static MSGQUEUEITEM msg_out;
 static size_t msg_in_cnt, msg_out_cnt;
-static int zoption;
+static char headers[MAX_MGET_HEADERS][MAX_MBOX_HDR_SIZE];
+static int zoption, num_msgs, next_msg;
 
 int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
 {
@@ -272,6 +277,134 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
     return 1;
 }
 
+int arim_arq_msg_on_send_first(const char *remote_call, int max_msgs)
+{
+    char linebuf[MAX_LOG_LINE_SIZE], msgbuffer[MIN_MSG_BUF_SIZE];
+
+    next_msg = 0;
+    if (max_msgs > MAX_MGET_HEADERS || max_msgs == 0)
+        max_msgs = MAX_MGET_HEADERS;
+    /* get up to max_msgs message headers To: remote_call */
+    num_msgs = mbox_get_headers_to(headers, max_msgs,
+                                       MBOX_OUTBOX_FNAME, remote_call);
+    if (!num_msgs)
+        return 0;
+    if (mbox_get_msg(msgbuffer, sizeof(msgbuffer),
+                        MBOX_OUTBOX_FNAME, headers[next_msg])) {
+        snprintf(linebuf, sizeof(linebuf),
+            "ARQ: Sending message %d of %d, [%s]",
+                next_msg + 1, num_msgs, headers[next_msg]);
+        ui_queue_debug_log(linebuf);
+        arim_arq_msg_on_send_cmd(msgbuffer, zoption);
+        return 1;
+    } else {
+        snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot find message");
+        arim_arq_send_remote(linebuf);
+        snprintf(linebuf, sizeof(linebuf),
+            "ARQ: Failed to read message %d of %d, %s",
+                next_msg, num_msgs, headers[next_msg]);
+        ui_queue_debug_log(linebuf);
+    }
+    /* failed, reset counters */
+    num_msgs = next_msg = 0;
+    return 0;
+}
+
+int arim_arq_msg_on_send_next()
+{
+    char linebuf[MAX_LOG_LINE_SIZE], msgbuffer[MIN_MSG_BUF_SIZE];
+
+    /* send next message if available */
+    if (next_msg < num_msgs) {
+        /* delete previous message from mbox */
+        if (!mbox_delete_msg(MBOX_OUTBOX_FNAME, headers[next_msg])) {
+            /* log, but don't stop if deletion fails */
+            snprintf(linebuf, sizeof(linebuf),
+                "ARQ: Failed to delete message %d of %d, %s", next_msg, num_msgs, headers[next_msg]);
+            ui_queue_debug_log(linebuf);
+        }
+        ++next_msg;
+        if (next_msg < num_msgs) {
+            if (mbox_get_msg(msgbuffer, sizeof(msgbuffer),
+                        MBOX_OUTBOX_FNAME, headers[next_msg])) {
+                snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: Sending message %d of %d, [%s]", next_msg + 1, num_msgs, headers[next_msg]);
+                ui_queue_debug_log(linebuf);
+                arim_arq_msg_on_send_cmd(msgbuffer, zoption);
+                return 1;
+            } else {
+                /* failed to read message, send /ERROR response */
+                snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot find message");
+                arim_arq_send_remote(linebuf);
+                snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: Failed to read message %d of %d, %s", next_msg, num_msgs, headers[next_msg]);
+                ui_queue_debug_log(linebuf);
+            }
+        } else {
+            /* all done */
+            snprintf(linebuf, sizeof(linebuf),
+                "/OK Done, %d of %d messages", next_msg, num_msgs);
+            arim_arq_send_remote(linebuf);
+        }
+    }
+    /* done, reset counters */
+    num_msgs = next_msg = 0;
+    return 0;
+}
+
+int arim_arq_msg_on_mget(char *cmd, size_t size, char *eol)
+{
+    char *p_args, *s, *e;
+    char linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
+    int result, num_msgs = 0;
+
+    zoption = 0;
+    p_args = NULL;
+    /* empty outbound data buffer before handling file request */
+    while (arim_get_buffer_cnt() > 0)
+        sleep(1);
+    /* parse the parameters */
+    s = cmd + 6;
+    while (*s && *s == ' ')
+        ++s;
+    if (*s && (s == strstr(s, "-z"))) {
+        zoption = 1;
+        s += 2;
+        while (*s && *s == ' ')
+            ++s;
+    }
+    p_args = s;
+    if (*p_args && eol) {
+        /* trim trailing spaces */
+        e = eol - 1;
+        while (e > p_args && *e == ' ') {
+            *e = '\0';
+            --e;
+        }
+        num_msgs = atoi(p_args);
+    }
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    if (!arim_arq_auth_get_status()) {
+        /* auth required, send /A1 challenge */
+        if (arim_arq_auth_on_send_a1(remote_call, "MGET", p_args)) {
+            arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
+        } else {
+            /* no access for remote call, send /EAUTH response */
+            snprintf(linebuf, sizeof(linebuf), "/EAUTH");
+            arim_arq_send_remote(linebuf);
+        }
+    } else {
+        /* no auth required or session previously authenticated */
+        result = arim_arq_msg_on_send_first(remote_call, num_msgs);
+        if (!result) {
+            snprintf(linebuf, sizeof(linebuf),
+                "/OK No messages for %s", remote_call);
+            arim_arq_send_remote(linebuf);
+        }
+    }
+    return 1;
+}
+
 int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
 {
     char *p_check, *p_name, *p_size, *e;
@@ -381,6 +514,106 @@ int arim_arq_msg_on_ok()
             ui_queue_debug_log(linebuf);
         }
     }
+    return 1;
+}
+
+int arim_arq_msg_on_mlist(char *cmdbuf, size_t cmdbufsize, char *eol,
+                              char *respbuf, size_t respbufsize)
+{
+    char linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
+    size_t len, i;
+
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    len = strlen(remote_call);
+    for (i = 0; i < len; i++)
+        remote_call[i] = toupper(remote_call[i]);
+    /* check to see if authentication is needed */
+    if (!arim_arq_auth_get_status()) {
+        /* auth required, send /A1 challenge */
+        if (arim_arq_auth_on_send_a1(remote_call, "MLIST", "")) {
+            arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
+            snprintf(linebuf, sizeof(linebuf),
+                        "ARQ: Listing of msgs for %s requires authentication", remote_call);
+            ui_queue_debug_log(linebuf);
+        } else {
+            /* no access for remote call, send /EAUTH response */
+            snprintf(linebuf, sizeof(linebuf), "/EAUTH");
+            arim_arq_send_remote(linebuf);
+            snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: Listing of msgs no password for: %s", remote_call);
+            ui_queue_debug_log(linebuf);
+        }
+    } else {
+        if (mbox_get_msg_list(respbuf, respbufsize, MBOX_OUTBOX_FNAME, remote_call)) {
+            return 1;
+        } else {
+            /* failed to get list, send /ERROR response */
+            snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot list messages");
+            arim_arq_send_remote(linebuf);
+            snprintf(linebuf, sizeof(linebuf),
+                    "ARQ: Listing of msgs failed for: %s", remote_call);
+            ui_queue_debug_log(linebuf);
+        }
+    }
+    return 0;
+}
+
+int arim_arq_msg_on_client_mlist(const char *cmd)
+{
+    char *s, *e;
+    char salt[MAX_DIR_PATH_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    char mycall[TNC_MYCALL_SIZE], remote_call[TNC_MYCALL_SIZE];
+    static char ha1[AUTH_BUFFER_SIZE];
+
+    /* retrieve HA1 from password file */
+    arim_copy_mycall(mycall, sizeof(mycall));
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    if (!auth_check_passwd(mycall, remote_call, ha1, sizeof(ha1))) {
+        snprintf(linebuf, sizeof(linebuf),
+            "AUTH: No entry for call %s in arim-digest file)", remote_call);
+        ui_queue_debug_log(linebuf);
+        ui_set_status_dirty(STATUS_ARQ_EAUTH_REMOTE);
+        return 0;
+    }
+    /* called from cmd processor when user issues /AUTH at prompt */
+    snprintf(salt, sizeof(salt), "%s", cmd);
+    s = salt + 6;
+    while (*s && *s == ' ')
+        ++s;
+    if (*s) {
+        /* trim trailing spaces */
+        e = s + strlen(s) - 1;
+        while (e > s && *e == ' ') {
+            *e = '\0';
+            --e;
+        }
+    }
+    /* cache the command for re-sending when auth is done */
+    arim_arq_cache_cmd(cmd);
+    arim_arq_auth_set_ha2_info("MLIST", s);
+    arim_arq_send_remote(cmd);
+    return 1;
+}
+
+int arim_arq_msg_on_client_mget(const char *cmd, const char *args, int use_zoption)
+{
+    /* called from cmd processor when user issues /MGET at prompt */
+    char *s, *e, argbuf[MAX_CMD_SIZE];
+    size_t len;
+
+    snprintf(argbuf, sizeof(argbuf), "%s", args);
+    /* trim leading and trailing spaces */
+    s = argbuf;
+    while (*s && *s == ' ')
+        ++s;
+    len = strlen(argbuf);
+    e = &argbuf[len - 1];
+    while (e > s && *e == ' ') {
+        *e = '\0';
+        --e;
+    }
+    arim_arq_auth_set_ha2_info("MGET", s);
+    arim_arq_send_remote(cmd);
     return 1;
 }
 

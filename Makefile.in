@@ -1217,7 +1217,7 @@ uninstall-man: uninstall-man1 uninstall-man5
 @PORTABLE_BIN_TRUE@	rm -f $(distdir)/INSTALL
 @PORTABLE_BIN_TRUE@	rm -f $(distdir)/ChangeLog
 @PORTABLE_BIN_TRUE@	mkdir $(distdir)/doc
-@PORTABLE_BIN_TRUE@	mv $(distdir)/help/arim-help.pdf $(distdir)/doc/arim-help.pdf
+@PORTABLE_BIN_TRUE@	mv $(distdir)/help/arim-help.pdf $(distdir)/doc/arim-help-v$(PACKAGE_VERSION).pdf
 @PORTABLE_BIN_TRUE@	mv $(distdir)/AUTHORS $(distdir)/doc/AUTHORS
 @PORTABLE_BIN_TRUE@	mv $(distdir)/README $(distdir)/doc/README
 @PORTABLE_BIN_TRUE@	mv $(distdir)/COPYING $(distdir)/doc/COPYING

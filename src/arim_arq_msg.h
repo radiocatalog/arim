@@ -24,12 +24,22 @@
 #ifndef _ARIM_ARQ_MSG_H_INCLUDED_
 #define _ARIM_ARQ_MSG_H_INCLUDED_
 
+#define MAX_MGET_HEADERS    10
+
 extern int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol);
 extern int arim_arq_msg_on_send_msg(void);
 extern int arim_arq_msg_on_send_cmd(const char *data, int use_zoption);
 extern size_t arim_arq_msg_on_send_buffer(size_t size);
 extern int arim_arq_msg_on_ok(void);
 extern int arim_arq_msg_on_rcv_frame(const char *data, size_t size);
+extern int arim_arq_msg_on_mlist(char *cmdbuf, size_t cmdbufsize, char *eol,
+                                    char *respbuf, size_t respbufsize);
+extern int arim_arq_msg_on_client_mlist(const char *cmd);
+extern int arim_arq_msg_on_client_mget(const char *cmd,
+                                          const char *args, int use_zoption);
+extern int arim_arq_msg_on_mget(char *cmd, size_t size, char *eol);
+extern int arim_arq_msg_on_send_first(const char *remote_call, int max_msgs);
+extern int arim_arq_msg_on_send_next(void);
 
 #endif
 

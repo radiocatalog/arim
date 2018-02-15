@@ -35,6 +35,7 @@
 #include "arim_query.h"
 #include "arim_arq.h"
 #include "arim_arq_auth.h"
+#include "arim_arq_msg.h"
 #include "bufq.h"
 #include "cmdproc.h"
 #include "ini.h"
@@ -51,6 +52,7 @@
 #define MAX_DATA_ROW_SIZE       512
 #define DATA_BUF_SCROLLING_TIME 300
 #define DATA_WIN_SCROLL_LEGEND  "Scrolling: UP DOWN PAGEUP PAGEDOWN HOME END, 'c' to cancel. "
+#define CH_BUSY_IND             "[RF CHANNEL BUSY]    "
 #define MAX_CMD_HIST            15+1
 
 WINDOW *main_win;
@@ -493,25 +495,27 @@ void ui_clear_calls_heard()
 
 void ui_get_heard_list(char *listbuf, size_t listbufsize)
 {
+    char linebuf[MAX_HEARD_SIZE];
     size_t i, len, cnt = 0;
 
     snprintf(listbuf, listbufsize, "Calls heard (%s):\n",
                 last_time_heard == LT_HEARD_ELAPSED ? "ET" : "LT");
     cnt += strlen(listbuf);
     for (i = 0; i < heard_list_cnt; i++) {
-        len = strlen(heard_list[i].htext);
-        if ((cnt + len + 1) < listbufsize) {
-            strncat(listbuf, &(heard_list[i].htext[1]), listbufsize - cnt - 1);
+        snprintf(linebuf, sizeof(linebuf), "  %s\n", &(heard_list[i].htext[1]));
+        len = strlen(linebuf);
+        if ((cnt + len) < listbufsize) {
+            strncat(listbuf, linebuf, listbufsize - cnt - 1);
             cnt += len;
-            strncat(listbuf, "\n", listbufsize - cnt - 1);
-            ++cnt;
         } else {
             break;
         }
     }
-    if ((cnt + 1) < listbufsize) {
-        strncat(listbuf, "\n", listbufsize - cnt - 1);
-        ++cnt;
+    snprintf(linebuf, sizeof(linebuf), "End\n");
+    len = strlen(linebuf);
+    if ((cnt + len) < listbufsize) {
+        strncat(listbuf, linebuf, listbufsize - cnt - 1);
+        cnt += len;
     }
     listbuf[cnt] = '\0';
 }
@@ -659,6 +663,7 @@ void ui_print_status_ind()
     char idle_busy, tx_rx, ind[MAX_STATUS_IND_SIZE], fecmode[TNC_FECMODE_SIZE];
     char tnc_state[TNC_STATE_SIZE], remote_call[TNC_MYCALL_SIZE], bw_hz[TNC_ARQ_BW_SIZE];
 
+
     if (g_tnc_attached) {
         state = arim_get_state();
         switch (state) {
@@ -727,6 +732,21 @@ void ui_print_status_ind()
         mvwprintw(main_win, status_row, start, "%s", ind);
         wattroff(main_win, A_BOLD);
     }
+}
+
+void ui_check_channel_busy()
+{
+    int start;
+
+    wattron(main_win, A_BOLD);
+    start = COLS - strlen(CH_BUSY_IND) - 1;
+    if (start < status_col)
+        start = status_col;
+    wmove(main_win, status_row + 1, start);
+    wclrtoeol(main_win);
+    if (!arim_is_arq_state() && arim_channel_busy())
+        mvwprintw(main_win, status_row + 1, start, "%s", CH_BUSY_IND);
+    wattroff(main_win, A_BOLD);
 }
 
 void ui_print_status(const char *text, int temporary)
@@ -816,6 +836,7 @@ void ui_check_status_dirty()
     char cmd;
 
     ui_check_title_dirty();
+    ui_check_channel_busy();
     if (!status_dirty)
         return;
 
@@ -1076,6 +1097,7 @@ void ui_check_status_dirty()
         break;
     case STATUS_ARQ_MSG_SEND_ACK:
         ui_print_status("ARIM Busy: ARQ message upload acknowleged", 1);
+        arim_arq_msg_on_send_next();
         break;
     case STATUS_ARQ_MSG_SEND_DONE:
         ui_print_status("ARIM Idle: ARQ message upload complete", 1);

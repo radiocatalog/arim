@@ -52,8 +52,9 @@ void arim_proto_arq_auth_send_a1_wait(int event, int param)
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
-        prev_time = time(NULL);
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
@@ -69,15 +70,18 @@ void arim_proto_arq_auth_send_a1_wait(int event, int param)
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
         } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
     case EV_PERIODIC:
         if (!arim_get_buffer_cnt()) {
             /* done sending a1 command, will wait for a2 response next */
+            arim_set_state(ST_ARQ_AUTH_RCV_A2_WAIT);
             ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
             prev_time = time(NULL);
-            arim_set_state(ST_ARQ_AUTH_RCV_A2_WAIT);
             ui_set_status_dirty(STATUS_ARQ_AUTH_BUSY);
         } else {
             t = time(NULL);
@@ -114,8 +118,9 @@ void arim_proto_arq_auth_send_a2_wait(int event, int param)
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
-        prev_time = time(NULL);
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
@@ -131,15 +136,18 @@ void arim_proto_arq_auth_send_a2_wait(int event, int param)
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
         } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
     case EV_PERIODIC:
         if (!arim_get_buffer_cnt()) {
             /* done sending a2 command, will wait for a3 response next */
+            arim_set_state(ST_ARQ_AUTH_RCV_A3_WAIT);
             ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
             prev_time = time(NULL);
-            arim_set_state(ST_ARQ_AUTH_RCV_A3_WAIT);
             ui_set_status_dirty(STATUS_ARQ_AUTH_BUSY);
         } else {
             t = time(NULL);
@@ -176,8 +184,9 @@ void arim_proto_arq_auth_send_a3_wait(int event, int param)
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
-        prev_time = time(NULL);
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
@@ -193,15 +202,18 @@ void arim_proto_arq_auth_send_a3_wait(int event, int param)
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
         } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
     case EV_PERIODIC:
         if (!arim_get_buffer_cnt()) {
             /* done sending a3 command, wait for a4 response */
+            arim_set_state(ST_ARQ_AUTH_RCV_A4_WAIT);
             ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
             prev_time = time(NULL);
-            arim_set_state(ST_ARQ_AUTH_RCV_A4_WAIT);
             ui_set_status_dirty(STATUS_ARQ_AUTH_BUSY);
         } else {
             t = time(NULL);
@@ -238,8 +250,9 @@ void arim_proto_arq_auth_rcv_a2_wait(int event, int param)
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
-        prev_time = time(NULL);
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         break;
     case EV_ARQ_AUTH_SEND_CMD:
         /* received good /A2 from remote stn in response to our /A1 */
@@ -252,8 +265,9 @@ void arim_proto_arq_auth_rcv_a2_wait(int event, int param)
     case EV_ARQ_AUTH_ERROR:
         /* something went wrong */
         arim_arq_auth_on_error();
-        prev_time = time(NULL);
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_AUTH_ERROR);
         break;
     case EV_ARQ_DISCONNECTED:
@@ -270,6 +284,9 @@ void arim_proto_arq_auth_rcv_a2_wait(int event, int param)
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
         } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
@@ -307,14 +324,16 @@ void arim_proto_arq_auth_rcv_a3_wait(int event, int param)
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
-        prev_time = time(NULL);
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         break;
     case EV_ARQ_AUTH_ERROR:
         /* remote station can't be authenticated */
         arim_arq_auth_on_error();
         arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_EAUTH_REMOTE);
         break;
     case EV_ARQ_DISCONNECTED:
@@ -331,6 +350,9 @@ void arim_proto_arq_auth_rcv_a3_wait(int event, int param)
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
         } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
@@ -368,8 +390,9 @@ void arim_proto_arq_auth_rcv_a4_wait(int event, int param)
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
-        prev_time = time(NULL);
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         break;
     case EV_ARQ_AUTH_OK:
         /* remote stn accepted our /A3, mutual auth is complete */
@@ -384,21 +407,8 @@ void arim_proto_arq_auth_rcv_a4_wait(int event, int param)
         arim_arq_auth_on_error();
         arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_AUTH_ERROR);
-        break;
-    case EV_ARQ_FILE_SEND_CMD:
-        /* received /FGET which implies remote stn accepted our /A3 */
-        arim_set_state(ST_ARQ_FILE_SEND_WAIT);
-        ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
-        prev_time = time(NULL);
-        ui_set_status_dirty(STATUS_ARQ_FILE_SEND);
-        break;
-    case EV_ARQ_FILE_RCV_WAIT_OK:
-        /* received /FPUT which implies remote stn accepted our /A3 */
-        arim_set_state(ST_ARQ_FILE_RCV_WAIT_OK);
-        ack_timeout = ARDOP_CONN_TIMEOUT;
-        prev_time = time(NULL);
-        ui_set_status_dirty(STATUS_ARQ_FILE_RCV);
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
@@ -414,6 +424,9 @@ void arim_proto_arq_auth_rcv_a4_wait(int event, int param)
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
         } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
         }
         break;

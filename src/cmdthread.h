@@ -25,7 +25,6 @@
 #define _CMDTHREAD_H_INCLUDED_
  
 extern void *cmdthread_func(void *data);
-extern int cmdthread_tnc_is_idle(void);
 
 #endif
 

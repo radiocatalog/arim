@@ -116,11 +116,12 @@
 #define EV_ARQ_MSG_OK                   48
 #define EV_ARQ_MSG_SEND_CMD             49
 #define EV_ARQ_MSG_SEND                 50
-#define EV_ARQ_CANCEL_WAIT              51
-#define EV_ARQ_AUTH_SEND_CMD            52
-#define EV_ARQ_AUTH_WAIT_CMD            53
-#define EV_ARQ_AUTH_OK                  54
-#define EV_ARQ_AUTH_ERROR               55
+#define EV_ARQ_MSG_SEND_DONE            51
+#define EV_ARQ_CANCEL_WAIT              52
+#define EV_ARQ_AUTH_SEND_CMD            53
+#define EV_ARQ_AUTH_WAIT_CMD            54
+#define EV_ARQ_AUTH_OK                  55
+#define EV_ARQ_AUTH_ERROR               56
 
 #define MAX_ACKNAK_SIZE                 50
 
@@ -152,6 +153,8 @@ extern void arim_copy_listen(char *val, size_t size);
 extern void arim_cancel_trans(void);
 extern void arim_fecmode_downshift(void);
 extern int arim_is_receiving(void);
+extern int arim_tnc_is_idle(void);
+extern int arim_channel_busy(void);
 
 extern time_t prev_time;
 extern int rcv_nak_cnt;

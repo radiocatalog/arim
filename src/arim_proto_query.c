@@ -153,6 +153,10 @@ void arim_proto_query_resp_wait(int event, int param)
         arim_set_state(ST_IDLE);
         ui_set_status_dirty(STATUS_RESP_WAIT_CAN);
         break;
+    case EV_TNC_NEWSTATE:
+        /* reload timer */
+        prev_time = time(NULL);
+        break;
     case EV_PERIODIC:
         t = time(NULL);
         /* see if we timed out waiting for response frame. If TNC is receiving reload

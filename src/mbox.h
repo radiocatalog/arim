@@ -24,16 +24,26 @@
 #ifndef _MBOX_H_INCLUDED_
 #define _MBOX_H_INCLUDED_
 
+#include "main.h"
+
 extern int mbox_init(void);
-extern int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call,
-                                int check, const char *msg);
+extern int mbox_add_msg(const char *fn, const char *fm_call,
+                            const char *to_call, int check, const char *msg);
 extern int mbox_delete_msg(const char *fn, const char *hdr);
 extern int mbox_save_msg(const char *fn, const char *hdr, const char *savefn);
 extern int mbox_clear_flag(const char *fn, const char *hdr, int flag);
-extern int mbox_read_msg(char *msgbuffer, size_t msgbufsize, const char *fn, const char *hdr);
-extern int mbox_fwd_msg(char *msgbuffer, size_t msgbufsize, const char *fn, const char *hdr);
-extern int mbox_send_msg(char *msgbuffer, size_t msgbufsize,
-                char *tocall, int tocallsize, const char *fn, const char *hdr);
+extern int mbox_read_msg(char *msgbuffer, size_t msgbufsize,
+                            const char *fn, const char *hdr);
+extern int mbox_fwd_msg(char *msgbuffer, size_t msgbufsize,
+                            const char *fn, const char *hdr);
+extern int mbox_send_msg(char *msgbuffer, size_t msgbufsize, char *tocall,
+                             size_t to_call_size, const char *fn, const char *hdr);
+extern int mbox_get_msg_list(char *msgbuffer, size_t msgbufsize,
+                                 const char *fn, const char *to_call);
+extern int mbox_get_headers_to(char headers[][MAX_MBOX_HDR_SIZE],
+                        int max_hdrs, const char *fn, const char *to_call);
+extern int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
+                                const char *fn, const char *hdr);
 extern int mbox_purge(const char *fn, int days);
 extern char mbox_dir_path[];
 

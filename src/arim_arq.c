@@ -46,7 +46,7 @@ int arim_arq_send_conn_req(const char *repeats, const char *to_call)
     char tcall[TNC_MYCALL_SIZE], buffer[MAX_LOG_LINE_SIZE];
     size_t i, len;
 
-    if (!g_tnc_attached || !arim_is_idle())
+    if (!arim_is_idle() || !arim_tnc_is_idle())
         return 0;
     /* force call to uppercase */
     len = strlen(to_call);
@@ -298,6 +298,8 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
                 util_timestamp(timestamp, sizeof(timestamp)), cmdbuf);
         }
         ui_queue_data_in(linebuf);
+        /* initialize response buffer for queries */
+        memset(respbuf, 0, sizeof(respbuf));
         if (!strncasecmp(cmdbuf, "/FPUT ", 6)) {
             /* remote station sends a file. If in a wait state already,
                abandon that transaction and respond to the /fput to avoid
@@ -315,7 +317,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             switch (state) {
             case ST_ARQ_AUTH_RCV_A4_WAIT:
                 /* /FPUT implies remote stn accepted our /A3, auth successful */
-                arim_arq_auth_on_ok();
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
                 /* fallthrough intentional */
             case ST_ARQ_CONNECTED:
                 arim_arq_files_on_fput(cmdbuf, size, eol, ARQ_SERVER_STN);
@@ -326,7 +328,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             }
         } else if (!strncasecmp(cmdbuf, "/FGET ", 6)) {
             /* remote station requests a file. If in a wait state already,
-               abandon that transaction and respond to the /fget to avoid
+               abandon that transaction and respond to the /FGET to avoid
                deadlock when commands are issued by both parties simultaneously */
             switch (state) {
             case ST_ARQ_FILE_SEND_WAIT:
@@ -343,7 +345,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             switch (state) {
             case ST_ARQ_AUTH_RCV_A4_WAIT:
                 /* /FGET implies remote stn accepted our /A3, auth successful */
-                arim_arq_auth_on_ok();
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
                 /* fallthrough intentional */
             case ST_ARQ_CONNECTED:
                 arim_arq_files_on_fget(cmdbuf, size, eol);
@@ -366,8 +368,37 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
                 break;
             }
             switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* /MPUT implies remote stn accepted our /A3, auth successful */
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
+                /* fallthrough intentional */
             case ST_ARQ_CONNECTED:
                 arim_arq_msg_on_mput(cmdbuf, size, eol);
+                break;
+            }
+        } else if (!strncasecmp(cmdbuf, "/MGET", 5)) {
+            /* remote station requests messages. If in a wait state already,
+               abandon that transaction and respond to the /MGET to avoid
+               deadlock when commands are issued by both parties simultaneously */
+            switch (state) {
+            case ST_ARQ_FILE_SEND_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FILE_RCV_WAIT:
+            case ST_ARQ_FILE_RCV_WAIT_OK:
+            case ST_ARQ_AUTH_RCV_A2_WAIT:
+            case ST_ARQ_AUTH_RCV_A3_WAIT:
+            case ST_ARQ_MSG_SEND_WAIT:
+                arim_on_event(EV_ARQ_CANCEL_WAIT, 0);
+                state = arim_get_state();
+                break;
+            }
+            switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* /MGET implies remote stn accepted our /A3, auth successful */
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
+                /* fallthrough intentional */
+            case ST_ARQ_CONNECTED:
+                arim_arq_msg_on_mget(cmdbuf, size, eol);
                 break;
             }
         } else if (!strncasecmp(cmdbuf, "/A1", 3)) {
@@ -396,6 +427,30 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             /* remote station requests that we send an /A1 authentication challenge */
             if (state == ST_ARQ_CONNECTED)
                 arim_arq_auth_on_challenge(cmdbuf, size, eol);
+         } else if (!strncasecmp(cmdbuf, "/MLIST", 6)) {
+            /* remote station requests message list */
+            switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* receipt of cmd implies remote stn accepted our /A3, auth successful */
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
+                /* fallthrough intentional */
+            case ST_ARQ_CONNECTED:
+                /* empty outbound data buffer before handling query or command */
+                while (arim_get_buffer_cnt() > 0)
+                    sleep(1);
+                if (arim_arq_msg_on_mlist(cmdbuf, size, eol, respbuf, sizeof(respbuf))) {
+                    /* append response to data out buffer */
+                    size = strlen(respbuf);
+                    if ((cnt + size) >= sizeof(buffer)) {
+                        /* overflow, reset buffer and return */
+                        cnt = 0;
+                        return cnt;
+                    }
+                    strncat(&buffer[cnt], respbuf, size);
+                    cnt += size;
+                }
+                break;
+            }
         } else if (!strncasecmp(cmdbuf, "/ERROR", 6)) {
             switch (state) {
             case ST_ARQ_FILE_RCV:
@@ -428,6 +483,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
                 break;
             case ST_ARQ_MSG_SEND:
                 arim_on_event(EV_ARQ_MSG_OK, 0);
+                /* must call this to uncompress if -z option invoked */
                 arim_arq_msg_on_ok();
                 break;
             case ST_ARQ_AUTH_RCV_A4_WAIT:
@@ -504,7 +560,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
                 break;
             }
         }
-     } else if (cnt) {
+    } else if (cnt) {
         /* send data out one line at a time */
         e = buffer;
         if (*e) {

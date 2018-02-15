@@ -2,6 +2,58 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.3
+-----------
+* Add message listing feature in ARQ mode. Once connected to
+  another station, use the '/mlist' command to retrieve a list of
+  messages addressed to your station. Your station must be
+  authenticated; if not the remote station will respond with an
+  authentication challenge first. The syntax is:
+     /mlist
+  All messages in the remote station's outbox which are addressed to
+  your TNC's call sign (mycall) will be listed, in chronological
+  order (oldest first).
+* Add message download feature in ARQ mode. Once connected, use the
+  '/mget' command to retrieve messages addressed to your station from
+  the remote station's outbox. Your station must be authenticated;
+  if not the remote station will respond with an authentication
+  challenge first. The syntax is:
+     /mget [-z] [n]
+  where the optional '-z' switch invokes on-the-fly compression of
+  the messages, and the optional 'n' parameter is the maximum number
+  of messages to download. Up to n messages addressed your TNC's call
+  sign (mycall) will be downloaded to your inbox, starting with the
+  oldest message first. If n is not given, the default limit is 10
+  messages. This is useful for stations that are on the air only
+  intermittently.
+* In FEC mode, check to see if the channel is busy before sending
+  messages, queries, files, beacons, unproto text and pings. If busy,
+  cancel the operation. If sending a message, prompt the operator to
+  save to the outbox (y/n). This will help avoid collisions during
+  net operations or wasted transmissions when interfering signals
+  appear in the channel. Requires version 1.0.2.5j-BPQ or higher of
+  the ardopc/piardopc TNC. Works with version 1.0.2.5 of the
+  ARDOP_Win TNC.
+* Add "RF CHANNEL BUSY" indicator below the status indicators. This
+  is driven by BUSY notifications from the TNC, which appear during
+  FEC operations but not during an ARQ session.
+* Command history buffer added to command prompt in the message
+  listing and file listing views. Use the CTRL-P (previous) and
+  CTRL-N (next) keys to browse the recent command history when you
+  want to reuse a previously sent command. The buffer holds the 10
+  most recently sent commands.
+* Improve configuration file "dump" feature. When ARIM is run with
+  the '-p' or '--print-conf FILE option, for example:
+     arim -p dump.txt
+  the file will contain a listing of configuration parameters with
+  the values *after* processing. This is useful for troubleshooting.
+  Invalid parameter values will be replaced with default values, and
+  parameters with misspelled names will be absent.
+* Add 'arqbw' and 'busydet' parameters to the TNC Settings dialog.
+  Remove 'pname' parameter, this is always shown in the ARIM title
+  bar when ATTACHED to the TNC.
+* Update embedded Help and PDF Help file.
+
 Version 1.2
 -----------
 * Introduce optional Mutual Authentication feature used to verify

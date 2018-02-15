@@ -48,6 +48,8 @@
 #include "auth.h"
 #include "cmdproc.h"
 
+#define MSG_SEND_FAIL_PROMPT_SAVE   1
+
 int cmdproc_cmd(const char *cmd)
 {
     int state, result1, result2, zoption = 0;
@@ -101,8 +103,8 @@ int cmdproc_cmd(const char *cmd)
             if (result1 == 'y' || result1 == 'Y')
                 arim_arq_send_disconn_req();
         } else {
-            arim_arq_cache_cmd(cmd);
             if (!strncasecmp(cmd, "/FGET", 5)) {
+                arim_arq_cache_cmd(cmd);
                 /* check for -z option */
                 snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
                 fn = msgbuffer;
@@ -126,6 +128,7 @@ int cmdproc_cmd(const char *cmd)
                 arim_arq_files_on_client_fget(cmd, fn, destdir, zoption);
                 return 1;
             } else if (!strncasecmp(cmd, "/FPUT", 5)) {
+                arim_arq_cache_cmd(cmd);
                 /* check for -z option */
                 snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
                 fn = msgbuffer;
@@ -148,16 +151,40 @@ int cmdproc_cmd(const char *cmd)
                     destdir = NULL;
                 arim_arq_files_on_client_fput(fn, destdir, zoption);
                 return 1;
+            } else if (!strncasecmp(cmd, "/MGET", 5)) {
+                arim_arq_cache_cmd(cmd);
+                /* check for -z option */
+                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
+                t = msgbuffer;
+                while (*t && *t == ' ')
+                    ++t;
+                if (*t && (t == strstr(t, "-z"))) {
+                    zoption = 1;
+                    t += 2;
+                } else {
+                    /* -z option not found, back up to start */
+                    t = msgbuffer;
+                }
+                arim_arq_msg_on_client_mget(cmd, t, zoption);
+                return 1;
             } else if (!strncasecmp(cmd, "/FLIST", 6)) {
+                arim_arq_cache_cmd(cmd);
                 arim_arq_files_on_client_flist(cmd);
                 return 1;
             } else if (!strncasecmp(cmd, "/FILE", 5)) {
+                arim_arq_cache_cmd(cmd);
                 arim_arq_files_on_client_file(cmd);
                 return 1;
+            } else if (!strncasecmp(cmd, "/MLIST", 6)) {
+                arim_arq_cache_cmd(cmd);
+                arim_arq_msg_on_client_mlist(cmd);
+                return 1;
             } else if (!strncasecmp(cmd, "/AUTH", 5)) {
+                arim_arq_cache_cmd(cmd);
                 arim_arq_auth_on_client_challenge(cmd);
                 return 1;
             } else if (!strncasecmp(cmd, "/SM", 3)) {
+                arim_arq_cache_cmd(cmd);
                 /* check for -z option */
                 p = cmd + 3;
                 while (*p && *p == ' ')
@@ -204,6 +231,10 @@ int cmdproc_cmd(const char *cmd)
     }
     switch (buffer[0]) {
     case ':':
+        if (!arim_is_idle() || !arim_tnc_is_idle()) {
+            ui_print_status("TNC Busy: cannot send unproto message", 1);
+            break;
+        }
         result1 = arim_get_state();
         /* allow sending of text when TNC already busy with previous unproto send */
         if (g_tnc_attached && (result1 == ST_IDLE || result1 == ST_SEND_UN_BUF_WAIT)) {
@@ -279,12 +310,32 @@ int cmdproc_cmd(const char *cmd)
                     if (arim_send_msg(msgbuffer, call1)) {
                         ui_print_status("ARIM Busy: sending message", 1);
                     } else {
+#ifdef MSG_SEND_FAIL_PROMPT_SAVE
+                        result1 = ui_show_dialog("\tCannot send message, TNC is busy!\n"
+                                                 "\tDo you want to save\n"
+                                                 "\tthe message to your Outbox?\n \n\t[Y]es   [N]o", "yYnN");
+                        if (result1 == 'y' || result1 == 'Y') {
+                            ui_print_status("Saving message to Outbox...", 1);
+                            arim_store_out(msgbuffer, call1);
+                        }
+#else
                         arim_store_out(msgbuffer, call1);
                         ui_print_status("Send msg: cannot send, TNC busy; saved to Outbox", 1);
+#endif
                     }
                 } else {
+#ifdef MSG_SEND_FAIL_PROMPT_SAVE
+                    result1 = ui_show_dialog("\tCannot send message, no TNC attached!\n"
+                                             "\tDo you want to save\n"
+                                             "\tthe message to your Outbox?\n \n\t[Y]es   [N]o", "yYnN");
+                    if (result1 == 'y' || result1 == 'Y') {
+                        ui_print_status("Saving message to Outbox...", 1);
+                        arim_store_out(msgbuffer, call1);
+                    }
+#else
                     arim_store_out(msgbuffer, call1);
                     ui_print_status("Send msg: cannot send, no TNC attached; saved to Outbox", 1);
+#endif
                 }
             } else if (t) {
                 snprintf(msgbuffer, sizeof(msgbuffer), "%s", t);
@@ -292,12 +343,32 @@ int cmdproc_cmd(const char *cmd)
                     if (arim_send_msg(msgbuffer, call1)) {
                         ui_print_status("ARIM Busy: sending message", 1);
                     } else {
+#ifdef MSG_SEND_FAIL_PROMPT_SAVE
+                        result1 = ui_show_dialog("\tCannot send message, TNC is busy!\n"
+                                                 "\tDo you want to save\n"
+                                                 "\tthe message to your Outbox?\n \n\t[Y]es   [N]o", "yYnN");
+                        if (result1 == 'y' || result1 == 'Y') {
+                            ui_print_status("Saving message to Outbox...", 1);
+                            arim_store_out(msgbuffer, call1);
+                        }
+#else
                         arim_store_out(msgbuffer, call1);
                         ui_print_status("Send msg: cannot send, TNC busy; saved to Outbox", 1);
+#endif
                     }
                 } else {
+#ifdef MSG_SEND_FAIL_PROMPT_SAVE
+                    result1 = ui_show_dialog("\tCannot send message, no TNC attached!\n"
+                                             "\tDo you want to save\n"
+                                             "\tthe message to your Outbox?\n \n\t[Y]es   [N]o", "yYnN");
+                    if (result1 == 'y' || result1 == 'Y') {
+                        ui_print_status("Saving message to Outbox...", 1);
+                        arim_store_out(msgbuffer, call1);
+                    }
+#else
                     arim_store_out(msgbuffer, call1);
                     ui_print_status("Send msg: cannot send, no TNC attached; saved to Outbox", 1);
+#endif
                 }
             }
         } else if (t && !strncasecmp(t, "sq", 2)) {
@@ -336,8 +407,10 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("Send ping: invalid repeat count", 1);
                 break;
             }
-            if (!arim_send_ping(t, call1, 1))
+            if (!arim_is_idle() || !arim_tnc_is_idle() ||
+                !arim_send_ping(t, call1, 1)) {
                 ui_print_status("Send ping: cannot send, TNC busy", 1);
+            }
         } else if (t && !strncasecmp(t, "conn", 2)) {
             if (!g_tnc_attached) {
                 ui_print_status("ARQ Connect: cannot connect, no TNC attached", 1);
@@ -647,7 +720,7 @@ int cmdproc_cmd(const char *cmd)
                 "   squelch: %-10.2s    busydet: %.2s\n"
                 "    leader: %-10.4s    trailer: %.4s\n"
                 "    listen: %-10.5s  enpingack: %.5s\n"
-                "     pname: %.31s\n"
+                "   busydet: %-10.5s      arqbw: %.10s\n"
                 " netcall 1: %-10.10s  netcall 2: %.10s\n"
                 " netcall 3: %-10.10s  netcall 4: %.10s\n"
                 " netcall 5: %-10.10s  netcall 6: %.10s\n"
@@ -659,7 +732,7 @@ int cmdproc_cmd(const char *cmd)
                 g_tnc_settings[g_cur_tnc].squelch, g_tnc_settings[g_cur_tnc].busydet,
                 g_tnc_settings[g_cur_tnc].leader, g_tnc_settings[g_cur_tnc].trailer,
                 g_tnc_settings[g_cur_tnc].listen, g_tnc_settings[g_cur_tnc].en_pingack,
-                g_tnc_settings[g_cur_tnc].name,
+                g_tnc_settings[g_cur_tnc].busydet, g_tnc_settings[g_cur_tnc].arq_bandwidth,
                 g_tnc_settings[g_cur_tnc].netcall[0], g_tnc_settings[g_cur_tnc].netcall[1],
                 g_tnc_settings[g_cur_tnc].netcall[2], g_tnc_settings[g_cur_tnc].netcall[3],
                 g_tnc_settings[g_cur_tnc].netcall[4], g_tnc_settings[g_cur_tnc].netcall[5],
@@ -892,7 +965,7 @@ int cmdproc_cmd(const char *cmd)
                 if (arim_beacon_send())
                     ui_print_status("ARIM Busy: sending beacon", 1);
                 else
-                    ui_print_status("TNC Busy: cannot send beacon", 1);
+                    ui_print_status("Cannot send beacon: TNC busy", 1);
             } else {
                 ui_print_status("Cannot send beacon: no TNC attached", 1);
             }

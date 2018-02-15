@@ -28,7 +28,6 @@
 #include "main.h"
 #include "arim_proto.h"
 #include "arim_beacon.h"
-#include "cmdthread.h"
 #include "ini.h"
 #include "ui.h"
 #include "util.h"
@@ -45,18 +44,17 @@ int arim_beacon_send()
 {
     size_t len;
 
-    if (g_tnc_attached && arim_is_idle() && cmdthread_tnc_is_idle()) {
-        ui_queue_data_out(beaconstr);
-        len = strlen(beaconstr);
-        /* prime buffer count because update from TNC not immediate */
-        pthread_mutex_lock(&mutex_tnc_set);
-        snprintf(g_tnc_settings[g_cur_tnc].buffer,
-            sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
-        pthread_mutex_unlock(&mutex_tnc_set);
-        arim_on_event(EV_SEND_BCN, 0);
-        return 1;
-    }
-    return 0;
+    if (!arim_is_idle() || !arim_tnc_is_idle())
+        return 0;
+    ui_queue_data_out(beaconstr);
+    len = strlen(beaconstr);
+    /* prime buffer count because update from TNC not immediate */
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(g_tnc_settings[g_cur_tnc].buffer,
+        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
+    pthread_mutex_unlock(&mutex_tnc_set);
+    arim_on_event(EV_SEND_BCN, 0);
+    return 1;
 }
 
 void arim_beacon_recv(const char *fm_call, const char *gridsq, const char *msg)
@@ -69,17 +67,28 @@ void arim_beacon_recv(const char *fm_call, const char *gridsq, const char *msg)
 
 void arim_beacon_on_alarm()
 {
+    static int try_again = 0;
     int send_beacon = 0;
 
-    /* called every 6 secs (1/10 minute granularity) */
+    /* called every ALARM_INTERVAL_SEC secs (1/10 minute granularity) */
     pthread_mutex_lock(&mutex_beacon);
     if (beacon_time_elapsed && --beacon_time_elapsed == 0) {
         beacon_time_elapsed = beacon_time_interval;
         send_beacon = 1;
     }
     pthread_mutex_unlock(&mutex_beacon);
-    if (send_beacon)
-        arim_beacon_send();
+    if (send_beacon) {
+        if (!arim_beacon_send()) {
+            ui_queue_debug_log("Automatic beacon: can't send, TNC busy.");
+            if (!try_again) {
+                /* try again once, two minutes from now */
+                try_again = 1;
+                beacon_time_elapsed = 2 * (60 / ALARM_INTERVAL_SEC);
+            } else {
+                try_again = 0;
+            }
+        }
+    }
 }
 
 void arim_beacon_set(int minutes)

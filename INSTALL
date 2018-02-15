@@ -45,7 +45,7 @@ Each user account will get its own set of arim data files (mailboxes,
 shared files and arim.ini configuration file). After unpacking the
 source code tarball, run these commands:
 
-    cd arim-1.2
+    cd arim-1.3
     ./configure
     make
     sudo make install  (Linux)
@@ -75,18 +75,18 @@ including the executable, reside in a single directory. This can be
 copied anywhere (like a USB flash drive) and the program run from
 there. After unpacking the source code tarball run these commands:
 
-    cd arim-1.2
+    cd arim-1.3
     ./configure --enable-portable-bin
     make
     make install
 
 Note that 'make install' is done as user, not root. By default this
-installs the portable arim files to a folder named "arim-1.2" in your
+installs the portable arim files to a folder named "arim-1.3" in your
 home directory.
 
 Then run arim:
 
-    cd arim-1.2
+    cd arim-1.3
     ./arim
 
 Note the invocation as "./arim" to run the executable in the directory.
@@ -94,7 +94,7 @@ Note the invocation as "./arim" to run the executable in the directory.
 If you want to install the portable file directory to a different
 location, run these commands:
 
-    cd arim-1.2
+    cd arim-1.3
     ./configure --enable-portable-bin --prefix=/path/to/install/loc
     make
     make install
@@ -118,7 +118,7 @@ To uninstall, run this command from the build directory:
     make uninstall       (Cygwin)
 
 NOTE: in the case of a portable installation, this command will delete
-the locally installed arim-1.2 directory and all data will be lost.
+the locally installed arim-1.3 directory and all data will be lost.
 However, copies of the portable directory located elsewhere are not
 affected. In the case of a normal installation, the files installed to
 system directories will be removed, but 'arim' data directories in

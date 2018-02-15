@@ -177,11 +177,12 @@ const char *events[] = {
     "EV_ARQ_MSG_OK",                    /* 48 */
     "EV_ARQ_MSG_SEND_CMD",              /* 49 */
     "EV_ARQ_MSG_SEND",                  /* 50 */
-    "EV_ARQ_CANCEL_WAIT",               /* 51 */
-    "EV_ARQ_AUTH_SEND_CMD",             /* 52 */
-    "EV_ARQ_AUTH_WAIT_CMD",             /* 53 */
-    "EV_ARQ_AUTH_OK",                   /* 54 */
-    "EV_ARQ_AUTH_ERROR",                /* 55 */
+    "EV_ARQ_MSG_SEND_DONE",             /* 51 */
+    "EV_ARQ_CANCEL_WAIT",               /* 52 */
+    "EV_ARQ_AUTH_SEND_CMD",             /* 53 */
+    "EV_ARQ_AUTH_WAIT_CMD",             /* 54 */
+    "EV_ARQ_AUTH_OK",                   /* 55 */
+    "EV_ARQ_AUTH_ERROR",                /* 56 */
 };
 
 void arim_copy_mycall(char *call, size_t size)
@@ -376,6 +377,28 @@ void arim_reset_msg_rpt_state()
 int arim_is_idle()
 {
     return (arim_get_state() == ST_IDLE) ? 1 : 0;
+}
+
+int arim_channel_busy()
+{
+    int ret;
+
+    pthread_mutex_lock(&mutex_tnc_set);
+    ret = strncmp(g_tnc_settings[g_cur_tnc].busy, "TRUE", 4);
+    pthread_mutex_unlock(&mutex_tnc_set);
+    return ret ? 0 : 1;
+}
+
+int arim_tnc_is_idle()
+{
+    int buffer_cnt, not_fec_send, not_ch_busy;
+
+    pthread_mutex_lock(&mutex_tnc_set);
+    buffer_cnt = atoi(g_tnc_settings[g_cur_tnc].buffer);
+    not_fec_send = strncmp(g_tnc_settings[g_cur_tnc].state, "FECSEND", 7);
+    not_ch_busy = strncmp(g_tnc_settings[g_cur_tnc].busy, "TRUE", 4);
+    pthread_mutex_unlock(&mutex_tnc_set);
+    return (!buffer_cnt && not_fec_send && not_ch_busy);
 }
 
 int arim_get_send_repeats()

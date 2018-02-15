@@ -42,7 +42,7 @@ int arim_send_ping(const char *repeats, const char *to_call, int event)
     char tcall[TNC_MYCALL_SIZE], buffer[MAX_LOG_LINE_SIZE];
     size_t i, len;
 
-    if (!g_tnc_attached || !arim_is_idle() || !repeats || !to_call)
+    if (!repeats || !to_call)
         return 0;
     /* force call to uppercase */
     len = strlen(to_call);

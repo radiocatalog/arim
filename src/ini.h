@@ -40,6 +40,7 @@
 #define TNC_TRAILER_SIZE         4
 #define TNC_SQUELCH_SIZE         4
 #define TNC_BUSYDET_SIZE         4
+#define TNC_BUSY_SIZE            8
 #define TNC_BTIME_SIZE           4
 #define TNC_VERSION_SIZE         32
 #define TNC_BUFFER_SIZE          12
@@ -68,6 +69,7 @@
 #define DEFAULT_TNC_TRAILER      "0"
 #define DEFAULT_TNC_SQUELCH      "5"
 #define DEFAULT_TNC_BUSYDET      "5"
+#define DEFAULT_TNC_BUSY         "FALSE"
 #define DEFAULT_TNC_BTIME        "0"
 #define DEFAULT_TNC_STATE        "DISC"
 #define DEFAULT_TNC_LISTEN       "TRUE"
@@ -111,6 +113,7 @@ typedef struct tnc_set {
     char trailer[TNC_TRAILER_SIZE];
     char squelch[TNC_SQUELCH_SIZE];
     char busydet[TNC_BUSYDET_SIZE];
+    char busy[TNC_BUSY_SIZE];
     char state[TNC_STATE_SIZE];
     char arq_target_call[TNC_MYCALL_SIZE];
     char arq_remote_call[TNC_MYCALL_SIZE];

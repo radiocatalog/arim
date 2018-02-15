@@ -113,6 +113,8 @@ void arim_proto_arq_conn_out_wait(int event, int param)
     case EV_ARQ_CONNECTED:
         /* a CONNECTED async response was received from the TNC */
         arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         arim_arq_on_connected();
         ui_set_status_dirty(STATUS_ARQ_CONNECTED);
         break;
@@ -129,6 +131,11 @@ void arim_proto_arq_conn_out_wait(int event, int param)
             arim_set_state(ST_IDLE);
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+        } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
+            ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
     case EV_ARQ_REJ_BUSY:
@@ -210,9 +217,9 @@ void arim_proto_arq_conn_in_wait(int event, int param)
         break;
     case EV_ARQ_CONNECTED:
         /* a CONNECTED async response was received from the TNC */
+        arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
-        arim_set_state(ST_ARQ_CONNECTED);
         arim_arq_on_connected();
         ui_set_status_dirty(STATUS_ARQ_CONNECTED);
         break;
@@ -229,6 +236,11 @@ void arim_proto_arq_conn_in_wait(int event, int param)
             arim_set_state(ST_IDLE);
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+        } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
+            ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
     case EV_ARQ_REJ_BUSY:
@@ -338,6 +350,7 @@ void arim_proto_arq_conn_connected(int event, int param)
         arim_arq_auth_on_error();
         arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_EAUTH_LOCAL);
         break;
     case EV_ARQ_DISCONNECTED:
@@ -354,6 +367,9 @@ void arim_proto_arq_conn_connected(int event, int param)
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
         } else {
+            /* reload timer */
+            ack_timeout = ARDOP_CONN_TIMEOUT;
+            prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
         }
         break;
