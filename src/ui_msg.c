@@ -637,7 +637,7 @@ void ui_list_msg(const char *fn, int mbox_type)
     char *p, linebuf[MAX_MBOX_HDR_SIZE+1], msgbuffer[MIN_MSG_BUF_SIZE];
     static char list[MAX_MBOX_LIST_LEN+1][MAX_MBOX_HDR_SIZE];
     char to_call[MAX_CALLSIGN_SIZE];
-    char fpath[MAX_DIR_PATH_SIZE];
+    char fpath[MAX_PATH_SIZE];
     static int once = 0;
     int i, temp, max_cols, max_mbox_rows, cmd, cur, top, start, quit = 0;
 

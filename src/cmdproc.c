@@ -991,7 +991,7 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
 {
     /* called from data thread, not UI thread */
     char *p, *t, buffer[MAX_CMD_SIZE], remote_call[TNC_MYCALL_SIZE];
-    char dpath[MAX_DIR_PATH_SIZE];
+    char dpath[MAX_PATH_SIZE];
     size_t i, len, cnt;
     int result;
 

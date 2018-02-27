@@ -70,6 +70,7 @@ pthread_mutex_t mutex_time = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_tnc_set = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_file_out = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_msg_out = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_tnc_busy = PTHREAD_MUTEX_INITIALIZER;
 
 void sighandler(int sig, siginfo_t *siginfo, void *context)
 {
@@ -116,11 +117,11 @@ int main(int argc, char *argv[])
     while ((option = getopt_long(argc, argv, "vf:p:h", long_options, NULL)) != -1) {
         switch (option) {
         case 'f':
-            snprintf(g_config_fname, MAX_DIR_PATH_SIZE, "%s", optarg);
+            snprintf(g_config_fname, MAX_PATH_SIZE, "%s", optarg);
             g_config_clo = 1;
             break;
         case 'p':
-            snprintf(g_print_config_fname, MAX_DIR_PATH_SIZE, "%s", optarg);
+            snprintf(g_print_config_fname, MAX_PATH_SIZE, "%s", optarg);
             g_print_config = 1;
             break;
         case 'v':

@@ -37,6 +37,7 @@
 #include "arim_arq_files.h"
 #include "arim_arq_msg.h"
 #include "arim_arq_auth.h"
+#include "cmdthread.h"
 
 static int arq_rpts, arq_count, arq_cmd_size;
 static char cached_cmd[MAX_CMD_SIZE];
@@ -102,17 +103,13 @@ int arim_arq_send_conn_req_ptt(int ptt_true)
     arim_copy_mycall(mycall, sizeof(mycall));
     arim_copy_remote_call(tcall, sizeof(tcall));
     ++arq_count;
-    if (arq_count > arq_rpts) {
-        /* no joy, abandon connection attempt */
-        return 0;
-    }
-    snprintf(buffer, sizeof(buffer), "<< [@] %s>%s (Connect request %d of %d)",
-                 mycall, tcall, arq_count, arq_rpts);
+    if (arq_count > 1)
+        return 1; /* only print trace once */
+    snprintf(buffer, sizeof(buffer), "<< [@] %s>%s (Connecting...)", mycall, tcall);
     ui_queue_traffic_log(buffer);
     if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(buffer, sizeof(buffer), "[%s] << [@] %s>%s (Connect request %d of %d)",
-                util_timestamp(timestamp, sizeof(timestamp)),
-                    mycall, tcall, arq_count, arq_rpts);
+        snprintf(buffer, sizeof(buffer), "[%s] << [@] %s>%s (Connecting...)",
+                util_timestamp(timestamp, sizeof(timestamp)), mycall, tcall);
     }
     ui_queue_data_in(buffer);
     return 1;
@@ -171,6 +168,7 @@ int arim_arq_on_connected()
     show_recents = show_ptable = 0; /* close recents or ping history view if open */
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    cmdthread_tnc_not_busy(1); /* force TNC not busy status */
     return 1;
 }
 
@@ -244,6 +242,31 @@ int arim_arq_on_conn_timeout()
     return 1;
 }
 
+int arim_arq_on_conn_fail()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+
+    /* connection to remote station has failed,
+       print to monitor view and traffic log */
+    arim_copy_target_call(target_call, sizeof(target_call));
+    if (!strlen(target_call))
+        arim_copy_mycall(target_call, sizeof(target_call));
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(buffer, sizeof(buffer),
+                ">> [@] %s>%s (Connection attempt failed)",
+                remote_call, target_call);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [@] %s>%s (Connection attempt failed)",
+                util_timestamp(timestamp, sizeof(timestamp)), remote_call, target_call);
+    }
+    ui_queue_data_in(buffer);
+    arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    return 1;
+}
 size_t arim_arq_send_remote(const char *msg)
 {
     char sendcr[TNC_ARQ_SENDCR_SIZE], linebuf[MAX_LOG_LINE_SIZE];

@@ -54,8 +54,11 @@
 #define MAX_CALLSIGN_SIZE      12
 #define MAX_DIR_LINE_SIZE      256
 #define MAX_DIR_LIST_LEN       256
-#define MAX_DIR_PATH_SIZE      256
+#define MAX_FILE_NAME_SIZE     256
+#define MAX_DIR_PATH_SIZE      768
+#define MAX_PATH_SIZE          2048
 #define MAX_PING_SIZE          64
+#define MAX_METHOD_SIZE        32
 
 #define ALARM_INTERVAL_SEC      6
 #define ARDOP_PINGACK_TIMEOUT   6
@@ -103,6 +106,7 @@ extern pthread_mutex_t mutex_time;
 extern pthread_mutex_t mutex_tnc_set;
 extern pthread_mutex_t mutex_file_out;
 extern pthread_mutex_t mutex_msg_out;
+extern pthread_mutex_t mutex_tnc_busy;
 
 #endif
 

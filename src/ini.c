@@ -62,8 +62,8 @@ UI_SET g_ui_settings;
 TNC_SET g_tnc_settings[TNC_MAX_COUNT];
 int g_cur_tnc, g_num_tnc;
 char g_arim_path[MAX_DIR_PATH_SIZE];
-char g_config_fname[MAX_DIR_PATH_SIZE];
-char g_print_config_fname[MAX_DIR_PATH_SIZE];
+char g_config_fname[MAX_PATH_SIZE];
+char g_print_config_fname[MAX_PATH_SIZE];
 int g_config_clo;
 FILE *printconf_fp;
 
@@ -301,7 +301,7 @@ char *ini_get_value(const char *key, char *line)
 
 int ini_check_add_files_dir(const char *path)
 {
-    char allowed_path[MAX_DIR_PATH_SIZE], test_path[MAX_DIR_PATH_SIZE];
+    char allowed_path[MAX_PATH_SIZE], test_path[MAX_DIR_PATH_SIZE];
     int i, wildcard = 0;
     size_t len;
 
@@ -349,7 +349,7 @@ int ini_check_add_files_dir(const char *path)
 
 int ini_check_ac_files_dir(const char *path)
 {
-    char allowed_path[MAX_DIR_PATH_SIZE], test_path[MAX_DIR_PATH_SIZE];
+    char allowed_path[MAX_PATH_SIZE], test_path[MAX_DIR_PATH_SIZE];
     int i, wildcard = 0;
     size_t len;
 
@@ -718,7 +718,7 @@ void ini_read_arim_set(FILE *inifp)
 {
 #ifndef PORTABLE_BIN
     FILE *destfp, *srcfp;
-    char file_path[MAX_DIR_PATH_SIZE];
+    char file_path[MAX_PATH_SIZE];
 #endif
     DIR *dirp;
     char *p, *v, linebuf[MAX_INI_LINE_SIZE];
@@ -831,7 +831,7 @@ void ini_read_arim_set(FILE *inifp)
             else if ((v = ini_get_value("add-files-dir", p))) {
                 if (g_arim_settings.add_files_dir_cnt < ARIM_ADD_FILES_DIR_MAX_CNT) {
                     snprintf(g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt],
-                         MAX_DIR_PATH_SIZE, "%s", v);
+                         sizeof(g_arim_settings.add_files_dir[0]), "%s", v);
                     /* trim trailing '/' if present */
                     len = strlen(g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt]);
                     if (g_arim_settings.add_files_dir[g_arim_settings.add_files_dir_cnt][len - 1] == '/')
@@ -846,7 +846,7 @@ void ini_read_arim_set(FILE *inifp)
             else if ((v = ini_get_value("ac-files-dir", p))) {
                 if (g_arim_settings.ac_files_dir_cnt < ARIM_AC_FILES_DIR_MAX_CNT) {
                     snprintf(g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt],
-                         MAX_DIR_PATH_SIZE, "%s", v);
+                         sizeof(g_arim_settings.ac_files_dir[0]), "%s", v);
                     /* trim trailing '/' if present */
                     len = strlen(g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt]);
                     if (g_arim_settings.ac_files_dir[g_arim_settings.ac_files_dir_cnt][len - 1] == '/')

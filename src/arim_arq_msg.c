@@ -561,7 +561,7 @@ int arim_arq_msg_on_mlist(char *cmdbuf, size_t cmdbufsize, char *eol,
 int arim_arq_msg_on_client_mlist(const char *cmd)
 {
     char *s, *e;
-    char salt[MAX_DIR_PATH_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    char salt[MAX_MBOX_HDR_SIZE], linebuf[MAX_LOG_LINE_SIZE];
     char mycall[TNC_MYCALL_SIZE], remote_call[TNC_MYCALL_SIZE];
     static char ha1[AUTH_BUFFER_SIZE];
 

@@ -35,7 +35,7 @@
 static int arq_auth_session_status;
 static char ha1[AUTH_BUFFER_SIZE], ha2[AUTH_BUFFER_SIZE];
 static char cnonce[AUTH_BUFFER_SIZE], snonce[AUTH_BUFFER_SIZE];
-static char fpath[MAX_DIR_PATH_SIZE], fmethod[MAX_DIR_PATH_SIZE];
+static char fpath[MAX_PATH_SIZE], fmethod[MAX_METHOD_SIZE];
 
 void arim_arq_auth_set_status(int val) {
     arq_auth_session_status = val;

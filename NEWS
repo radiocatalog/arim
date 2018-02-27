@@ -2,6 +2,16 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.4
+-----------
+* Improve ARQ connection request logic to prevent ARIM from timing
+  out when the ARDOP TNCs are having difficulty establishing the
+  connection.
+* Fix bug sometimes causing 'TNC busy' errors after an ARQ session
+  has timed out if connection was initiated immmediately after
+  receiving an ARDOP frame (e.g. ping ack frame if pilot pings are
+  used).
+
 Version 1.3
 -----------
 * Add message listing feature in ARQ mode. Once connected to

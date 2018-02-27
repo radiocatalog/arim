@@ -25,6 +25,7 @@
 #define _CMDTHREAD_H_INCLUDED_
  
 extern void *cmdthread_func(void *data);
+extern void cmdthread_tnc_not_busy(int val);
 
 #endif
 

@@ -207,6 +207,14 @@ void ui_set_status_dirty(int val)
     pthread_mutex_unlock(&mutex_status);
 }
 
+void ui_truncate_line(char *line, size_t size)
+{
+    line[size-1] = '\0';
+    line[size-2] = '.';
+    line[size-3] = '.';
+    line[size-4] = '.';
+}
+
 void ui_on_cancel()
 {
     if (g_tnc_attached)
@@ -552,7 +560,7 @@ void ui_update_heard_list()
                 hours = telapsed / (60*60);
                 telapsed = telapsed % (60*60);
                 minutes = telapsed / 60;
-                snprintf(heard, 16, "%s", heard_list[i].htext);
+                snprintf(heard, sizeof(heard), "%.16s", heard_list[i].htext);
                 snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
                             "%s %02d:%02d:%02d", heard, days, hours, minutes);
             }
@@ -567,7 +575,7 @@ void ui_update_heard_list()
             else
                 heard_time = localtime(&heard_list[i].htime);
             pthread_mutex_unlock(&mutex_time);
-            snprintf(heard, 16, "%s", heard_list[i].htext);
+            snprintf(heard, sizeof(heard), "%.16s", heard_list[i].htext);
             snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
                         "%s %02d:%02d:%02d", heard, heard_time->tm_hour,
                             heard_time->tm_min, heard_time->tm_sec);
@@ -1041,8 +1049,8 @@ void ui_check_status_dirty()
     case STATUS_ARQ_CONN_REQ_SENT:
         ui_print_status("ARIM Busy: Sending ARQ connection request", 1);
         break;
-    case STATUS_ARQ_CONN_REQ_TO:
-        ui_print_status("ARIM Idle: ARQ connection request timeout", 1);
+    case STATUS_ARQ_CONN_REQ_FAIL:
+        ui_print_status("ARIM Idle: ARQ connection request failed", 1);
         break;
     case STATUS_ARQ_CONN_PP_SEND:
         ui_print_status("ARIM Busy: ping ACK quality >= threshold, connecting...", 1);

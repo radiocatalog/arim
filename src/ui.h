@@ -93,7 +93,7 @@
 #define STATUS_ARQ_CONNECTED        53
 #define STATUS_ARQ_DISCONNECTED     54
 #define STATUS_ARQ_CONN_REQ_SENT    55
-#define STATUS_ARQ_CONN_REQ_TO      56
+#define STATUS_ARQ_CONN_REQ_FAIL    56
 #define STATUS_ARQ_CONN_PP_SEND     57
 #define STATUS_ARQ_CONN_PP_ACK_TO   58
 #define STATUS_ARQ_CONN_PP_ACK_BAD  59
@@ -188,6 +188,7 @@ extern void ui_clear_calls_heard(void);
 extern void ui_clear_ptable(void);
 extern void ui_clear_recents(void);
 extern void ui_clear_new_ctrs(void);
+extern void ui_truncate_line(char *line, size_t size);
 
 #endif
 

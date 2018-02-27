@@ -35,6 +35,7 @@ extern int arim_arq_on_connected(void);
 extern int arim_arq_send_disconn_req(void);
 extern int arim_arq_on_disconnected(void);
 extern int arim_arq_on_conn_timeout(void);
+extern int arim_arq_on_conn_fail(void);
 extern int arim_arq_on_data(char *data, size_t size);
 extern size_t arim_arq_on_cmd(const char *cmd, size_t size);
 extern size_t arim_arq_on_resp(const char *resp, size_t size);

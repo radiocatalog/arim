@@ -47,6 +47,13 @@
 #define MAX_CHANNEL_BUSY_TIME  15
 static int tnc_busy, tnc_not_busy;
 
+void cmdthread_tnc_not_busy(int val)
+{
+    pthread_mutex_lock(&mutex_tnc_busy);
+    tnc_not_busy = val;
+    pthread_mutex_unlock(&mutex_tnc_busy);
+}
+
 void cmdthread_queue_debug_log(const char *text)
 {
     char buffer[MAX_CMD_SIZE];
@@ -259,7 +266,7 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 pthread_mutex_unlock(&mutex_tnc_set);
             } else if (!strncasecmp(start, "BUSY", 4)) {
                 if (!strncasecmp(val, "TRUE", 4)) {
-                    tnc_not_busy = 0;
+                    cmdthread_tnc_not_busy(0);
                     tnc_busy += MAX_CHANNEL_BUSY_TIME/3;
                     if (tnc_busy > MAX_CHANNEL_BUSY_TIME)
                         tnc_busy = MAX_CHANNEL_BUSY_TIME;
@@ -269,7 +276,7 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                     pthread_mutex_unlock(&mutex_tnc_set);
                     cmdthread_queue_debug_log("Cmd thread: TNC is BUSY");
                 } else {
-                    tnc_not_busy = 1;
+                    cmdthread_tnc_not_busy(1);
                 }
             } else if (!strncasecmp(start, "LEADER", 6)) {
                 pthread_mutex_lock(&mutex_tnc_set);

@@ -52,8 +52,9 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
 {
     FILE *fp;
     char cmd_line[MAX_CMD_SIZE], cmd[MAX_CMD_SIZE];
-    char linebuf[MAX_LOG_LINE_SIZE];
-    size_t i, max, len;
+    char linebuf[MAX_LOG_LINE_SIZE], databuf[MIN_DATA_BUF_SIZE];
+    size_t max, len;
+    int i, numch;
     z_stream zs;
     char zbuffer[MIN_DATA_BUF_SIZE];
     int zret;
@@ -85,8 +86,10 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                         "/ERROR Cannot open file");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File upload %s failed, dynamic file invocation failed", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, dynamic file invocation failed", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return -1;
     }
@@ -101,8 +104,10 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
             snprintf(linebuf, sizeof(linebuf), "/ERROR File size exceeds limit");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                "ARQ: File upload %s failed, size exceeds limit", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, size exceeds limit", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return -1;
     } else if (file_out.size == 0) {
@@ -113,8 +118,10 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
             snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open file");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                "ARQ: File upload %s failed, dynamic file read failed", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, dynamic file read failed", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return -1;
     }
@@ -138,8 +145,10 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                     snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open file");
                     arim_arq_send_remote(linebuf);
                 }
-                snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File upload %s failed, compression error", fn);
+                numch = snprintf(linebuf, sizeof(linebuf),
+                                 "ARQ: File upload %s failed, compression error", fn);
+                if (numch >= sizeof(linebuf))
+                    ui_truncate_line(linebuf, sizeof(linebuf));
                 ui_queue_debug_log(linebuf);
                 return -1;
             }
@@ -154,8 +163,10 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open file");
                 arim_arq_send_remote(linebuf);
             }
-            snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File upload %s failed, compression init error", fn);
+            numch = snprintf(linebuf, sizeof(linebuf),
+                             "ARQ: File upload %s failed, compression init error", fn);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             return -1;
         }
@@ -165,16 +176,18 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
     file_out.check = ccitt_crc16(file_out.data, file_out.size);
     /* enqueue command for TNC */
     if (destdir)
-        snprintf(linebuf, sizeof(linebuf), "%s %s %zu %04X > %s", zoption ? "/FPUT -z" : "/FPUT",
+        snprintf(databuf, sizeof(databuf), "%s %s %zu %04X > %s",
+                 zoption ? "/FPUT -z" : "/FPUT",
                      file_out.name, file_out.size, file_out.check, file_out.path);
     else
-        snprintf(linebuf, sizeof(linebuf), "%s %s %zu %04X", zoption ? "/FPUT -z" : "/FPUT",
+        snprintf(databuf, sizeof(databuf), "%s %s %zu %04X",
+                 zoption ? "/FPUT -z" : "/FPUT",
                      file_out.name, file_out.size, file_out.check);
-    len = arim_arq_send_remote(linebuf);
+    len = arim_arq_send_remote(databuf);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
-        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
+             sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
     pthread_mutex_unlock(&mutex_tnc_set);
     return 1;
 }
@@ -182,10 +195,10 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
 int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
 {
     FILE *fp;
-    char fpath[MAX_DIR_PATH_SIZE], dpath[MAX_DIR_PATH_SIZE];
-    char linebuf[MAX_LOG_LINE_SIZE];
+    char fpath[MAX_PATH_SIZE], dpath[MAX_PATH_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE], databuf[MIN_DATA_BUF_SIZE];
     size_t max, len;
-    int result;
+    int numch, result;
     z_stream zs;
     char zbuffer[MIN_DATA_BUF_SIZE];
     int zret;
@@ -199,8 +212,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
             snprintf(linebuf, sizeof(linebuf), "/ERROR File sharing disabled");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File upload %s failed, file sharing disabled", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, file sharing disabled", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -219,8 +234,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad file name");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File upload %s failed, bad file name or path", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, bad file name or path", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -234,8 +251,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
             snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File upload %s failed, password digest file not accessible", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, password digest file not accessible", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -249,8 +268,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
             if (!ini_check_add_files_dir(dpath) && !ini_check_ac_files_dir(dpath)) {
                 snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
                 arim_arq_send_remote(linebuf);
-                snprintf(linebuf, sizeof(linebuf),
-                                "ARQ: File upload %s failed, path not allowed", fn);
+                numch = snprintf(linebuf, sizeof(linebuf),
+                                 "ARQ: File upload %s failed, path not allowed", fn);
+                if (numch >= sizeof(linebuf))
+                    ui_truncate_line(linebuf, sizeof(linebuf));
                 ui_queue_debug_log(linebuf);
                 return 0;
             }
@@ -266,8 +287,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
             snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File upload %s failed, file not found", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, file not found", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -283,8 +306,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
             snprintf(linebuf, sizeof(linebuf), "/ERROR File size exceeds limit");
             arim_arq_send_remote(linebuf);
         }
-        snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File upload %s failed, size exceeds limit", fn);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s failed, size exceeds limit", fn);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -308,8 +333,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                     snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open file");
                     arim_arq_send_remote(linebuf);
                 }
-                snprintf(linebuf, sizeof(linebuf),
-                         "ARQ: File upload %s failed, compression error", fn);
+                numch = snprintf(linebuf, sizeof(linebuf),
+                                 "ARQ: File upload %s failed, compression error", fn);
+                if (numch >= sizeof(linebuf))
+                    ui_truncate_line(linebuf, sizeof(linebuf));
                 ui_queue_debug_log(linebuf);
                 return 0;
             }
@@ -324,8 +351,10 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open file");
                 arim_arq_send_remote(linebuf);
             }
-            snprintf(linebuf, sizeof(linebuf),
-                     "ARQ: File upload %s failed, compression init error", fn);
+            numch = snprintf(linebuf, sizeof(linebuf),
+                             "ARQ: File upload %s failed, compression init error", fn);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             return 0;
         }
@@ -336,18 +365,18 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
     file_out.check = ccitt_crc16(file_out.data, file_out.size);
     /* enqueue command for TNC */
     if (destdir)
-        snprintf(linebuf, sizeof(linebuf), "%s %s %zu %04X > %s",
+        snprintf(databuf, sizeof(databuf), "%s %s %zu %04X > %s",
                  zoption ? "/FPUT -z" : "/FPUT",
                     file_out.name, file_out.size, file_out.check, file_out.path);
     else
-        snprintf(linebuf, sizeof(linebuf), "%s %s %zu %04X",
+        snprintf(databuf, sizeof(databuf), "%s %s %zu %04X",
                  zoption ? "/FPUT -z" : "/FPUT",
                     file_out.name, file_out.size, file_out.check);
-    len = arim_arq_send_remote(linebuf);
+    len = arim_arq_send_remote(databuf);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
-        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
+             sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
     pthread_mutex_unlock(&mutex_tnc_set);
     return 1;
 }
@@ -355,6 +384,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
 int arim_arq_files_on_send_cmd()
 {
     char linebuf[MAX_LOG_LINE_SIZE];
+    int numch;
 
     pthread_mutex_lock(&mutex_file_out);
     fileq_push(&g_file_out_q, &file_out);
@@ -362,12 +392,14 @@ int arim_arq_files_on_send_cmd()
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
-        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", file_out.size);
+             sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", file_out.size);
     pthread_mutex_unlock(&mutex_tnc_set);
     /* initialize cnt to prevent '0 of size' notification in monitor */
     file_out_cnt = file_out.size;
-    snprintf(linebuf, sizeof(linebuf),
-        "ARQ: File upload %s buffered for sending", file_out.name);
+    numch = snprintf(linebuf, sizeof(linebuf),
+                     "ARQ: File upload %s buffered for sending", file_out.name);
+    if (numch >= sizeof(linebuf))
+        ui_truncate_line(linebuf, sizeof(linebuf));
     ui_queue_debug_log(linebuf);
     return 1;
 }
@@ -375,22 +407,30 @@ int arim_arq_files_on_send_cmd()
 size_t arim_arq_files_on_send_buffer(size_t size)
 {
     char linebuf[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    int numch;
 
     /* ignore preliminary BUFFER response if TNC isn't done buffering data */
     if (file_out.size > TNC_DATA_BLOCK_SIZE && size == TNC_DATA_BLOCK_SIZE)
         return size;
     if (file_out_cnt != size) {
         file_out_cnt = size;
-        snprintf(linebuf, sizeof(linebuf), "ARQ: File upload %s sending %zu of %zu bytes",
-                    file_out.name, file_out.size - file_out_cnt, file_out.size);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File upload %s sending %zu of %zu bytes",
+                            file_out.name, file_out.size - file_out_cnt, file_out.size);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
-        snprintf(linebuf, sizeof(linebuf), "<< [@] %s %zu of %zu bytes",
-                    file_out.name, file_out.size - file_out_cnt, file_out.size);
+        numch = snprintf(linebuf, sizeof(linebuf), "<< [@] %s %zu of %zu bytes",
+                         file_out.name, file_out.size - file_out_cnt, file_out.size);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_traffic_log(linebuf);
         if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-            snprintf(linebuf, sizeof(linebuf), "[%s] << [@] %s %zu of %zu bytes",
-                     util_timestamp(timestamp, sizeof(timestamp)),
-                         file_out.name, file_out.size - file_out_cnt, file_out.size);
+            numch = snprintf(linebuf, sizeof(linebuf), "[%s] << [@] %s %zu of %zu bytes",
+                             util_timestamp(timestamp, sizeof(timestamp)),
+                                 file_out.name, file_out.size - file_out_cnt, file_out.size);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
         }
         ui_queue_data_in(linebuf);
     }
@@ -401,8 +441,9 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
 {
     FILE *fp;
     DIR *dirp;
-    char fpath[MAX_DIR_PATH_SIZE], dpath[MAX_DIR_PATH_SIZE];
+    char fpath[MAX_PATH_SIZE], dpath[MAX_PATH_SIZE], databuf[MIN_DATA_BUF_SIZE];
     char timestamp[MAX_TIMESTAMP_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    int numch;
     unsigned int check;
     z_stream zs;
     char zbuffer[MIN_DATA_BUF_SIZE];
@@ -411,9 +452,11 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
     /* buffer data, increment count of bytes */
     if (file_in_cnt + size > sizeof(file_in.data)) {
         /* overflow */
-        snprintf(linebuf, sizeof(linebuf),
-            "ARQ: File download %s failed, buffer overflow %zu",
-                 file_in.name, file_in_cnt + size);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: File download %s failed, buffer overflow %zu",
+                             file_in.name, file_in_cnt + size);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR Buffer overflow");
         arim_arq_send_remote(linebuf);
@@ -422,16 +465,23 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
     }
     memcpy(file_in.data + file_in_cnt, data, size);
     file_in_cnt += size;
-    snprintf(linebuf, sizeof(linebuf), "ARQ: File download %s reading %zu of %zu bytes",
-                file_in.name, file_in_cnt, file_in.size);
+    numch = snprintf(linebuf, sizeof(linebuf),
+                     "ARQ: File download %s reading %zu of %zu bytes",
+                         file_in.name, file_in_cnt, file_in.size);
+    if (numch >= sizeof(linebuf))
+        ui_truncate_line(linebuf, sizeof(linebuf));
     ui_queue_debug_log(linebuf);
-    snprintf(linebuf, sizeof(linebuf), ">> [@] %s %zu of %zu bytes",
-                file_in.name, file_in_cnt, file_in.size);
+    numch = snprintf(linebuf, sizeof(linebuf), ">> [@] %s %zu of %zu bytes",
+                     file_in.name, file_in_cnt, file_in.size);
+    if (numch >= sizeof(linebuf))
+        ui_truncate_line(linebuf, sizeof(linebuf));
     ui_queue_traffic_log(linebuf);
     if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s %zu of %zu bytes",
-                 util_timestamp(timestamp, sizeof(timestamp)),
-                     file_in.name, file_in_cnt, file_in.size);
+        numch = snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s %zu of %zu bytes",
+                         util_timestamp(timestamp, sizeof(timestamp)),
+                            file_in.name, file_in_cnt, file_in.size);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
     }
     ui_queue_data_in(linebuf);
     arim_on_event(EV_ARQ_FILE_RCV_FRAME, 0);
@@ -445,8 +495,11 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
         /* verify checksum */
         check = ccitt_crc16(file_in.data, file_in.size);
         if (file_in.check != check) {
-            snprintf(linebuf, sizeof(linebuf),
-               "ARQ: File download %s failed, bad checksum %04X", file_in.name, check);
+            numch = snprintf(linebuf, sizeof(linebuf),
+                             "ARQ: File download %s failed, bad checksum %04X",
+                                 file_in.name, check);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad checksum");
             arim_arq_send_remote(linebuf);
@@ -457,9 +510,14 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
         snprintf(dpath, sizeof(dpath), "%s/%s", g_arim_settings.files_dir, file_in.path);
         snprintf(fpath, sizeof(fpath), "%s/%s", g_arim_settings.files_dir, DEFAULT_DOWNLOAD_DIR);
         if ((strstr(file_in.path, "..") || strstr(file_in.name, "..")) ||
-            (strcmp(dpath, fpath) && !ini_check_add_files_dir(dpath) && !ini_check_ac_files_dir(dpath))) {
-            snprintf(linebuf, sizeof(linebuf),
-               "ARQ: File download %s failed, directory %s not accessible", file_in.name, dpath);
+            (strcmp(dpath, fpath) &&
+            !ini_check_add_files_dir(dpath) &&
+            !ini_check_ac_files_dir(dpath))) {
+            numch = snprintf(linebuf, sizeof(linebuf),
+                             "ARQ: File download %s failed, directory %s not accessible",
+                                  file_in.name, dpath);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Directory not accessible");
             arim_arq_send_remote(linebuf);
@@ -471,8 +529,11 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
             /* if directory not found, try to create it */
             if (errno == ENOENT &&
                 mkdir(dpath, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1) {
-                snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File download %s failed, cannot open directory %s", file_in.name, dpath);
+                numch = snprintf(linebuf, sizeof(linebuf),
+                                 "ARQ: File download %s failed, cannot open directory %s",
+                                     file_in.name, dpath);
+                if (numch >= sizeof(linebuf))
+                    ui_truncate_line(linebuf, sizeof(linebuf));
                 ui_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open directory");
                 arim_arq_send_remote(linebuf);
@@ -495,8 +556,11 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                 zret = inflate(&zs, Z_NO_FLUSH);
                 inflateEnd(&zs);
                 if (zret != Z_STREAM_END) {
-                    snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File download %s failed, decompression failed", file_in.name);
+                    numch = snprintf(linebuf, sizeof(linebuf),
+                                     "ARQ: File download %s failed, decompression failed",
+                                         file_in.name);
+                    if (numch >= sizeof(linebuf))
+                        ui_truncate_line(linebuf, sizeof(linebuf));
                     ui_queue_debug_log(linebuf);
                     snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                     arim_arq_send_remote(linebuf);
@@ -506,8 +570,11 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                 memcpy(file_in.data, zbuffer, zs.total_out);
                 file_in.size = zs.total_out;
             } else {
-                snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File download %s failed, decompression initialization error", file_in.name);
+                numch = snprintf(linebuf, sizeof(linebuf),
+                                 "ARQ: File download %s failed, decompression initialization error",
+                                    file_in.name);
+                if (numch >= sizeof(linebuf))
+                    ui_truncate_line(linebuf, sizeof(linebuf));
                 ui_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                 arim_arq_send_remote(linebuf);
@@ -522,8 +589,10 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
             fwrite(file_in.data, 1, file_in.size, fp);
             fclose(fp);
         } else {
-            snprintf(linebuf, sizeof(linebuf),
-                "ARQ: File download %s failed, file open error", file_in.name);
+            numch = snprintf(linebuf, sizeof(linebuf),
+                             "ARQ: File download %s failed, file open error", file_in.name);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open file");
             arim_arq_send_remote(linebuf);
@@ -531,14 +600,16 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
             return 0;
         }
         /* success */
-        snprintf(linebuf, sizeof(linebuf),
-            "ARQ: Saved %s file %s %zu bytes, checksum %04X",
-                zoption ? "compressed" : "uncompressed",
-                    file_in.name, file_in_cnt, check);
+        numch = snprintf(linebuf, sizeof(linebuf),
+                         "ARQ: Saved %s file %s %zu bytes, checksum %04X",
+                               zoption ? "compressed" : "uncompressed",
+                                   file_in.name, file_in_cnt, check);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_debug_log(linebuf);
-        snprintf(linebuf, sizeof(linebuf),
-            "/OK %s %zu %04X saved", file_in.name, file_in_cnt, check);
-        arim_arq_send_remote(linebuf);
+        snprintf(databuf, sizeof(databuf),
+                 "/OK %s %zu %04X saved", file_in.name, file_in_cnt, check);
+        arim_arq_send_remote(databuf);
         arim_on_event(EV_ARQ_FILE_RCV_DONE, 0);
     }
     return 1;
@@ -548,7 +619,7 @@ int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
 {
     char *p_name, *p_path, *s, *e;
     char linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
-    char dpath[MAX_DIR_PATH_SIZE], add_file_dir[MAX_DIR_PATH_SIZE];
+    char dpath[MAX_PATH_SIZE], add_file_dir[MAX_DIR_PATH_SIZE];
     int result;
 
     zoption = 0;
@@ -615,7 +686,7 @@ int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
             if (!ini_check_ac_files_dir(dpath) && !ini_check_add_files_dir(dpath)) {
                 /* directory not found */
                 snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File upload %s failed, file not found", p_name);
+                         "ARQ: File upload %s failed, file not found", p_name);
                 ui_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
                 arim_arq_send_remote(linebuf);
@@ -665,7 +736,8 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
 {
     char *p_check, *p_name, *p_path, *p_size, *s, *e;
     char linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
-    char dpath[MAX_DIR_PATH_SIZE];
+    char dpath[MAX_PATH_SIZE];
+    int numch;
 
     zoption = 0;
     /* inbound file transfer, get parameters */
@@ -748,8 +820,10 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                     snprintf(dpath, sizeof(dpath), "%s/%s", g_arim_settings.files_dir, p_path);
                     if (!ini_check_ac_files_dir(dpath) && !ini_check_add_files_dir(dpath)) {
                         /* directory not found */
-                        snprintf(linebuf, sizeof(linebuf),
-                            "ARQ: File download %s failed, directory not found", dpath);
+                        numch = snprintf(linebuf, sizeof(linebuf),
+                                         "ARQ: File download %s failed, directory not found", dpath);
+                        if (numch >= sizeof(linebuf))
+                            ui_truncate_line(linebuf, sizeof(linebuf));
                         ui_queue_debug_log(linebuf);
                         snprintf(linebuf, sizeof(linebuf), "/ERROR Directory not found");
                         arim_arq_send_remote(linebuf);
@@ -772,9 +846,11 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                         snprintf(linebuf, sizeof(linebuf), "/OK");
                         arim_arq_send_remote(linebuf);
                         arim_on_event(EV_ARQ_FILE_RCV_WAIT_OK, 0);
-                        snprintf(linebuf, sizeof(linebuf),
-                                    "ARQ: File download %s to %s %zu %04X sending OK",
-                                        file_in.name, file_in.path, file_in.size, file_in.check);
+                        numch = snprintf(linebuf, sizeof(linebuf),
+                                         "ARQ: File download %s to %s %zu %04X sending OK",
+                                             file_in.name, file_in.path, file_in.size, file_in.check);
+                        if (numch >= sizeof(linebuf))
+                            ui_truncate_line(linebuf, sizeof(linebuf));
                         ui_queue_debug_log(linebuf);
                     }
                 } else {
@@ -782,17 +858,21 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                     snprintf(linebuf, sizeof(linebuf), "/OK");
                     arim_arq_send_remote(linebuf);
                     arim_on_event(EV_ARQ_FILE_RCV_WAIT_OK, 0);
-                    snprintf(linebuf, sizeof(linebuf),
-                                "ARQ: File download %s to %s %zu %04X sending OK",
-                                    file_in.name, file_in.path, file_in.size, file_in.check);
+                    numch = snprintf(linebuf, sizeof(linebuf),
+                                     "ARQ: File download %s to %s %zu %04X sending OK",
+                                         file_in.name, file_in.path, file_in.size, file_in.check);
+                    if (numch >= sizeof(linebuf))
+                        ui_truncate_line(linebuf, sizeof(linebuf));
                     ui_queue_debug_log(linebuf);
                 }
             } else {
                 /* data arriving next if role is is 'client' */
                 arim_on_event(EV_ARQ_FILE_RCV, 0);
-                snprintf(linebuf, sizeof(linebuf),
-                            "ARQ: File download %s to %s %zu %04X started",
-                                file_in.name, file_in.path, file_in.size, file_in.check);
+                numch = snprintf(linebuf, sizeof(linebuf),
+                                 "ARQ: File download %s to %s %zu %04X started",
+                                     file_in.name, file_in.path, file_in.size, file_in.check);
+                if (numch >= sizeof(linebuf))
+                    ui_truncate_line(linebuf, sizeof(linebuf));
                 ui_queue_debug_log(linebuf);
                 /* cache any data remaining */
                 if ((cmd + size) > eol) {
@@ -800,8 +880,10 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                 }
             }
         } else {
-            snprintf(linebuf, sizeof(linebuf),
-                "ARQ: File download %s failed, bad size/checksum parameter", p_name);
+            numch = snprintf(linebuf, sizeof(linebuf),
+                             "ARQ: File download %s failed, bad size/checksum parameter", p_name);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad parameters");
             arim_arq_send_remote(linebuf);
@@ -809,7 +891,7 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
         }
     } else {
         snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: File download failed, bad /FPUT file name");
+                 "ARQ: File download failed, bad /FPUT file name");
         ui_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
         arim_arq_send_remote(linebuf);
@@ -822,7 +904,7 @@ int arim_arq_files_on_client_fget(const char *cmd, const char *fn, const char *d
 {
     /* called from cmd processor when user issues /FGET at prompt */
     char linebuf[MAX_LOG_LINE_SIZE];
-    char fpath[MAX_DIR_PATH_SIZE];
+    char fpath[MAX_PATH_SIZE];
     char *e, *f;
     size_t len;
 
@@ -847,7 +929,7 @@ int arim_arq_files_on_client_fget(const char *cmd, const char *fn, const char *d
         ui_show_dialog("\tCannot get file:\n"
                        "\tbad file name or path.\n \n\t[O]k", "oO \n");
         snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File download failed, bad file name or path");
+                 "ARQ: File download failed, bad file name or path");
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -861,7 +943,7 @@ int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_z
 {
     /* called from cmd processor when user issues /FPUT at prompt */
     char linebuf[MAX_LOG_LINE_SIZE];
-    char fpath[MAX_DIR_PATH_SIZE], dpath[MAX_DIR_PATH_SIZE];
+    char fpath[MAX_PATH_SIZE], dpath[MAX_DIR_PATH_SIZE];
     char *e, *f, *d;
     size_t len;
 
@@ -887,7 +969,7 @@ int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_z
         ui_show_dialog("\tCannot send file:\n"
                        "\tbad file name or path.\n \n\t[O]k", "oO \n");
         snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File upload failed, bad file name or path");
+                 "ARQ: File upload failed, bad file name or path");
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -896,7 +978,7 @@ int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_z
         ui_show_dialog("\tCannot send file:\n"
                        "\tpassword file not accessible.\n \n\t[O]k", "oO \n");
         snprintf(linebuf, sizeof(linebuf),
-                        "ARQ: File upload failed, password digest file not accessible");
+                 "ARQ: File upload failed, password digest file not accessible");
         ui_queue_debug_log(linebuf);
         return 0;
     }
@@ -937,7 +1019,7 @@ int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_z
 int arim_arq_files_on_client_file(const char *cmd)
 {
     char *s, *e;
-    char fpath[MAX_DIR_PATH_SIZE];
+    char fpath[MAX_PATH_SIZE];
 
     /* called from cmd processor when user issues /FILE at prompt */
     snprintf(fpath, sizeof(fpath), "%s", cmd);

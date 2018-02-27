@@ -36,7 +36,7 @@
 
 #define MAX_PASSWD_LINE_SIZE  (AUTH_HA1_B64_SIZE+MAX_CALLSIGN_SIZE+MAX_CALLSIGN_SIZE+16)
 
-char g_arim_digest_fname[MAX_DIR_PATH_SIZE];
+char g_arim_digest_fname[MAX_PATH_SIZE];
 static char arim_digest_dir_path[MAX_DIR_PATH_SIZE];
 
 char *auth_base64_encode(unsigned char *inbytes, size_t in_size, char *outstr, size_t out_size)
@@ -162,7 +162,7 @@ int auth_store_passwd(const char *remote_call, const char *local_call, const cha
     FILE *arim_digest_fp, *tempfp;
     int fd;
     char *p, linebuf[MAX_PASSWD_LINE_SIZE], entry[MAX_PASSWD_LINE_SIZE];
-    char ha1[AUTH_BUFFER_SIZE], tempfn[MAX_DIR_PATH_SIZE];
+    char ha1[AUTH_BUFFER_SIZE], tempfn[MAX_PATH_SIZE];
     char lcall[TNC_MYCALL_SIZE], rcall[TNC_MYCALL_SIZE];
     size_t i, len;
 
@@ -232,7 +232,7 @@ int auth_delete_passwd(const char *remote_call, const char *local_call)
     FILE *arim_digest_fp, *tempfp;
     int fd;
     char *p, linebuf[MAX_PASSWD_LINE_SIZE], entry[MAX_PASSWD_LINE_SIZE];
-    char tempfn[MAX_DIR_PATH_SIZE];
+    char tempfn[MAX_PATH_SIZE];
     char lcall[TNC_MYCALL_SIZE], rcall[TNC_MYCALL_SIZE];
     size_t i, len;
 

@@ -106,7 +106,7 @@ int ui_get_file(const char *fn, char *filebuf, size_t filebufsize)
 {
     FILE *fp;
     struct stat stats;
-    char fpath[MAX_DIR_PATH_SIZE];
+    char fpath[MAX_PATH_SIZE];
     size_t len, cnt = 0, max;
 
     if (strstr(fn, "..")) {
@@ -327,8 +327,8 @@ int ui_get_file_list(const char *basedir, const char *dir,
     struct dirent *dent;
     struct stat stats;
     char *p, linebuf[MAX_DIR_LINE_SIZE];
-    char fn[MAX_DIR_PATH_SIZE], path[MAX_DIR_PATH_SIZE];
-    size_t i, len, max_file_size, cnt = 0;
+    char fn[MAX_PATH_SIZE], path[MAX_PATH_SIZE];
+    size_t i, len, max_file_size, numch, cnt = 0;
 
     if (atoi(g_arim_settings.max_file_size) <= 0) {
         snprintf(listbuf, listbufsize, "File list: file sharing disabled.\n");
@@ -369,8 +369,10 @@ int ui_get_file_list(const char *basedir, const char *dir,
             if (!S_ISDIR(stats.st_mode)) {
                 /* don't list password digest file */
                 if (!strstr(dent->d_name, DEFAULT_DIGEST_FNAME) && stats.st_size <= max_file_size) {
-                    snprintf(linebuf, sizeof(linebuf),
-                        "%20s%8jd\n", dent->d_name, (intmax_t)stats.st_size);
+                    numch = snprintf(linebuf, sizeof(linebuf),
+                                "%20s%8jd\n", dent->d_name, (intmax_t)stats.st_size);
+                    if (numch >= sizeof(linebuf))
+                        ui_truncate_line(linebuf, sizeof(linebuf));
                     len = strlen(linebuf);
                     if ((cnt + len) < listbufsize) {
                         strncat(listbuf, linebuf, listbufsize - cnt - 1);
@@ -379,14 +381,18 @@ int ui_get_file_list(const char *basedir, const char *dir,
                 }
             } else if (strcmp(dent->d_name, "..") && strcmp(dent->d_name, ".")) {
                 if (ini_check_add_files_dir(fn)) {
-                    snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "DIR");
+                    numch = snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "DIR");
+                    if (numch >= sizeof(linebuf))
+                        ui_truncate_line(linebuf, sizeof(linebuf));
                     len = strlen(linebuf);
                     if ((cnt + len) < listbufsize) {
                         strncat(listbuf, linebuf, listbufsize - cnt - 1);
                         cnt += len;
                     }
                 } else if (ini_check_ac_files_dir(fn)) {
-                    snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "!DIR");
+                    numch = snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "!DIR");
+                    if (numch >= sizeof(linebuf))
+                        ui_truncate_line(linebuf, sizeof(linebuf));
                     len = strlen(linebuf);
                     if ((cnt + len) < listbufsize) {
                         strncat(listbuf, linebuf, listbufsize - cnt - 1);
@@ -405,7 +411,9 @@ int ui_get_file_list(const char *basedir, const char *dir,
             p = strstr(fn, ":");
             if (p) {
                 *p = '\0';
-                snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", fn, "DYN");
+                numch = snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", fn, "DYN");
+                if (numch >= sizeof(linebuf))
+                    ui_truncate_line(linebuf, sizeof(linebuf));
                 len = strlen(linebuf);
                 if ((cnt + len) < listbufsize) {
                     strncat(listbuf, linebuf, listbufsize - cnt - 1);
@@ -640,10 +648,10 @@ void ui_list_files(const char *dir)
     struct dirent *dent;
     struct stat stats;
     char linebuf[MAX_DIR_LINE_SIZE+1], msgbuffer[MIN_MSG_BUF_SIZE];
-    char path[MAX_DIR_LIST_LEN+1][MAX_DIR_PATH_SIZE];
+    char path[MAX_DIR_LIST_LEN+1][MAX_DIR_PATH_SIZE+MAX_FILE_NAME_SIZE+1];
     char list[MAX_DIR_LIST_LEN+1][MAX_DIR_LINE_SIZE];
-    char fn[MAX_DIR_PATH_SIZE], dpath[MAX_DIR_PATH_SIZE];
-    char temp[MAX_DIR_PATH_SIZE], to_call[MAX_CALLSIGN_SIZE];
+    char fn[MAX_FILE_NAME_SIZE], dpath[MAX_DIR_PATH_SIZE];
+    char temp[MAX_PATH_SIZE], to_call[MAX_CALLSIGN_SIZE];
     char *p, *destdir, timestamp[MAX_TIMESTAMP_SIZE];
     int i, max_cols, max_dir_rows, max_dir_lines, max_len;
     int cmd, cur, top, quit = 0, level = 0, zoption = 0;

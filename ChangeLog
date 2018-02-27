@@ -1,6 +1,20 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v1.4  25Feb2018
+---------------
+1. Improve ARQ connection request logic to prevent ARIM from timing
+   out when the ARDOP TNCs are having difficulty establishing the
+   connection.
+2. Fix bug sometimes causing 'TNC busy' errors after an ARQ session
+   has timed out if connection was initiated immmediately after
+   receiving an ARDOP frame (e.g. ping ack frame if pilot pings are
+   used).
+3. Adjust to new gcc 7 string format truncation diagnostics. Change
+   'snprintf' destination buffer sizes where needed and explicitly
+   handle certain format truncation cases to satisfy the compiler and
+   prevent warnings.
+
 v1.3  15Feb2018
 ---------------
 1. Add message listing feature in ARQ mode. Once connected to

@@ -105,8 +105,8 @@ void arim_proto_arq_conn_out_wait(int event, int param)
                 ui_set_status_dirty(STATUS_ARQ_CONN_REQ_SENT);
             } else {
                 arim_set_state(ST_IDLE);
-                arim_arq_on_conn_timeout();
-                ui_set_status_dirty(STATUS_ARQ_CONN_REQ_TO);
+                arim_arq_on_conn_fail();
+                ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
             }
         }
         break;
@@ -129,8 +129,8 @@ void arim_proto_arq_conn_out_wait(int event, int param)
         arim_copy_tnc_state(buffer, sizeof(buffer));
         if (!strncasecmp(buffer, "DISC", 4)) {
             arim_set_state(ST_IDLE);
-            arim_arq_on_disconnected();
-            ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+            arim_arq_on_conn_fail();
+            ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         } else {
             /* reload timer */
             ack_timeout = ARDOP_CONN_TIMEOUT;
@@ -152,8 +152,8 @@ void arim_proto_arq_conn_out_wait(int event, int param)
         if (t > prev_time + ack_timeout) {
             /* timeout, all done */
             arim_set_state(ST_IDLE);
-            arim_arq_on_conn_timeout();
-            ui_set_status_dirty(STATUS_ARQ_CONN_REQ_TO);
+            arim_arq_on_conn_fail();
+            ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         }
         break;
     }
