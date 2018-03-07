@@ -1,6 +1,22 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v1.5  06Mar2018
+---------------
+1. Fix bug where ARIM's busy state not reset when detaching from TNC,
+   which prevented attempts to initiate a new operation if ARIM's
+   busy state was TRUE at the time.
+2. Force reset of ARIM's busy state when the ESC key is pressed.
+   ARIM depends on notifications from the TNC which indicate the state
+   of the TNC's busy detector. In some cases, ARIM may not receive a
+   BUSY FALSE notification when one is expected. This can leave ARIM
+   stuck in the [RF CHANNEL BUSY] state, and attempts to start a new
+   operation will fail. If this happens, the operator can recover by
+   pressing the <ESC> key to reset ARIM's busy state.
+3. Remove delay in changing ARIM busy state after receiving BUSY FALSE
+   notification from TNC.
+4. Update embedded Help and PDF Help file.
+
 v1.4  25Feb2018
 ---------------
 1. Improve ARQ connection request logic to prevent ARIM from timing

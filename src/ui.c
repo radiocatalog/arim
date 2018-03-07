@@ -217,8 +217,10 @@ void ui_truncate_line(char *line, size_t size)
 
 void ui_on_cancel()
 {
-    if (g_tnc_attached)
+    if (g_tnc_attached) {
         arim_on_event(EV_CANCEL, 0);
+        arim_set_channel_not_busy(); /* force TNC not busy status */
+    }
 }
 
 WINDOW *ui_set_active_win(WINDOW *win)
@@ -752,7 +754,7 @@ void ui_check_channel_busy()
         start = status_col;
     wmove(main_win, status_row + 1, start);
     wclrtoeol(main_win);
-    if (!arim_is_arq_state() && arim_channel_busy())
+    if (!arim_is_arq_state() && arim_is_channel_busy())
         mvwprintw(main_win, status_row + 1, start, "%s", CH_BUSY_IND);
     wattroff(main_win, A_BOLD);
 }

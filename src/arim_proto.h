@@ -154,7 +154,8 @@ extern void arim_cancel_trans(void);
 extern void arim_fecmode_downshift(void);
 extern int arim_is_receiving(void);
 extern int arim_tnc_is_idle(void);
-extern int arim_channel_busy(void);
+extern int arim_is_channel_busy(void);
+extern void arim_set_channel_not_busy(void);
 
 extern time_t prev_time;
 extern int rcv_nak_cnt;

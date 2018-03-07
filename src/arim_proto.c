@@ -379,7 +379,7 @@ int arim_is_idle()
     return (arim_get_state() == ST_IDLE) ? 1 : 0;
 }
 
-int arim_channel_busy()
+int arim_is_channel_busy()
 {
     int ret;
 
@@ -387,6 +387,15 @@ int arim_channel_busy()
     ret = strncmp(g_tnc_settings[g_cur_tnc].busy, "TRUE", 4);
     pthread_mutex_unlock(&mutex_tnc_set);
     return ret ? 0 : 1;
+}
+
+void arim_set_channel_not_busy()
+{
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(g_tnc_settings[g_cur_tnc].busy,
+        sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
+    pthread_mutex_unlock(&mutex_tnc_set);
+    arim_queue_debug_log("ARIM: TNC is not BUSY");
 }
 
 int arim_tnc_is_idle()

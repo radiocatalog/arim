@@ -37,7 +37,6 @@
 #include "arim_arq_files.h"
 #include "arim_arq_msg.h"
 #include "arim_arq_auth.h"
-#include "cmdthread.h"
 
 static int arq_rpts, arq_count, arq_cmd_size;
 static char cached_cmd[MAX_CMD_SIZE];
@@ -168,7 +167,7 @@ int arim_arq_on_connected()
     show_recents = show_ptable = 0; /* close recents or ping history view if open */
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */
-    cmdthread_tnc_not_busy(1); /* force TNC not busy status */
+    arim_set_channel_not_busy(); /* force TNC not busy status */
     return 1;
 }
 

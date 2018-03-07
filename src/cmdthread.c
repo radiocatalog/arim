@@ -43,17 +43,6 @@
 #include "ui.h"
 #include "util.h"
 
-/* max channel busy decay time about 3 sec */
-#define MAX_CHANNEL_BUSY_TIME  15
-static int tnc_busy, tnc_not_busy;
-
-void cmdthread_tnc_not_busy(int val)
-{
-    pthread_mutex_lock(&mutex_tnc_busy);
-    tnc_not_busy = val;
-    pthread_mutex_unlock(&mutex_tnc_busy);
-}
-
 void cmdthread_queue_debug_log(const char *text)
 {
     char buffer[MAX_CMD_SIZE];
@@ -266,17 +255,17 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 pthread_mutex_unlock(&mutex_tnc_set);
             } else if (!strncasecmp(start, "BUSY", 4)) {
                 if (!strncasecmp(val, "TRUE", 4)) {
-                    cmdthread_tnc_not_busy(0);
-                    tnc_busy += MAX_CHANNEL_BUSY_TIME/3;
-                    if (tnc_busy > MAX_CHANNEL_BUSY_TIME)
-                        tnc_busy = MAX_CHANNEL_BUSY_TIME;
                     pthread_mutex_lock(&mutex_tnc_set);
                     snprintf(g_tnc_settings[g_cur_tnc].busy,
                         sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "TRUE");
                     pthread_mutex_unlock(&mutex_tnc_set);
                     cmdthread_queue_debug_log("Cmd thread: TNC is BUSY");
                 } else {
-                    cmdthread_tnc_not_busy(1);
+                    pthread_mutex_lock(&mutex_tnc_set);
+                    snprintf(g_tnc_settings[g_cur_tnc].busy,
+                        sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
+                    pthread_mutex_unlock(&mutex_tnc_set);
+                    cmdthread_queue_debug_log("Cmd thread: TNC is not BUSY");
                 }
             } else if (!strncasecmp(start, "LEADER", 6)) {
                 pthread_mutex_lock(&mutex_tnc_set);
@@ -337,8 +326,8 @@ void *cmdthread_func(void *data)
     }
     freeaddrinfo(res);
     g_cmdthread_ready = 1;
-    tnc_not_busy = 1;
-    tnc_busy = 0;
+    snprintf(g_tnc_settings[g_cur_tnc].busy,
+        sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
 
     cmdthread_queue_cmd_out("INITIALIZE");
     snprintf(buffer, sizeof(buffer), "MYCALL %s", g_tnc_settings[g_cur_tnc].mycall);
@@ -403,26 +392,12 @@ void *cmdthread_func(void *data)
                 break;
             }
         }
-        /* manage increment and decrement of TNC BUSY state counter */
-        if (tnc_not_busy && tnc_busy) {
-            --tnc_busy; /* no longer busy, decrement */
-            if (!tnc_busy) {
-                /* counter has decayed to 0, set busy FALSE */
-                pthread_mutex_lock(&mutex_tnc_set);
-                snprintf(g_tnc_settings[g_cur_tnc].busy,
-                    sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
-                pthread_mutex_unlock(&mutex_tnc_set);
-                cmdthread_queue_debug_log("Cmd thread: TNC not BUSY");
-            }
-        } else if (tnc_busy) {
-            ++tnc_busy; /* still busy, increment */
-            if (tnc_busy > MAX_CHANNEL_BUSY_TIME)
-                tnc_busy = MAX_CHANNEL_BUSY_TIME;
-        }
         if (g_cmdthread_stop) {
             break;
         }
     }
+    snprintf(g_tnc_settings[g_cur_tnc].busy,
+        sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
     cmdthread_queue_debug_log("Cmd thread: terminating");
     sleep(2);
     close(cmdsock);
