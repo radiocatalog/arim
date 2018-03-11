@@ -2,6 +2,19 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.6
+-----------
+* When a connection request is rejected by either the local or remote
+  ARDOP TNC because it's busy or the bandwidth negotiation failed,
+  print informative message to the traffic monitor view and log.
+* When the operator cancels an operation by pressing the ESC key,
+  print an informative message to the traffic monitor view and log.
+  Suggested by Doug, WB6VAC, thanks!
+* Fix bug where status indicators on status bar were not refreshed
+  after a connection request is rejected because the remote TNC is
+  busy or the bandwidth negotiation fails. This made ARIM appear to
+  be stuck in ARQ mode when it really wasn't.
+
 Version 1.5
 -----------
 * Fix bug where ARIM's busy state not reset when detaching from TNC,

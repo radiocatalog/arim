@@ -80,6 +80,7 @@ void arim_proto_frame_rcv_wait(int event, int param)
         break;
     case EV_CANCEL:
         arim_set_state(ST_IDLE);
+        arim_cancel_frame();
         ui_set_status_dirty(STATUS_FRAME_WAIT_CAN);
         break;
     case EV_TNC_NEWSTATE:

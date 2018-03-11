@@ -28,6 +28,7 @@
 #include "main.h"
 #include "arim.h"
 #include "arim_proto.h"
+#include "arim_beacon.h"
 #include "arim_ping.h"
 #include "arim_arq.h"
 #include "ini.h"
@@ -41,6 +42,7 @@ void arim_proto_beacon_buf_wait(int event, int param)
     case EV_CANCEL:
         arim_cancel_trans();
         arim_set_state(ST_IDLE);
+        arim_beacon_cancel();
         ui_set_status_dirty(STATUS_BCN_SEND_CAN);
         break;
     case EV_PERIODIC:

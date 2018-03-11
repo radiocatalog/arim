@@ -46,6 +46,7 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:
@@ -135,6 +136,7 @@ void arim_proto_arq_file_send_wait(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:
@@ -202,6 +204,7 @@ void arim_proto_arq_file_send(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:
@@ -273,6 +276,7 @@ void arim_proto_arq_file_rcv_wait_ok(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:
@@ -339,6 +343,7 @@ void arim_proto_arq_file_rcv_wait(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:
@@ -427,6 +432,7 @@ void arim_proto_arq_file_rcv(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:

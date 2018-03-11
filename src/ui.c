@@ -285,11 +285,15 @@ attr_t ui_calc_data_in_attr(char *linebuf)
         }
         if (found_call) {
             switch (frame_type) {
-            }
-            if (frame_type == '!' || frame_type == 'E')
+            case 'E':
+            case '!':
+            case 'X':
                 attr |= COLOR_PAIR(1);
-            else
+                break;
+            default:
                 attr |= COLOR_PAIR(6);
+                break;
+            }
         } else {
             /* check for TNC call */
             arim_copy_mycall(mycall, sizeof(mycall));
@@ -332,6 +336,7 @@ attr_t ui_calc_data_in_attr(char *linebuf)
                 case 'N':
                 case 'E':
                 case '!':
+                case 'X':
                     attr |= COLOR_PAIR(1);
                     break;
                 case 'B':
@@ -347,6 +352,7 @@ attr_t ui_calc_data_in_attr(char *linebuf)
                 case 'I':
                     attr |= (COLOR_PAIR(4)|A_BOLD);
                     break;
+                case 'X':
                 case 'E':
                     attr |= COLOR_PAIR(1);
                     break;

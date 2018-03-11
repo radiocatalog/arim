@@ -30,6 +30,7 @@ extern int arim_store_msg_prev_out(void);
 extern int arim_store_msg_prev_sent(void);
 extern int arim_recv_msg(const char *fm_call, const char *to_call,
                            unsigned int check, const char *msg);
+extern int arim_cancel_msg(void);
 extern void arim_recv_ack(const char *fm_call, const char *to_call);
 extern void arim_recv_nak(const char *fm_call, const char *to_call);
 

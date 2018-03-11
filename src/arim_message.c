@@ -199,6 +199,23 @@ int arim_recv_msg(const char *fm_call, const char *to_call,
     return result;
 }
 
+int arim_cancel_msg()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+
+    /* operator has canceled the message by pressing ESC key,
+       print to monitor view and traffic log */
+    snprintf(buffer, sizeof(buffer), ">> [X] (Message canceled by operator)");
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Message canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
+    return 1;
+}
+
 void arim_recv_ack(const char *fm_call, const char *to_call)
 {
     char buffer[MAX_HEARD_SIZE];

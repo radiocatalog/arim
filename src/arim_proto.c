@@ -492,6 +492,40 @@ void arim_cancel_trans()
         ui_queue_cmd_out("ABORT");
 }
 
+int arim_cancel_unproto()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+
+    /* operator has canceled the unproto transmission by pressing ESC key,
+       print to monitor view and traffic log */
+    snprintf(buffer, sizeof(buffer), ">> [X] (Unproto message canceled by operator)");
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Unproto message canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
+    return 1;
+}
+
+int arim_cancel_frame()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+
+    /* operator has canceled the data frame receipt by pressing ESC key,
+       print to monitor view and traffic log */
+    snprintf(buffer, sizeof(buffer), ">> [X] (Wait for ARIM frame canceled by operator)");
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Wait for ARIM frame canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
+    return 1;
+}
+
 void arim_on_event(int event, int param)
 {
     int prev_state, next_state;

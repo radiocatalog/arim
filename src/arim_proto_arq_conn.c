@@ -67,10 +67,14 @@ void arim_proto_arq_conn_pend_wait(int event, int param)
     case EV_ARQ_REJ_BUSY:
         /* a REJECTEDBUSY asynch response was received from the TNC */
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_rej_busy();
+        ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         break;
     case EV_ARQ_REJ_BW:
         /* a REJECTEDBW asynch response was received from the TNC */
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_rej_bw();
+        ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         break;
     case EV_PERIODIC:
         t = time(NULL);
@@ -94,6 +98,7 @@ void arim_proto_arq_conn_out_wait(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:
@@ -141,10 +146,14 @@ void arim_proto_arq_conn_out_wait(int event, int param)
     case EV_ARQ_REJ_BUSY:
         /* a REJECTEDBUSY asynch response was received from the TNC */
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_rej_busy();
+        ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         break;
     case EV_ARQ_REJ_BW:
         /* a REJECTEDBW asynch response was received from the TNC */
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_rej_bw();
+        ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         break;
     case EV_PERIODIC:
         t = time(NULL);
@@ -167,6 +176,7 @@ void arim_proto_arq_conn_pp_wait(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:
@@ -213,6 +223,7 @@ void arim_proto_arq_conn_in_wait(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_ARQ_CONNECTED:
@@ -246,10 +257,14 @@ void arim_proto_arq_conn_in_wait(int event, int param)
     case EV_ARQ_REJ_BUSY:
         /* a REJECTEDBUSY asynch response was received from the TNC */
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_rej_busy();
+        ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         break;
     case EV_ARQ_REJ_BW:
         /* a REJECTEDBW asynch response was received from the TNC */
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_rej_bw();
+        ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
         break;
     case EV_PERIODIC:
         t = time(NULL);
@@ -274,6 +289,7 @@ void arim_proto_arq_conn_connected(int event, int param)
     case EV_CANCEL:
         ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
     case EV_TNC_PTT:

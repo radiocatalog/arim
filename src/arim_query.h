@@ -30,6 +30,7 @@ extern int arim_recv_response(const char *fm_call, const char *to_call,
                                 unsigned int check, const char *msg);
 extern int arim_recv_query(const char *fm_call, const char *to_call,
                              unsigned int check, const char *query);
+extern int arim_cancel_query(void);
 
 #endif
 

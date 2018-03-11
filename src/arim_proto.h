@@ -151,6 +151,8 @@ extern int arim_store_out(const char *msg, const char *to);
 extern int arim_store_sent(const char *msg, const char *to);
 extern void arim_copy_listen(char *val, size_t size);
 extern void arim_cancel_trans(void);
+extern int arim_cancel_unproto(void);
+extern int arim_cancel_frame(void);
 extern void arim_fecmode_downshift(void);
 extern int arim_is_receiving(void);
 extern int arim_tnc_is_idle(void);

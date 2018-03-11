@@ -31,6 +31,7 @@ extern int arim_beacon_send(void);
 extern void arim_beacon_recv(const char *fm_call, const char *gridsq, const char *msg);
 extern void arim_beacon_set(int minutes);
 extern void arim_beacon_reset_btimer(void);
+extern int arim_beacon_cancel(void);
 
 extern int g_btime;
 

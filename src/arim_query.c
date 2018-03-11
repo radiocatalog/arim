@@ -187,3 +187,20 @@ int arim_recv_query(const char *fm_call, const char *to_call,
     return result;
 }
 
+int arim_cancel_query()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+
+    /* operator has canceled the query by pressing ESC key,
+       print to monitor view and traffic log */
+    snprintf(buffer, sizeof(buffer), ">> [X] (Query canceled by operator)");
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Query canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
+    return 1;
+}
+

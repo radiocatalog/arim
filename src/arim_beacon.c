@@ -136,3 +136,20 @@ void arim_beacon_reset_btimer()
     }
 }
 
+int arim_beacon_cancel()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+
+    /* operator has canceled the beacon by pressing ESC key,
+       print to monitor view and traffic log */
+    snprintf(buffer, sizeof(buffer), ">> [X] (Beacon canceled by operator)");
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Beacon canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
+    return 1;
+}
+

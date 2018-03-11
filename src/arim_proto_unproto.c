@@ -41,6 +41,7 @@ void arim_proto_unproto_buf_wait(int event, int param)
     case EV_CANCEL:
         arim_cancel_trans();
         arim_set_state(ST_IDLE);
+        arim_cancel_unproto();
         ui_set_status_dirty(STATUS_SEND_UNPROTO_CAN);
         break;
     case EV_PERIODIC:

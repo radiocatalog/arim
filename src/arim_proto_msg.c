@@ -28,6 +28,7 @@
 #include "main.h"
 #include "arim.h"
 #include "arim_proto.h"
+#include "arim_message.h"
 #include "arim_ping.h"
 #include "arim_arq.h"
 #include "ini.h"
@@ -42,6 +43,7 @@ void arim_proto_msg_buf_wait(int event, int param)
         arim_cancel_trans();
         arim_reset_msg_rpt_state();
         arim_set_state(ST_IDLE);
+        arim_cancel_msg();
         ui_set_status_dirty(STATUS_MSG_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -61,6 +63,7 @@ void arim_proto_msg_net_buf_wait(int event, int param)
     case EV_CANCEL:
         arim_cancel_trans();
         arim_set_state(ST_IDLE);
+        arim_cancel_msg();
         ui_set_status_dirty(STATUS_MSG_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -79,6 +82,7 @@ extern void arim_proto_msg_acknak_buf_wait(int event, int param)
     case EV_CANCEL:
         arim_cancel_trans();
         arim_set_state(ST_IDLE);
+        arim_cancel_msg();
         ui_set_status_dirty(STATUS_ACKNAK_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -98,6 +102,7 @@ extern void arim_proto_msg_acknak_pend(int event, int param)
     switch (event) {
     case EV_CANCEL:
         arim_set_state(ST_IDLE);
+        arim_cancel_msg();
         ui_set_status_dirty(STATUS_ACKNAK_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -135,6 +140,7 @@ extern void arim_proto_msg_acknak_wait(int event, int param)
     case EV_CANCEL:
         arim_reset_msg_rpt_state();
         arim_set_state(ST_IDLE);
+        arim_cancel_msg();
         ui_set_status_dirty(STATUS_MSG_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -170,8 +176,9 @@ void arim_proto_msg_pingack_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT"); /* unconditionally abort */
         arim_set_state(ST_IDLE);
+        arim_cancel_msg();
         ui_set_status_dirty(STATUS_MSG_SEND_CAN);
         break;
     case EV_TNC_PTT:

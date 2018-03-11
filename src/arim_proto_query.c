@@ -28,6 +28,7 @@
 #include "main.h"
 #include "arim.h"
 #include "arim_proto.h"
+#include "arim_query.h"
 #include "arim_ping.h"
 #include "arim_arq.h"
 #include "ini.h"
@@ -41,6 +42,7 @@ void arim_proto_query_buf_wait(int event, int param)
     case EV_CANCEL:
         arim_cancel_trans();
         arim_set_state(ST_IDLE);
+        arim_cancel_query();
         ui_set_status_dirty(STATUS_QRY_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -60,6 +62,7 @@ void arim_proto_query_resp_buf_wait(int event, int param)
     case EV_CANCEL:
         arim_cancel_trans();
         arim_set_state(ST_IDLE);
+        arim_cancel_query();
         ui_set_status_dirty(STATUS_RESP_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -79,6 +82,7 @@ void arim_proto_query_resp_pend(int event, int param)
     switch (event) {
     case EV_CANCEL:
         arim_set_state(ST_IDLE);
+        arim_cancel_query();
         ui_set_status_dirty(STATUS_RESP_SEND_CAN);
         break;
     case EV_PERIODIC:
@@ -99,8 +103,9 @@ void arim_proto_query_pingack_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT"); /* unconditionally abort */
         arim_set_state(ST_IDLE);
+        arim_cancel_query();
         ui_set_status_dirty(STATUS_PING_SEND_CAN);
         break;
     case EV_TNC_PTT:
@@ -151,6 +156,7 @@ void arim_proto_query_resp_wait(int event, int param)
         break;
     case EV_CANCEL:
         arim_set_state(ST_IDLE);
+        arim_cancel_query();
         ui_set_status_dirty(STATUS_RESP_WAIT_CAN);
         break;
     case EV_TNC_NEWSTATE:

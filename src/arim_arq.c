@@ -211,7 +211,7 @@ int arim_arq_on_disconnected()
     snprintf(buffer, sizeof(buffer), "7[@] %-10s ", remote_call);
     ui_queue_heard(buffer);
     arq_cmd_size = 0; /* reset ARQ command size */
-    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    arim_arq_auth_set_status(0); /* reset session authenticated status */
     return 1;
 }
 
@@ -266,6 +266,85 @@ int arim_arq_on_conn_fail()
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */
     return 1;
 }
+
+int arim_arq_on_conn_rej_busy()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+
+    /* connection to remote station has failed,
+       print to monitor view and traffic log */
+    arim_copy_target_call(target_call, sizeof(target_call));
+    if (!strlen(target_call))
+        arim_copy_mycall(target_call, sizeof(target_call));
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(buffer, sizeof(buffer),
+                ">> [@] %s>%s (Connection attempt failed; TNC is busy)",
+                remote_call, target_call);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [@] %s>%s (Connection attempt failed; TNC is busy)",
+                util_timestamp(timestamp, sizeof(timestamp)), remote_call, target_call);
+    }
+    ui_queue_data_in(buffer);
+    arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    return 1;
+}
+
+int arim_arq_on_conn_rej_bw()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+
+    /* connection to remote station has failed,
+       print to monitor view and traffic log */
+    arim_copy_target_call(target_call, sizeof(target_call));
+    if (!strlen(target_call))
+        arim_copy_mycall(target_call, sizeof(target_call));
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(buffer, sizeof(buffer),
+                ">> [@] %s>%s (Connection attempt failed; incompatible bandwidths)",
+                remote_call, target_call);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [@] %s>%s (Connection attempt failed; incompatible bandwidths)",
+                util_timestamp(timestamp, sizeof(timestamp)), remote_call, target_call);
+    }
+    ui_queue_data_in(buffer);
+    arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    return 1;
+}
+
+int arim_arq_on_conn_cancel()
+{
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+
+    /* operator has canceled the connection by pressing ESC key,
+       print to monitor view and traffic log */
+    arim_copy_target_call(target_call, sizeof(target_call));
+    if (!strlen(target_call))
+        arim_copy_mycall(target_call, sizeof(target_call));
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(buffer, sizeof(buffer),
+                ">> [X] %s>%s (Connection canceled by operator)",
+                remote_call, target_call);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] %s>%s (Connection canceled by operator)",
+                util_timestamp(timestamp, sizeof(timestamp)), remote_call, target_call);
+    }
+    ui_queue_data_in(buffer);
+    arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    return 1;
+}
+
 size_t arim_arq_send_remote(const char *msg)
 {
     char sendcr[TNC_ARQ_SENDCR_SIZE], linebuf[MAX_LOG_LINE_SIZE];
