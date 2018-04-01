@@ -2,6 +2,19 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.7
+-----------
+* Fix latent bug which can cause a segfault when processing
+  ill-formed commands in certain circumstances.
+* Add missing header file #include to fix broken build on Red Hat
+  derived Linux systems.
+* Update INSTALL and Help docs with link to instructions for building
+  an RPM package from the ARIM source distribution on Red Hat derived
+  Linux systems, and using it to install ARIM. Instructions and .spec
+  file are maintained by David Ranch, KI6ZHD, thanks!
+* Update PDF Help file and arim.5 man file to correct spelling of
+  configuration file parameter 'name'.
+
 Version 1.6
 -----------
 * When a connection request is rejected by either the local or remote

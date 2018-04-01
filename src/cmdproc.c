@@ -280,19 +280,21 @@ int cmdproc_cmd(const char *cmd)
         break;
     default:
         t = strtok(buffer, " \t");
-        if (t && strlen(t) == 2 && !strncasecmp(t, "li", 2)) {
+        if (!t)
+            break;
+        if (strlen(t) == 2 && !strncasecmp(t, "li", 2)) {
             ui_print_status("Listing messages in inbox", 1);
             ui_list_msg(MBOX_INBOX_FNAME, MBOX_TYPE_IN);
-        } else if (t && !strncasecmp(t, "lo", 2)) {
+        } else if (!strncasecmp(t, "lo", 2)) {
             ui_print_status("Listing messages in outbox", 1);
             ui_list_msg(MBOX_OUTBOX_FNAME, MBOX_TYPE_OUT);
-        } else if (t && !strncasecmp(t, "ls", 2)) {
+        } else if (!strncasecmp(t, "ls", 2)) {
             ui_print_status("Listing sent messages", 1);
             ui_list_msg(MBOX_SENTBOX_FNAME, MBOX_TYPE_SENT);
-        } else if (t && !strncasecmp(t, "lf", 2)) {
+        } else if (!strncasecmp(t, "lf", 2)) {
             ui_print_status("Listing shared files directory", 1);
             ui_list_shared_files();
-        } else if (t && !strncasecmp(t, "sm", 2)) {
+        } else if (!strncasecmp(t, "sm", 2)) {
             t = strtok(NULL, " \t");
             if (t && !strcmp(t, "-z")) {
                 ui_print_status("Send msg: -z option not supported in FEC mode", 1);
@@ -371,7 +373,7 @@ int cmdproc_cmd(const char *cmd)
 #endif
                 }
             }
-        } else if (t && !strncasecmp(t, "sq", 2)) {
+        } else if (!strncasecmp(t, "sq", 2)) {
             if (!g_tnc_attached) {
                 ui_print_status("Send query: cannot send, no TNC attached", 1);
                 break;
@@ -390,7 +392,7 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("ARIM Busy: sending query", 1);
             else
                 ui_print_status("Send query: cannot send, TNC busy", 1);
-        } else if (t && !strncasecmp(t, "ping", 2)) {
+        } else if (!strncasecmp(t, "ping", 2)) {
             if (!g_tnc_attached) {
                 ui_print_status("Send ping: cannot send, no TNC attached", 1);
                 break;
@@ -411,7 +413,7 @@ int cmdproc_cmd(const char *cmd)
                 !arim_send_ping(t, call1, 1)) {
                 ui_print_status("Send ping: cannot send, TNC busy", 1);
             }
-        } else if (t && !strncasecmp(t, "conn", 2)) {
+        } else if (!strncasecmp(t, "conn", 2)) {
             if (!g_tnc_attached) {
                 ui_print_status("ARQ Connect: cannot connect, no TNC attached", 1);
                 break;
@@ -430,7 +432,7 @@ int cmdproc_cmd(const char *cmd)
             }
             if (!arim_arq_send_conn_req(t, call1))
                 ui_print_status("ARQ Connect: cannot send connection request, TNC busy", 1);
-        } else if (t && !strncasecmp(t, "cm", 2)) {
+        } else if (!strncasecmp(t, "cm", 2)) {
             t = strtok(NULL, " \t");
             if (!t || (!ini_validate_mycall(t) && !ini_validate_netcall(t))) {
                 ui_print_status("Compose msg: cannot open, invalid callsign", 1);
@@ -440,7 +442,7 @@ int cmdproc_cmd(const char *cmd)
                 arim_store_out(msgbuffer, t);
                 ui_print_status("Compose msg: message saved to Outbox", 1);
             }
-        } else if (t && !strncasecmp(t, "rr", 2) && show_recents) {
+        } else if (!strncasecmp(t, "rr", 2) && show_recents) {
             t = strtok(NULL, " \t");
             if (!t || (result1 = atoi(t)) < 1) {
                 ui_print_status("Read recent: invalid msg number", 1);
@@ -453,7 +455,7 @@ int cmdproc_cmd(const char *cmd)
             } else {
                 ui_print_status("Read recent: cannot read message", 1);
             }
-        } else if (t && !strncasecmp(t, "passwd", 4)) {
+        } else if (!strncasecmp(t, "passwd", 4)) {
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
                 ui_print_status("Passwd: invalid remote station callsign", 1);
@@ -493,7 +495,7 @@ int cmdproc_cmd(const char *cmd)
                     }
                 }
             }
-        } else if (t && !strncasecmp(t, "delpass", 4)) {
+        } else if (!strncasecmp(t, "delpass", 4)) {
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
                 ui_print_status("Passwd: invalid remote station callsign", 1);
@@ -524,7 +526,7 @@ int cmdproc_cmd(const char *cmd)
                     break;
                 }
             }
-        } else if (t && !strncasecmp(t, "att", 3) && !g_tnc_attached) {
+        } else if (!strncasecmp(t, "att", 3) && !g_tnc_attached) {
             t = strtok(NULL, " \t");
             if (!t)
                 break;

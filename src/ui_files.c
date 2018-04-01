@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <libgen.h>
+#include <stdint.h>
 #include "main.h"
 #include "arim_message.h"
 #include "arim_proto.h"

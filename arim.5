@@ -1,5 +1,5 @@
 
-.TH "ARIM" 5 "2018-01-27" "ARIM Messaging Program" "arim"
+.TH "ARIM" 5 "2018-03-31" "ARIM Messaging Program" "arim"
 .SH NAME
 arim - related files
 .SH FILES
@@ -27,7 +27,7 @@ The station's grid square locator. It must be a well formed Maidenhead locator, 
 \fBbtime\fR The beacon interval time in minutes, or 0 to disable the beacon. Max time is 999 minutes. Default: 0.
 reset-btime-on-tx Controls whether or not the beacon timer is reset when the station transmits an ARDOP frame. This is useful to prevent beacon transmissions from interfering with traffic between stations, e.g. on a net. This setting has no effect when the beacon is disabled. Set to TRUE to enable beacon timer reset on transmit, FALSE to disable it. Default: FALSE.
 .TP
-\fBpname\fR
+\fBname\fR
 A name assigned to the TNC and advertised by the beacon, e.g. RRNET/ARIM. This is also returned when the TNC receives the ARIM 'pname' query. Max length is 31 characters. Default: Empty.
 .TP
 \fBinfo\fR

@@ -1,6 +1,19 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v1.7  31Mar2018
+---------------
+1. Fix latent bug which can cause a segfault when processing
+   ill-formed commands in certain circumstances.
+2. Add missing header file #include to fix broken build on Red Hat
+   derived Linux systems.
+3. Update INSTALL and Help docs with link to instructions for building
+   an RPM package from the ARIM source distribution on Red Hat derived
+   Linux systems, and using it to install ARIM. Instructions and .spec
+   file are maintained by David Ranch, KI6ZHD, thanks!
+4. Update PDF Help file and arim.5 man file to correct spelling of
+   configuration file parameter 'name'.
+
 v1.6  10Mar2018
 ---------------
 1. When a connection request is rejected by either the local or remote
