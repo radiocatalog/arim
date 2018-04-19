@@ -184,9 +184,6 @@ void arim_proto_msg_pingack_wait(int event, int param)
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */
         if (param) {
-            /* ping repeat, reload ack timer */
-            prev_time = time(NULL);
-            arim_recv_ping_ack_ptt(1);
             ui_set_status_dirty(STATUS_PING_SENT);
         }
         break;

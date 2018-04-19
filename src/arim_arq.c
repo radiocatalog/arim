@@ -37,13 +37,15 @@
 #include "arim_arq_files.h"
 #include "arim_arq_msg.h"
 #include "arim_arq_auth.h"
+#include "ini.h"
 
-static int arq_rpts, arq_count, arq_cmd_size;
+static int arq_rpts, arq_cmd_size;
 static char cached_cmd[MAX_CMD_SIZE];
 
 int arim_arq_send_conn_req(const char *repeats, const char *to_call)
 {
-    char tcall[TNC_MYCALL_SIZE], buffer[MAX_LOG_LINE_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char mycall[TNC_MYCALL_SIZE], tcall[TNC_MYCALL_SIZE];
     size_t i, len;
 
     if (!arim_is_idle() || !arim_tnc_is_idle())
@@ -62,13 +64,21 @@ int arim_arq_send_conn_req(const char *repeats, const char *to_call)
         arq_rpts = atoi(repeats);
     else
         arq_rpts = 10;
-    arq_count = 0;
     /* are pilot pings needed first? */
     if (atoi(g_arim_settings.pilot_ping)) {
         snprintf(prev_to_call, sizeof(prev_to_call), "%s", to_call);
-        arim_on_event(EV_ARQ_CONNECT_PP, 0);
+        arim_on_event(EV_ARQ_CONNECT_PP, atoi(g_arim_settings.pilot_ping));
         return 1;
     }
+    /* print trace to Traffic Monitor view */
+    arim_copy_mycall(mycall, sizeof(mycall));
+    snprintf(buffer, sizeof(buffer), "<< [@] %s>%s (Connecting...)", mycall, tcall);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer), "[%s] << [@] %s>%s (Connecting...)",
+                util_timestamp(timestamp, sizeof(timestamp)), mycall, tcall);
+    }
+    ui_queue_data_in(buffer);
     /* change state */
     arim_on_event(EV_ARQ_CONNECT, 0);
     snprintf(buffer, sizeof(buffer), "ARQCALL %s %d", tcall, arq_rpts);
@@ -78,39 +88,25 @@ int arim_arq_send_conn_req(const char *repeats, const char *to_call)
 
 int arim_arq_send_conn_req_pp()
 {
-    char buffer[MAX_LOG_LINE_SIZE];
-
-    /* change state */
-    arim_on_event(EV_ARQ_CONNECT, 0);
-    pthread_mutex_lock(&mutex_tnc_set);
-    snprintf(buffer, sizeof(buffer), "ARQCALL %s %d",
-                g_tnc_settings[g_cur_tnc].arq_remote_call, arq_rpts);
-    pthread_mutex_unlock(&mutex_tnc_set);
-    ui_queue_cmd_out(buffer);
-    return 1;
-}
-
-int arim_arq_send_conn_req_ptt(int ptt_true)
-{
     char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
-    char mycall[TNC_MYCALL_SIZE], tcall[TNC_MYCALL_SIZE];
+    char mycall[TNC_MYCALL_SIZE], remote_call[TNC_MYCALL_SIZE];
 
-    if (!ptt_true)
-        return 1;
-    /* if ptt true in connect wait state then
-       print to monitor view and traffic log */
+    /* print trace to Traffic Monitor view */
     arim_copy_mycall(mycall, sizeof(mycall));
-    arim_copy_remote_call(tcall, sizeof(tcall));
-    ++arq_count;
-    if (arq_count > 1)
-        return 1; /* only print trace once */
-    snprintf(buffer, sizeof(buffer), "<< [@] %s>%s (Connecting...)", mycall, tcall);
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(buffer, sizeof(buffer), "<< [@] %s>%s (Connecting...)", mycall, remote_call);
     ui_queue_traffic_log(buffer);
     if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
         snprintf(buffer, sizeof(buffer), "[%s] << [@] %s>%s (Connecting...)",
-                util_timestamp(timestamp, sizeof(timestamp)), mycall, tcall);
+                util_timestamp(timestamp, sizeof(timestamp)), mycall, remote_call);
     }
     ui_queue_data_in(buffer);
+    /* change state */
+    arim_on_event(EV_ARQ_CONNECT, 0);
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(buffer, sizeof(buffer), "ARQCALL %s %d", remote_call, arq_rpts);
+    pthread_mutex_unlock(&mutex_tnc_set);
+    ui_queue_cmd_out(buffer);
     return 1;
 }
 
@@ -208,8 +204,11 @@ int arim_arq_on_disconnected()
                 util_timestamp(timestamp, sizeof(timestamp)), remote_call, target_call);
     }
     ui_queue_data_in(buffer);
-    snprintf(buffer, sizeof(buffer), "7[@] %-10s ", remote_call);
-    ui_queue_heard(buffer);
+    /* show in heard list if valid call sign */
+    if (ini_validate_mycall(remote_call)) {
+        snprintf(buffer, sizeof(buffer), "7[@] %-10s ", remote_call);
+        ui_queue_heard(buffer);
+    }
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset session authenticated status */
     return 1;

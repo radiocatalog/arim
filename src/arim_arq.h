@@ -28,7 +28,6 @@
 #define ARQ_SERVER_STN  1
 
 extern int arim_arq_send_conn_req(const char *repeats, const char *to_call);
-extern int arim_arq_send_conn_req_ptt(int ptt_true);
 extern int arim_arq_send_conn_req_pp(void);
 extern int arim_arq_on_target(void);
 extern int arim_arq_on_connected(void);

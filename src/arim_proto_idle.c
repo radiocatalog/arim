@@ -72,25 +72,14 @@ void arim_proto_idle(int event, int param)
         ui_queue_cmd_out("LISTEN FALSE");
         break;
     case EV_SEND_MSG_PP:
-        ack_timeout = ARDOP_PINGACK_TIMEOUT;
+        ack_timeout = param * ARDOP_PINGACK_TIMEOUT;
         prev_time = time(NULL);
         arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0);
         arim_set_state(ST_RCV_MSG_PING_ACK_WAIT);
         ui_queue_cmd_out("LISTEN FALSE");
         break;
-    case EV_SEND_QRY_PP:
-        ack_timeout = ARDOP_PINGACK_TIMEOUT;
-        prev_time = time(NULL);
-        arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0);
-        arim_set_state(ST_RCV_QRY_PING_ACK_WAIT);
-        ui_queue_cmd_out("LISTEN FALSE");
-        break;
     case EV_SEND_NET_MSG:
         arim_set_state(ST_SEND_NET_MSG_BUF_WAIT);
-        ui_queue_cmd_out("LISTEN FALSE");
-        break;
-    case EV_SEND_QRY:
-        arim_set_state(ST_SEND_QRY_BUF_WAIT);
         ui_queue_cmd_out("LISTEN FALSE");
         break;
     case EV_SEND_UNPROTO:
@@ -98,9 +87,20 @@ void arim_proto_idle(int event, int param)
         ui_set_status_dirty(STATUS_REFRESH);
         ui_queue_cmd_out("LISTEN FALSE");
         break;
+    case EV_SEND_QRY:
+        arim_set_state(ST_SEND_QRY_BUF_WAIT);
+        ui_queue_cmd_out("LISTEN FALSE");
+        break;
+    case EV_SEND_QRY_PP:
+        ack_timeout = param * ARDOP_PINGACK_TIMEOUT;
+        prev_time = time(NULL);
+        arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0);
+        arim_set_state(ST_RCV_QRY_PING_ACK_WAIT);
+        ui_queue_cmd_out("LISTEN FALSE");
+        break;
     case EV_SEND_PING:
         /* a PING command was sent to the TNC */
-        ack_timeout = ARDOP_PINGACK_TIMEOUT;
+        ack_timeout = ARDOP_PINGACK_TIMEOUT * param;
         prev_time = time(NULL);
         arim_set_state(ST_RCV_PING_ACK_WAIT);
         ui_queue_cmd_out("LISTEN FALSE");
@@ -112,7 +112,7 @@ void arim_proto_idle(int event, int param)
         if (!strncasecmp(buffer, "TRUE", 4)) {
             /* respond only if ARQ listen is TRUE */
             ui_queue_cmd_out("PROTOCOLMODE ARQ");
-            ack_timeout = ARDOP_PINGACK_TIMEOUT;
+            ack_timeout = ARDOP_CONNREQ_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_PEND_WAIT);
         }
@@ -127,7 +127,7 @@ void arim_proto_idle(int event, int param)
         break;
     case EV_ARQ_CONNECT_PP:
         /* an ARQ connection attempt is underway */
-        ack_timeout = ARDOP_PINGACK_TIMEOUT;
+        ack_timeout = param * ARDOP_PINGACK_TIMEOUT;
         prev_time = time(NULL);
         arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0);
         arim_set_state(ST_RCV_ARQ_CONN_PING_ACK_WAIT);

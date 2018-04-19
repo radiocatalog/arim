@@ -39,7 +39,8 @@ static int ping_rpts, ping_count;
 
 int arim_send_ping(const char *repeats, const char *to_call, int event)
 {
-    char tcall[TNC_MYCALL_SIZE], buffer[MAX_LOG_LINE_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char mycall[TNC_MYCALL_SIZE], tcall[TNC_MYCALL_SIZE];
     size_t i, len;
 
     if (!repeats || !to_call)
@@ -58,7 +59,16 @@ int arim_send_ping(const char *repeats, const char *to_call, int event)
     ping_count = 0;
     /* change state if indicated, otherwise caller is taking care of that */
     if (event)
-        arim_on_event(EV_SEND_PING, 0);
+        arim_on_event(EV_SEND_PING, ping_rpts);
+    /* print trace to traffic monitor view */
+    arim_copy_mycall(mycall, sizeof(mycall));
+    snprintf(buffer, sizeof(buffer), "<< [P] %s>%s (Pinging...)", mycall, tcall);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer), "[%s] << [P] %s>%s (Pinging...)",
+                util_timestamp(timestamp, sizeof(timestamp)), mycall, tcall);
+    }
+    ui_queue_data_in(buffer);
     /* queue command for TNC */
     snprintf(buffer, sizeof(buffer), "PING %s %d", tcall, ping_rpts);
     ui_queue_cmd_out(buffer);
@@ -157,30 +167,6 @@ int arim_send_ping_ack()
              ping_scall, db > 20 ? ">20" : ping_sn, ping_qual);
     ui_queue_ptable(buffer);
     arim_on_event(EV_SEND_PING_ACK, 0);
-    return 1;
-}
-
-int arim_recv_ping_ack_ptt(int ptt_true)
-{
-    char buffer[MAX_LOG_LINE_SIZE], mycall[TNC_MYCALL_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE];
-
-    if (!ptt_true)
-        return 1;
-
-    /* if ptt true in ping ack wait state then
-       print to monitor view and traffic log */
-    arim_copy_mycall(mycall, sizeof(mycall));
-    ++ping_count;
-    snprintf(buffer, sizeof(buffer), "<< [P] %s>%s (%d of %d)",
-                 mycall, ping_tcall, ping_count, ping_rpts);
-    ui_queue_traffic_log(buffer);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(buffer, sizeof(buffer), "[%s] << [P] %s>%s (%d of %d)",
-                 util_timestamp(timestamp, sizeof(timestamp)),
-                     mycall, ping_tcall, ping_count, ping_rpts);
-    }
-    ui_queue_data_in(buffer);
     return 1;
 }
 

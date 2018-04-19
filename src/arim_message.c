@@ -47,7 +47,7 @@ int arim_send_msg(const char *msg, const char *to_call)
     snprintf(prev_msg, sizeof(prev_msg), "%s", msg);
     snprintf(prev_to_call, sizeof(prev_to_call), "%s", to_call);
     if (atoi(g_arim_settings.pilot_ping) && !arim_test_netcall(to_call)) {
-        arim_on_event(EV_SEND_MSG_PP, 0);
+        arim_on_event(EV_SEND_MSG_PP, atoi(g_arim_settings.pilot_ping));
         return 1;
     }
     arim_copy_mycall(mycall, sizeof(mycall));

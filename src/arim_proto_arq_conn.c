@@ -50,6 +50,13 @@ void arim_proto_arq_conn_pend_wait(int event, int param)
             arim_set_state(ST_IDLE);
         }
         break;
+    case EV_TNC_PTT:
+        /* a PTT async response was received from the TNC */
+        if (param) {
+            /* reload timer */
+            prev_time = time(NULL);
+        }
+        break;
     case EV_ARQ_CAN_PENDING:
         /* a CANCELPENDING asynch response was received from the TNC */
         arim_set_state(ST_IDLE);
@@ -104,15 +111,8 @@ void arim_proto_arq_conn_out_wait(int event, int param)
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */
         if (param) {
-            /* connection request repeat, reload ack timer */
+            /* reload timer */
             prev_time = time(NULL);
-            if (arim_arq_send_conn_req_ptt(1)) {
-                ui_set_status_dirty(STATUS_ARQ_CONN_REQ_SENT);
-            } else {
-                arim_set_state(ST_IDLE);
-                arim_arq_on_conn_fail();
-                ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
-            }
         }
         break;
     case EV_ARQ_CONNECTED:
@@ -182,9 +182,6 @@ void arim_proto_arq_conn_pp_wait(int event, int param)
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */
         if (param) {
-            /* ping repeat, reload ack timer */
-            prev_time = time(NULL);
-            arim_recv_ping_ack_ptt(1);
             ui_set_status_dirty(STATUS_PING_SENT);
         }
         break;
@@ -225,6 +222,13 @@ void arim_proto_arq_conn_in_wait(int event, int param)
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
+        break;
+    case EV_TNC_PTT:
+        /* a PTT async response was received from the TNC */
+        if (param) {
+            /* reload timer */
+            prev_time = time(NULL);
+        }
         break;
     case EV_ARQ_CONNECTED:
         /* a CONNECTED async response was received from the TNC */
@@ -281,7 +285,6 @@ void arim_proto_arq_conn_in_wait(int event, int param)
 
 void arim_proto_arq_conn_connected(int event, int param)
 {
-    time_t t;
     char buffer[MAX_LOG_LINE_SIZE];
 
     /* handle every case encountered in testing to date */
@@ -291,13 +294,6 @@ void arim_proto_arq_conn_connected(int event, int param)
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
-        break;
-    case EV_TNC_PTT:
-        /* a PTT async response was received from the TNC */
-        if (param) {
-            /* still connected, reload timer */
-            prev_time = time(NULL);
-        }
         break;
     case EV_ARQ_FILE_SEND_CMD:
         /* start sending file */
@@ -387,16 +383,6 @@ void arim_proto_arq_conn_connected(int event, int param)
             ack_timeout = ARDOP_CONN_TIMEOUT;
             prev_time = time(NULL);
             ui_set_status_dirty(STATUS_REFRESH);
-        }
-        break;
-    case EV_PERIODIC:
-        t = time(NULL);
-        /* see if we timed out */
-        if (t > prev_time + ack_timeout) {
-            /* timeout, return to idle state */
-            arim_set_state(ST_IDLE);
-            arim_arq_on_conn_timeout();
-            ui_set_status_dirty(STATUS_ARQ_CONN_TIMEOUT);
         }
         break;
     }

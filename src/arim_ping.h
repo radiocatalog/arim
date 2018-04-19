@@ -29,7 +29,6 @@ extern int arim_send_ping_ack(void);
 extern int arim_recv_ping(const char *data);
 extern int arim_proc_ping(void);
 extern int arim_recv_ping_ack(const char *data);
-extern int arim_recv_ping_ack_ptt(int ptt_true);
 extern int arim_cancel_ping(void);
 
 #endif

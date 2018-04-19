@@ -2,6 +2,15 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.8
+-----------
+* Discontinue use of PTT asynch responses from the ARDOP TNC as an
+  indication of link activity in an idle ARQ connection. This
+  prevents premature time outs when TNC is configured for serial port
+  PTT or CAT radio control.
+* Don't show placeholder call sign "?????" in calls heard list.
+* Correct typos in PDF Help file.
+
 Version 1.7
 -----------
 * Fix latent bug which can cause a segfault when processing

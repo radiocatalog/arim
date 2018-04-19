@@ -432,6 +432,8 @@ int cmdproc_cmd(const char *cmd)
             }
             if (!arim_arq_send_conn_req(t, call1))
                 ui_print_status("ARQ Connect: cannot send connection request, TNC busy", 1);
+            else
+                ui_print_status("ARIM Busy: sending connection request", 1);
         } else if (!strncasecmp(t, "cm", 2)) {
             t = strtok(NULL, " \t");
             if (!t || (!ini_validate_mycall(t) && !ini_validate_netcall(t))) {

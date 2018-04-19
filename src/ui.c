@@ -724,6 +724,9 @@ void ui_print_status_ind()
             case ST_SEND_RESP_PEND:
             case ST_SEND_PING_ACK_PEND:
             case ST_RCV_PING_ACK_WAIT:
+            case ST_RCV_MSG_PING_ACK_WAIT:
+            case ST_RCV_QRY_PING_ACK_WAIT:
+            case ST_RCV_ARQ_CONN_PING_ACK_WAIT:
                 tx_rx = 'T';
                 break;
             default:
