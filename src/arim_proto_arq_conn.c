@@ -295,6 +295,20 @@ void arim_proto_arq_conn_connected(int event, int param)
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         break;
+    case EV_ARQ_FLIST_RCV_WAIT:
+        /* after outgoing /FLGET, wait for incoming /FLPUT */
+        arim_set_state(ST_ARQ_FLIST_RCV_WAIT);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
+        ui_set_status_dirty(STATUS_ARQ_FLIST_RCV_WAIT);
+        break;
+    case EV_ARQ_FLIST_SEND_CMD:
+        /* start sending file listing */
+        arim_set_state(ST_ARQ_FLIST_SEND_WAIT);
+        ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
+        prev_time = time(NULL);
+        ui_set_status_dirty(STATUS_ARQ_FLIST_SEND);
+        break;
     case EV_ARQ_FILE_SEND_CMD:
         /* start sending file */
         arim_set_state(ST_ARQ_FILE_SEND_WAIT);

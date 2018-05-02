@@ -23,7 +23,7 @@
 
 #ifndef _CMDTHREAD_H_INCLUDED_
 #define _CMDTHREAD_H_INCLUDED_
- 
+
 extern void *cmdthread_func(void *data);
 
 #endif

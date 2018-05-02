@@ -23,7 +23,7 @@
 
 #ifndef _ARIM_H_INCLUDED_
 #define _ARIM_H_INCLUDED_
- 
+
 extern void *arim_reset(void);
 extern int arim_on_data(char *data, size_t size);
 extern int arim_test_frame(char *data, size_t size);

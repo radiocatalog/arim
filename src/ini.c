@@ -996,6 +996,12 @@ void ini_read_ui_set(FILE *inifp)
                 if (g_print_config)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "utc-time", g_ui_settings.utc_time);
             }
+            else if ((v = ini_get_value("theme", p))) {
+                snprintf(g_ui_settings.theme, sizeof(g_ui_settings.theme), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "theme", g_ui_settings.theme);
+            }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);
     }
@@ -1013,6 +1019,7 @@ int ini_get_ui_set(const char *fn)
     snprintf(g_ui_settings.mon_timestamp, sizeof(g_ui_settings.mon_timestamp), DEFAULT_UI_MON_TIMESTAMP);
     snprintf(g_ui_settings.color_code, sizeof(g_ui_settings.color_code), DEFAULT_UI_COLOR_CODE);
     snprintf(g_ui_settings.utc_time, sizeof(g_ui_settings.utc_time), DEFAULT_UI_UTC_TIME);
+    snprintf(g_ui_settings.theme, sizeof(g_ui_settings.theme), DEFAULT_UI_THEME);
 
     inifp = fopen(fn, "r");
     if (inifp == NULL)

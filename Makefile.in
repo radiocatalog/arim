@@ -134,7 +134,7 @@ am_arim_OBJECTS = src/main.$(OBJEXT) src/arim.$(OBJEXT) \
 	src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
 	src/ui_fec_menu.$(OBJEXT) src/ui_files.$(OBJEXT) \
 	src/ui_help_menu.$(OBJEXT) src/ui_msg.$(OBJEXT) \
-	src/util.$(OBJEXT) src/auth.$(OBJEXT) \
+	src/ui_themes.$(OBJEXT) src/util.$(OBJEXT) src/auth.$(OBJEXT) \
 	src/blake2s-ref.$(OBJEXT)
 arim_OBJECTS = $(am_arim_OBJECTS)
 arim_LDADD = $(LDADD)
@@ -355,18 +355,19 @@ AM_CFLAGS = -Wall -g -DARIM_FILESDIR='"$(datadir)/$(PACKAGE_NAME)"' \
 	$(am__append_2)
 @PORTABLE_BIN_TRUE@exedir = $(prefix)
 @PORTABLE_BIN_TRUE@topdir = $(prefix)
-@PORTABLE_BIN_TRUE@top_DATA = arim.ini in.mbox out.mbox sent.mbox
+@PORTABLE_BIN_TRUE@top_DATA = arim.ini in.mbox out.mbox sent.mbox arim-themes
 @PORTABLE_BIN_FALSE@filesdir = $(datadir)/$(PACKAGE_NAME)
 @PORTABLE_BIN_TRUE@filesdir = $(prefix)/files
-@PORTABLE_BIN_FALSE@files_DATA = files/test.txt arim.ini in.mbox
+@PORTABLE_BIN_FALSE@files_DATA = files/test.txt arim.ini in.mbox arim-themes
 @PORTABLE_BIN_TRUE@files_DATA = files/test.txt
 @PORTABLE_BIN_FALSE@docsdir = $(datarootdir)/doc/$(PACKAGE_NAME)
 @PORTABLE_BIN_TRUE@docsdir = $(prefix)/doc
-@PORTABLE_BIN_FALSE@docs_DATA = help/arim-help.pdf NEWS AUTHORS COPYING README
-@PORTABLE_BIN_TRUE@docs_DATA = help/arim-help.pdf NEWS AUTHORS COPYING README
+@PORTABLE_BIN_FALSE@docs_DATA = help/arim-help.pdf help/arim(1).pdf help/arim(5).pdf NEWS AUTHORS COPYING README
+@PORTABLE_BIN_TRUE@docs_DATA = help/arim-help.pdf help/arim(1).pdf help/arim(5).pdf NEWS AUTHORS COPYING README
 @PORTABLE_BIN_FALSE@dist_man_MANS = arim.1 arim.5
-EXTRA_DIST = files/test.txt help/arim-help.pdf ChangeLog in.mbox \
-	out.mbox sent.mbox arim.ini $(am__append_3)
+EXTRA_DIST = files/test.txt help/arim-help.pdf help/arim(1).pdf \
+	help/arim(5).pdf ChangeLog in.mbox out.mbox sent.mbox arim.ini \
+	arim-themes $(am__append_3)
 arim_SOURCES = \
     src/main.c src/main.h \
     src/arim.c src/arim.h \
@@ -403,6 +404,7 @@ arim_SOURCES = \
     src/ui_files.c src/ui_files.h \
     src/ui_help_menu.c src/ui_help_menu.h \
     src/ui_msg.c src/ui_msg.h \
+    src/ui_themes.c src/ui_themes.h \
     src/util.c src/util.h \
     src/auth.c src/auth.h \
     src/blake2s-ref.c src/blake2.h src/blake2-impl.h
@@ -612,6 +614,8 @@ src/ui_help_menu.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/ui_msg.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_themes.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/util.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/auth.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/blake2s-ref.$(OBJEXT): src/$(am__dirstamp) \
@@ -665,6 +669,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_files.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_help_menu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_msg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_themes.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/util.Po@am__quote@
 
 .c.o:
@@ -1218,6 +1223,8 @@ uninstall-man: uninstall-man1 uninstall-man5
 @PORTABLE_BIN_TRUE@	rm -f $(distdir)/ChangeLog
 @PORTABLE_BIN_TRUE@	mkdir $(distdir)/doc
 @PORTABLE_BIN_TRUE@	mv $(distdir)/help/arim-help.pdf $(distdir)/doc/arim-help-v$(PACKAGE_VERSION).pdf
+@PORTABLE_BIN_TRUE@	mv $(distdir)/help/arim\(1\).pdf $(distdir)/doc/arim\(1\)-v$(PACKAGE_VERSION).pdf
+@PORTABLE_BIN_TRUE@	mv $(distdir)/help/arim\(5\).pdf $(distdir)/doc/arim\(5\)-v$(PACKAGE_VERSION).pdf
 @PORTABLE_BIN_TRUE@	mv $(distdir)/AUTHORS $(distdir)/doc/AUTHORS
 @PORTABLE_BIN_TRUE@	mv $(distdir)/README $(distdir)/doc/README
 @PORTABLE_BIN_TRUE@	mv $(distdir)/COPYING $(distdir)/doc/COPYING

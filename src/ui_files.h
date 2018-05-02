@@ -33,6 +33,7 @@ extern int ui_get_file_list(const char *basedir, const char *dir,
                                    char *listbuf, size_t listbufsize);
 extern int ui_check_files_dir(const char *path);
 extern void ui_list_shared_files(void);
+extern void ui_list_remote_files(const char *flist, const char *dir);
 
 #endif
 

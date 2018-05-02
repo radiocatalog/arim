@@ -209,12 +209,14 @@ extern LOG_SET g_log_settings;
 #define UI_MON_TIMESTAMP_SIZE       8
 #define UI_COLOR_CODE_SIZE          8
 #define UI_UTC_TIME_SIZE            8
+#define UI_THEME_SIZE               16
 
 #define DEFAULT_UI_SHOW_TITLES      "TRUE"
 #define DEFAULT_UI_LAST_TIME_HEARD  "CLOCK"
 #define DEFAULT_UI_MON_TIMESTAMP    "FALSE"
 #define DEFAULT_UI_COLOR_CODE       "TRUE"
 #define DEFAULT_UI_UTC_TIME         "TRUE"
+#define DEFAULT_UI_THEME            "DARK"
 
 typedef struct ui_set {
     char show_titles[UI_SHOW_TITLES_SIZE];
@@ -222,6 +224,7 @@ typedef struct ui_set {
     char mon_timestamp[UI_MON_TIMESTAMP_SIZE];
     char color_code[UI_COLOR_CODE_SIZE];
     char utc_time[UI_UTC_TIME_SIZE];
+    char theme[UI_THEME_SIZE];
 } UI_SET;
 
 extern UI_SET g_ui_settings;

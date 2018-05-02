@@ -35,7 +35,7 @@
 #define AUTH_HA1_B64_SIZE    ((AUTH_HA1_DIG_SIZE/3)*4)
 #define AUTH_HA2_B64_SIZE    ((AUTH_HA2_DIG_SIZE/3)*4)
 #define AUTH_BUFFER_SIZE     (AUTH_HA1_B64_SIZE+AUTH_NONCE_B64_SIZE+AUTH_HA2_B64_SIZE+16)
- 
+
 extern char *auth_base64_encode(unsigned char *inbytes, size_t in_size,
                                 char *outstr, size_t out_size);
 extern char *auth_b64_digest(int digest_size, const unsigned char *inbytes,

@@ -87,11 +87,11 @@ int arim_arq_auth_on_send_a1(const char *call, const char *method, const char *p
 
     arim_copy_mycall(mycall, sizeof(mycall));
     len = strlen(mycall);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         mycall[i] = toupper(mycall[i]);
     snprintf(remote_call, sizeof(remote_call), "%s", call);
     len = strlen(remote_call);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         remote_call[i] = toupper(remote_call[i]);
     /* retrieve HA1 from password file */
     if (!auth_check_passwd(remote_call, mycall, ha1, sizeof(ha1))) {
@@ -229,11 +229,11 @@ int arim_arq_auth_on_a1(char *cmd, size_t size, char *eol)
         /* get local and remote callsigns, force to upper case */
         arim_copy_mycall(mycall, sizeof(mycall));
         len = strlen(mycall);
-        for (i = 0; i < len; i++) 
+        for (i = 0; i < len; i++)
             mycall[i] = toupper(mycall[i]);
         arim_copy_remote_call(remote_call, sizeof(remote_call));
         len = strlen(remote_call);
-        for (i = 0; i < len; i++) 
+        for (i = 0; i < len; i++)
             remote_call[i] = toupper(remote_call[i]);
         /* retrieve HA1 from password file */
         if (!auth_check_passwd(mycall, remote_call, ha1, sizeof(ha1))) {
@@ -383,7 +383,7 @@ int arim_arq_auth_on_a3(char *cmd, size_t size, char *eol)
                 arim_on_event(EV_ARQ_AUTH_ERROR, 0);
                 return 0;
             }
-            /*  authentication successful, change state */ 
+            /*  authentication successful, change state */
             arim_arq_auth_on_ok();
             arim_set_state(ST_ARQ_CONNECTED);
             /* replay original command */

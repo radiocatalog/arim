@@ -29,6 +29,7 @@
 #include <curses.h>
 #include "main.h"
 #include "ui.h"
+#include "ui_themes.h"
 #include "arim_proto.h"
 #include "auth.h"
 
@@ -78,8 +79,13 @@ int ui_show_dialog(const char *prompt, char *wanted_keys)
         ui_print_status("Dialog: failed to create dialog window", 1);
         return 0;
     }
+    if (color_code) {
+        wbkgd(dialog_win, COLOR_PAIR(11));
+        wattron(dialog_win, themes[theme].ui_dlg_attr);
+    } else {
+        wattron(dialog_win, A_BOLD);
+    }
     prev_win = ui_set_active_win(dialog_win);
-    wattron(dialog_win, A_BOLD);
     snprintf(linebuf, sizeof(linebuf), "%s", prompt);
     p = strtok(linebuf, "\n");
     for (i = 0; p && i < max_dialog_rows; i++) {
@@ -97,7 +103,6 @@ int ui_show_dialog(const char *prompt, char *wanted_keys)
         p = strtok(NULL, "\n");
     }
     box(dialog_win, 0, 0);
-    wattroff(dialog_win, A_BOLD);
     wrefresh(dialog_win);
     while (!quit) {
         cmd = getch();

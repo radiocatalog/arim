@@ -36,6 +36,7 @@
 #include "arim_arq.h"
 #include "arim_arq_auth.h"
 #include "arim_arq_msg.h"
+#include "arim_arq_files.h"
 #include "bufq.h"
 #include "cmdproc.h"
 #include "ini.h"
@@ -46,6 +47,7 @@
 #include "ui_files.h"
 #include "ui_help_menu.h"
 #include "ui_msg.h"
+#include "ui_themes.h"
 #include "util.h"
 
 #define MAX_DATA_BUF_LEN        512
@@ -252,9 +254,9 @@ attr_t ui_calc_data_in_attr(char *linebuf)
     int found_call, frame_type;
     attr_t attr = A_NORMAL;
 
-    if ((linebuf[0] == '<') || (mon_timestamp && linebuf[11] == '<'))
-        attr = A_BOLD;
     if (color_code) {
+        if ((linebuf[0] == '<') || (mon_timestamp && linebuf[11] == '<'))
+            attr = themes[theme].tm_tx_frame_attr;
         /* extract frame type */
         if (mon_timestamp)
             frame_type = linebuf[15];
@@ -288,10 +290,10 @@ attr_t ui_calc_data_in_attr(char *linebuf)
             case 'E':
             case '!':
             case 'X':
-                attr |= COLOR_PAIR(1);
+                attr |= (COLOR_PAIR(1)|themes[theme].tm_err_attr);
                 break;
             default:
-                attr |= COLOR_PAIR(6);
+                attr |= (COLOR_PAIR(6)|themes[theme].tm_net_attr);
                 break;
             }
         } else {
@@ -327,41 +329,56 @@ attr_t ui_calc_data_in_attr(char *linebuf)
                 switch (frame_type) {
                 case 'M':
                 case 'A':
-                    attr |= COLOR_PAIR(2);
+                    attr |= (COLOR_PAIR(2)|themes[theme].tm_msg_attr);
                     break;
                 case 'Q':
                 case 'R':
-                    attr |= COLOR_PAIR(3);
+                    attr |= (COLOR_PAIR(3)|themes[theme].tm_qry_attr);
                     break;
                 case 'N':
                 case 'E':
                 case '!':
                 case 'X':
-                    attr |= COLOR_PAIR(1);
+                    attr |= (COLOR_PAIR(1)|themes[theme].tm_err_attr);
                     break;
                 case 'B':
-                    attr |= COLOR_PAIR(5);
+                    attr |= (COLOR_PAIR(5)|themes[theme].tm_bcn_attr);
+                    break;
+                case '@':
+                    attr |= (COLOR_PAIR(9)|themes[theme].tm_arq_attr);
                     break;
                 case 'P':
                 case 'p':
-                    attr |= (COLOR_PAIR(4)|A_BOLD);
+                    attr |= (COLOR_PAIR(4)|themes[theme].tm_ping_attr);
+                    break;
+                default:
+                    attr |= (COLOR_PAIR(7)|themes[theme].ui_def_attr);
                     break;
                 }
             } else {
                 switch (frame_type) {
                 case 'I':
-                    attr |= (COLOR_PAIR(4)|A_BOLD);
+                    attr |= (COLOR_PAIR(8)|themes[theme].tm_id_attr);
                     break;
                 case 'X':
                 case 'E':
-                    attr |= COLOR_PAIR(1);
+                    attr |= (COLOR_PAIR(1)|themes[theme].tm_err_attr);
                     break;
                 case 'B':
-                    attr |= COLOR_PAIR(5);
+                    attr |= (COLOR_PAIR(5)|themes[theme].tm_bcn_attr);
+                    break;
+                case '@':
+                    attr |= (COLOR_PAIR(9)|themes[theme].tm_arq_attr);
+                    break;
+                default:
+                    attr |= (COLOR_PAIR(7)|themes[theme].ui_def_attr);
                     break;
                 }
             }
         }
+    } else {
+        if ((linebuf[0] == '<') || (mon_timestamp && linebuf[11] == '<'))
+            attr = A_BOLD;
     }
     return attr;
 }
@@ -382,7 +399,10 @@ void ui_refresh_data_win()
         snprintf(linebuf, max_cols, "%s", data_buf[cur]);
         wattrset(tnc_data_win, ui_calc_data_in_attr(linebuf));
         mvwprintw(tnc_data_win, i, data_col, " %s", linebuf);
-        wattrset(tnc_data_win, A_NORMAL);
+        if (color_code)
+            wattrset(tnc_data_win, COLOR_PAIR(7)|A_NORMAL);
+        else
+            wattrset(tnc_data_win, A_NORMAL);
         if (++cur == MAX_DATA_BUF_LEN)
             cur = 0;
     }
@@ -470,25 +490,31 @@ void ui_print_cmd_in()
         if (strlen(p) > (tnc_cmd_box_w - 4))
             p[tnc_cmd_box_w - 4] = '\0';
         if (color_code) {
-            if (!strncasecmp(p, "<<", 2))
-                wattrset(tnc_cmd_win, COLOR_PAIR(6)|A_BOLD);
-            else if (!strncasecmp(p, ">> PTT TRUE", 13))
-                wattrset(tnc_cmd_win, COLOR_PAIR(1)|A_NORMAL);
-            else if (!strncasecmp(p, ">> PTT FALSE", 14))
-                wattrset(tnc_cmd_win, COLOR_PAIR(2)|A_NORMAL);
-            else if (!strncasecmp(p, ">> BUFFER", 11))
-                wattrset(tnc_cmd_win, COLOR_PAIR(3)|A_NORMAL);
-            else if (!strncasecmp(p, ">> PING", 9))
-                wattrset(tnc_cmd_win, COLOR_PAIR(4)|A_NORMAL);
-            else if (!strncasecmp(p, ">> BUSY", 9))
-                wattrset(tnc_cmd_win, COLOR_PAIR(5)|A_NORMAL);
+            if (!strncasecmp(p, "<<", 2)) {
+                wattrset(tnc_cmd_win, COLOR_PAIR(13)|themes[theme].tc_cmd_attr);
+            } else if (!strncasecmp(p, ">> PTT TRUE", 11)) {
+                wattrset(tnc_cmd_win, COLOR_PAIR(14)|themes[theme].tc_ptt_t_attr);
+            } else if (!strncasecmp(p, ">> PTT FALSE", 12)) {
+                wattrset(tnc_cmd_win, COLOR_PAIR(15)|themes[theme].tc_ptt_f_attr);
+            } else if (!strncasecmp(p, ">> BUFFER", 9)) {
+                wattrset(tnc_cmd_win, COLOR_PAIR(16)|themes[theme].tc_buf_attr);
+            } else if (!strncasecmp(p, ">> PING", 7)) {
+                wattrset(tnc_cmd_win, COLOR_PAIR(17)|themes[theme].tc_ping_attr);
+            } else if (!strncasecmp(p, ">> BUSY", 7)) {
+                wattrset(tnc_cmd_win, COLOR_PAIR(18)|themes[theme].tc_busy_attr);
+            } else if (!strncasecmp(p, ">> NEWSTATE", 11)) {
+                wattrset(tnc_cmd_win, COLOR_PAIR(19)|themes[theme].tc_newst_attr);
+            }
         } else if (!strncasecmp(p, "<<", 2)) {
             wattrset(tnc_cmd_win, A_BOLD);
         } else {
             wattrset(tnc_cmd_win, A_NORMAL);
         }
         mvwprintw(tnc_cmd_win, cur_cmd_row, cmd_col, " %s", p);
-        wattrset(tnc_cmd_win, A_NORMAL);
+        if (color_code)
+            wattrset(tnc_cmd_win, COLOR_PAIR(7)|A_NORMAL);
+        else
+            wattrset(tnc_cmd_win, A_NORMAL);
         if (cur_cmd_row < max_cmd_rows)
             cur_cmd_row++;
         p = cmdq_pop(&g_cmd_in_q);
@@ -605,27 +631,39 @@ void ui_refresh_heard_list()
         if (color_code) {
             switch (heard_list[i].htext[0]) {
             case '1':
-                wattrset(ui_list_win, COLOR_PAIR(1)|A_NORMAL);
+                wattrset(ui_list_win, COLOR_PAIR(1)|themes[theme].tm_err_attr);
                 break;
             case '2':
-                wattrset(ui_list_win, COLOR_PAIR(2)|A_NORMAL);
+                wattrset(ui_list_win, COLOR_PAIR(2)|themes[theme].tm_msg_attr);
                 break;
             case '3':
-                wattrset(ui_list_win, COLOR_PAIR(3)|A_NORMAL);
+                wattrset(ui_list_win, COLOR_PAIR(3)|themes[theme].tm_qry_attr);
                 break;
             case '4':
-                wattrset(ui_list_win, COLOR_PAIR(4)|A_NORMAL|A_BOLD);
+                wattrset(ui_list_win, COLOR_PAIR(4)|themes[theme].tm_ping_attr);
                 break;
             case '5':
-                wattrset(ui_list_win, COLOR_PAIR(5)|A_NORMAL);
+                wattrset(ui_list_win, COLOR_PAIR(5)|themes[theme].tm_bcn_attr);
                 break;
             case '6':
-                wattrset(ui_list_win, COLOR_PAIR(6)|A_NORMAL);
+                wattrset(ui_list_win, COLOR_PAIR(6)|themes[theme].tm_net_attr);
+                break;
+            case '7':
+                wattrset(ui_list_win, COLOR_PAIR(7)|themes[theme].ui_def_attr);
+                break;
+            case '8':
+                wattrset(ui_list_win, COLOR_PAIR(8)|themes[theme].tm_id_attr);
+                break;
+            case '9':
+                wattrset(ui_list_win, COLOR_PAIR(9)|themes[theme].tm_arq_attr);
                 break;
             }
         }
         mvwprintw(ui_list_win, cur_list_row, list_col, "%s", &(heard_list[i].htext[1]));
-        wattrset(ui_list_win, A_NORMAL);
+        if (color_code)
+            wattrset(ui_list_win, COLOR_PAIR(7)|A_NORMAL);
+        else
+            wattrset(ui_list_win, A_NORMAL);
         cur_list_row++;
     }
     touchwin(ui_list_box);
@@ -695,6 +733,10 @@ void ui_print_status_ind()
         case ST_ARQ_FILE_SEND_WAIT:
         case ST_ARQ_FILE_SEND_WAIT_OK:
         case ST_ARQ_FILE_SEND:
+        case ST_ARQ_FLIST_RCV_WAIT:
+        case ST_ARQ_FLIST_RCV:
+        case ST_ARQ_FLIST_SEND_WAIT:
+        case ST_ARQ_FLIST_SEND:
         case ST_ARQ_AUTH_RCV_A2_WAIT:
         case ST_ARQ_AUTH_RCV_A3_WAIT:
         case ST_ARQ_AUTH_RCV_A4_WAIT:
@@ -745,11 +787,18 @@ void ui_print_status_ind()
         start = COLS - strlen(ind) - 1;
         if (start < status_col)
             start = status_col;
-        wattron(main_win, A_BOLD);
         wmove(main_win, status_row, start);
         wclrtoeol(main_win);
+        if (color_code) {
+            wattrset(main_win, COLOR_PAIR(10)|themes[theme].ui_st_ind_attr);
+        } else {
+            wattron(main_win, A_BOLD);
+        }
         mvwprintw(main_win, status_row, start, "%s", ind);
-        wattroff(main_win, A_BOLD);
+        if (color_code)
+            wattrset(main_win, COLOR_PAIR(7)|A_NORMAL);
+        else
+            wattroff(main_win, A_BOLD);
     }
 }
 
@@ -757,15 +806,23 @@ void ui_check_channel_busy()
 {
     int start;
 
-    wattron(main_win, A_BOLD);
     start = COLS - strlen(CH_BUSY_IND) - 1;
     if (start < status_col)
         start = status_col;
     wmove(main_win, status_row + 1, start);
     wclrtoeol(main_win);
-    if (!arim_is_arq_state() && arim_is_channel_busy())
+    if (!arim_is_arq_state() && arim_is_channel_busy()) {
+        if (color_code) {
+            wattrset(main_win, COLOR_PAIR(22)|themes[theme].ui_ch_busy_attr);
+        } else {
+            wattron(main_win, A_BOLD);
+        }
         mvwprintw(main_win, status_row + 1, start, "%s", CH_BUSY_IND);
-    wattroff(main_win, A_BOLD);
+        if (color_code)
+            wattrset(main_win, COLOR_PAIR(7)|A_NORMAL);
+        else
+            wattroff(main_win, A_BOLD);
+    }
 }
 
 void ui_print_status(const char *text, int temporary)
@@ -776,9 +833,21 @@ void ui_print_status(const char *text, int temporary)
         snprintf(status, COLS - 2, "%s", text);
     wmove(main_win, status_row, 0);
     wclrtoeol(main_win);
+    if (color_code) {
+        if (temporary) {
+            wattrset(main_win, COLOR_PAIR(12)|themes[theme].ui_st_noti_attr);
+        } else {
+            wattrset(main_win, COLOR_PAIR(12)|A_NORMAL);
+        }
+    } else if (temporary) {
+        wattron(main_win, A_BOLD);
+    }
     mvwprintw(main_win, status_row, status_col, "%s", status);
+    if (color_code)
+        wattrset(main_win, COLOR_PAIR(7)|A_NORMAL);
+    else
+        wattroff(main_win, A_BOLD);
     ui_print_status_ind();
-    wrefresh(main_win);
     if (temporary)
         status_timer = STATUS_TIMER_COUNT;
 }
@@ -793,7 +862,12 @@ void ui_print_clock(int now)
     if (now || tcur - tprev > 5) {
         tprev = tcur;
         util_clock(clock, sizeof(clock));
+        if (color_code) {
+            wattrset(main_win, COLOR_PAIR(20)|themes[theme].ui_clock_attr);
+        }
         mvwprintw(main_win, TITLE_ROW, 1, "%s ", clock);
+        if (color_code)
+            wattrset(main_win, COLOR_PAIR(7)|A_NORMAL);
         wrefresh(main_win);
     }
 }
@@ -803,7 +877,12 @@ void ui_print_new_ctrs()
     char alerts[32];
 
     snprintf(alerts, sizeof(alerts), "New:%dM,%dF", num_new_msgs, num_new_files);
+    if (color_code) {
+        wattrset(main_win, COLOR_PAIR(21)|themes[theme].ui_msg_cntr_attr);
+    }
     mvwprintw(main_win, TITLE_ROW, COLS - strlen(alerts) - 2, " %s ", alerts);
+    if (color_code)
+        wattrset(main_win, COLOR_PAIR(7)|A_NORMAL);
     wrefresh(main_win);
 }
 
@@ -861,7 +940,7 @@ void ui_check_status_dirty()
 
     switch (status_dirty) {
     case STATUS_REFRESH:
-        ui_print_status(NULL, 0);
+        ui_print_status(NULL, status_timer ? 1 : 0);
         break;
     case STATUS_WAIT_ACK:
         ui_print_status("ARIM Busy: message sent, waiting for ACK", 1);
@@ -1095,7 +1174,7 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Busy: ARQ file upload in progress", 1);
         break;
     case STATUS_ARQ_FILE_SEND_DONE:
-        ui_print_status("ARIM Busy: ARQ file upload complete", 1);
+        ui_print_status("ARIM Idle: ARQ file upload complete", 1);
         break;
     case STATUS_ARQ_FILE_SEND_ACK:
         ui_print_status("ARIM Busy: ARQ file upload acknowleged", 1);
@@ -1154,6 +1233,28 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Busy: ARQ session authenticated", 1);
         arim_arq_run_cached_cmd();
         break;
+    case STATUS_ARQ_FLIST_RCV_WAIT:
+        ui_print_status("ARIM Busy: ARQ remote file listing requested", 1);
+        break;
+    case STATUS_ARQ_FLIST_RCV:
+        ui_print_status("ARIM Busy: ARQ remote file listing in progress", 1);
+        break;
+    case STATUS_ARQ_FLIST_RCV_DONE:
+        ui_set_status_dirty(0); /* must clear flag before opening modal dialog */
+        arim_arq_files_on_flget_done();
+        break;
+    case STATUS_ARQ_FLIST_RCV_ERROR:
+        ui_print_status("ARIM Idle: ARQ remote file listing failed", 1);
+        break;
+    case STATUS_ARQ_FLIST_SEND:
+        ui_print_status("ARIM Busy: ARQ remote file listing upload in progress", 1);
+        break;
+    case STATUS_ARQ_FLIST_SEND_DONE:
+        ui_print_status("ARIM Idle: ARQ remote file listing upload complete", 1);
+        break;
+    case STATUS_ARQ_FLIST_SEND_ACK:
+        ui_print_status("ARIM Busy: ARQ remote file listing upload acknowleged", 1);
+        break;
     }
     ui_set_status_dirty(0);
 }
@@ -1181,7 +1282,11 @@ void ui_print_title(const char *new_status)
     }
     wmove(main_win, TITLE_ROW, 0);
     wclrtoeol(main_win);
+    if (color_code)
+        wattrset(main_win, COLOR_PAIR(23)|themes[theme].ui_title_attr);
     mvwprintw(main_win, TITLE_ROW, startx, "%s", title);
+    if (color_code)
+        wattrset(main_win, COLOR_PAIR(7)|A_NORMAL);
     wrefresh(main_win);
     ui_print_clock(1);
     ui_print_new_ctrs();
@@ -1401,6 +1506,8 @@ void ui_clear_recents()
             ui_print_status("Recents: failed to create window", 1);
             return;
         }
+        if (color_code)
+            wbkgd(ui_recents_win, COLOR_PAIR(7));
         touchwin(ui_recents_win);
         wrefresh(ui_recents_win);
     }
@@ -1437,6 +1544,8 @@ void ui_print_recents()
             ui_print_status("Recents: failed to create window", 1);
             return;
         }
+        if (color_code)
+            wbkgd(ui_recents_win, COLOR_PAIR(7));
         max_recents_rows = tnc_cmd_box_h - 2;
         if (show_titles)
             ui_print_recents_title();
@@ -1465,10 +1574,11 @@ void ui_print_recents()
             ui_print_status("Recents: failed to create window", 1);
             return;
         }
+        if (color_code)
+            wbkgd(ui_recents_win, COLOR_PAIR(7));
         max_recents_rows = tnc_cmd_box_h - 2;
         if (show_titles)
             ui_print_cmd_title();
-
         refresh_recents = 0;
         max_cols = (tnc_cmd_box_w - 4) + 1;
         if (max_cols > sizeof(recent))
@@ -1552,6 +1662,8 @@ void ui_clear_ptable()
             ui_print_status("Ping History: failed to create window", 1);
             return;
         }
+        if (color_code)
+            wbkgd(ui_ptable_win, COLOR_PAIR(7));
         touchwin(ui_ptable_win);
         wrefresh(ui_ptable_win);
     }
@@ -1596,6 +1708,8 @@ void ui_print_ptable()
             ui_print_status("Ping History: failed to create window", 1);
             return;
         }
+        if (color_code)
+            wbkgd(ui_ptable_win, COLOR_PAIR(7));
         max_ptable_rows = tnc_cmd_box_h - 2;
         if (show_titles)
             ui_print_ptable_title();
@@ -1669,6 +1783,8 @@ void ui_print_ptable()
             ui_print_status("Ping History: failed to create window", 1);
             return;
         }
+        if (color_code)
+            wbkgd(ui_ptable_win, COLOR_PAIR(7));
         max_ptable_rows = tnc_cmd_box_h - 2;
         if (show_titles)
             ui_print_ptable_title();
@@ -1760,21 +1876,52 @@ void ui_refresh_ptable()
     ui_print_ptable();
 }
 
+void ui_apply_theme()
+{
+    init_pair(1, themes[theme].tm_err_color, themes[theme].ui_bg_color);
+    init_pair(2, themes[theme].tm_msg_color, themes[theme].ui_bg_color);
+    init_pair(3, themes[theme].tm_qry_color, themes[theme].ui_bg_color);
+    init_pair(4, themes[theme].tm_ping_color, themes[theme].ui_bg_color);
+    init_pair(5, themes[theme].tm_bcn_color, themes[theme].ui_bg_color);
+    init_pair(6, themes[theme].tm_net_color, themes[theme].ui_bg_color);
+    init_pair(7, themes[theme].ui_def_color, themes[theme].ui_bg_color);
+    init_pair(8, themes[theme].tm_id_color, themes[theme].ui_bg_color);
+    init_pair(9, themes[theme].tm_arq_color, themes[theme].ui_bg_color);
+    init_pair(10, themes[theme].ui_st_ind_color, themes[theme].ui_bg_color);
+    init_pair(11, themes[theme].ui_dlg_color, themes[theme].ui_dlg_bg_color);
+    init_pair(12, themes[theme].ui_st_noti_color, themes[theme].ui_bg_color);
+    init_pair(13, themes[theme].tc_cmd_color, themes[theme].ui_bg_color);
+    init_pair(14, themes[theme].tc_ptt_t_color, themes[theme].ui_bg_color);
+    init_pair(15, themes[theme].tc_ptt_f_color, themes[theme].ui_bg_color);
+    init_pair(16, themes[theme].tc_buf_color, themes[theme].ui_bg_color);
+    init_pair(17, themes[theme].tc_ping_color, themes[theme].ui_bg_color);
+    init_pair(18, themes[theme].tc_busy_color, themes[theme].ui_bg_color);
+    init_pair(19, themes[theme].tc_newst_color, themes[theme].ui_bg_color);
+    init_pair(20, themes[theme].ui_clock_color, themes[theme].ui_bg_color);
+    init_pair(21, themes[theme].ui_msg_cntr_color, themes[theme].ui_bg_color);
+    init_pair(22, themes[theme].ui_ch_busy_color, themes[theme].ui_bg_color);
+    init_pair(23, themes[theme].ui_title_color, themes[theme].ui_bg_color);
+}
+
+int ui_get_theme(void)
+{
+    int temp;
+
+    ui_themes_load_themes();
+    temp = ui_themes_validate_theme(g_ui_settings.theme);
+    /* default to "DARK" theme if theme name not valid */
+    return temp == -1 ? 0 : temp;
+}
+
 int ui_init_color()
 {
     if (!has_colors())
         return 0;
     if (start_color() != OK)
         return 0;
-    if (COLORS < 8 || COLOR_PAIRS < 8)
+    if (COLORS < 8 || COLOR_PAIRS < 32)
         return 0;
-    init_pair(1, COLOR_RED, COLOR_BLACK);
-    init_pair(2, COLOR_GREEN, COLOR_BLACK);
-    init_pair(3, COLOR_YELLOW, COLOR_BLACK);
-    init_pair(4, COLOR_BLUE, COLOR_BLACK);
-    init_pair(5, COLOR_MAGENTA, COLOR_BLACK);
-    init_pair(6, COLOR_CYAN, COLOR_BLACK);
-    init_pair(7, COLOR_WHITE, COLOR_BLACK);
+    theme = ui_get_theme();
     return 1;
 }
 
@@ -1794,19 +1941,22 @@ int ui_init()
             last_time_heard = LT_HEARD_ELAPSED;
         else
             last_time_heard = LT_HEARD_CLOCK;
+        if (!strncasecmp(g_ui_settings.show_titles, "TRUE", 4))
+            show_titles = 1;
+        else
+            show_titles = 0;
+        if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4))
+            mon_timestamp = 1;
+        else
+            mon_timestamp = 0;
+        if (!strncasecmp(g_ui_settings.color_code, "TRUE", 4))
+            color_code = ui_init_color();
+        else
+            color_code = 0;
     }
-    if (!strncasecmp(g_ui_settings.show_titles, "TRUE", 4))
-        show_titles = 1;
-    else
-        show_titles = 0;
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4))
-        mon_timestamp = 1;
-    else
-        mon_timestamp = 0;
-    if (!strncasecmp(g_ui_settings.color_code, "TRUE", 4))
-        color_code = ui_init_color();
-    else
-        color_code = 0;
+    ui_apply_theme();
+    if (color_code)
+        bkgd(COLOR_PAIR(7));
     prompt_row = 0, prompt_col = 1;
     status_row = LINES - 2;
     status_col = 1;
@@ -1827,12 +1977,16 @@ int ui_init()
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(ui_list_box, COLOR_PAIR(7));
     box(ui_list_box, 0, 0);
     ui_list_win = derwin(ui_list_box, ui_list_box_h - 2, ui_list_box_w - 2, 1, 1);
     if (!ui_list_win) {
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(ui_list_win, COLOR_PAIR(7));
     max_list_rows = ui_list_box_h - 2;
     if (show_titles)
         ui_print_heard_list_title();
@@ -1846,12 +2000,16 @@ int ui_init()
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(prompt_box, COLOR_PAIR(7));
     box(prompt_box, 0, 0);
     prompt_win = derwin(prompt_box, 1, prompt_box_w - 2, 1, 1);
     if (!prompt_win) {
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(prompt_win, COLOR_PAIR(7));
     wtimeout(prompt_win, 100);
 
     tnc_cmd_box_h = (LINES / 3) - 1;
@@ -1867,12 +2025,16 @@ int ui_init()
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(tnc_cmd_box, COLOR_PAIR(7));
     box(tnc_cmd_box, 0, 0);
     tnc_cmd_win = derwin(tnc_cmd_box, tnc_cmd_box_h - 2, tnc_cmd_box_w - 2, 1, 1);
     if (!tnc_cmd_win) {
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(tnc_cmd_win, COLOR_PAIR(7));
     max_cmd_rows = tnc_cmd_box_h - 2;
     scrollok(tnc_cmd_win, TRUE);
     if (show_titles) {
@@ -1889,12 +2051,16 @@ int ui_init()
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(tnc_data_box, COLOR_PAIR(7));
     box(tnc_data_box, 0, 0);
     tnc_data_win = derwin(tnc_data_box, tnc_data_box_h - 2, tnc_data_box_w - 2, 1, 1);
     if (!tnc_data_win) {
         ui_end();
         return 0;
     }
+    if (color_code)
+        wbkgd(tnc_data_win, COLOR_PAIR(7));
     max_data_rows = tnc_data_box_h - 2;
     scrollok(tnc_data_win, TRUE);
     if (show_titles) {
@@ -2031,6 +2197,11 @@ int ui_run()
                     recents_start_line = 0;
                 ui_refresh_recents();
             }
+            break;
+        case '#':
+            /* recall previously loaded remote list file view */
+            if (arim_is_arq_state())
+                ui_list_remote_files(NULL, NULL);
             break;
         case 'f':
         case 'F':

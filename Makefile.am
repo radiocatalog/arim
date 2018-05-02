@@ -20,20 +20,20 @@ bin_PROGRAMS = arim
 endif
 if PORTABLE_BIN
 topdir = $(prefix)
-top_DATA = arim.ini in.mbox out.mbox sent.mbox
+top_DATA = arim.ini in.mbox out.mbox sent.mbox arim-themes
 filesdir = $(prefix)/files
 files_DATA = files/test.txt
 docsdir = $(prefix)/doc
-docs_DATA = help/arim-help.pdf NEWS AUTHORS COPYING README
+docs_DATA = help/arim-help.pdf help/arim(1).pdf help/arim(5).pdf NEWS AUTHORS COPYING README
 else
 filesdir = $(datadir)/$(PACKAGE_NAME)
-files_DATA = files/test.txt arim.ini in.mbox
+files_DATA = files/test.txt arim.ini in.mbox arim-themes
 docsdir = $(datarootdir)/doc/$(PACKAGE_NAME)
-docs_DATA = help/arim-help.pdf NEWS AUTHORS COPYING README
+docs_DATA = help/arim-help.pdf help/arim(1).pdf help/arim(5).pdf NEWS AUTHORS COPYING README
 dist_man_MANS = arim.1 arim.5
 endif
 
-EXTRA_DIST = files/test.txt help/arim-help.pdf ChangeLog in.mbox out.mbox sent.mbox arim.ini
+EXTRA_DIST = files/test.txt help/arim-help.pdf help/arim(1).pdf help/arim(5).pdf ChangeLog in.mbox out.mbox sent.mbox arim.ini arim-themes
 if PORTABLE_BIN
 EXTRA_DIST += $(PACKAGE_NAME)
 endif
@@ -74,6 +74,7 @@ arim_SOURCES = \
     src/ui_files.c src/ui_files.h \
     src/ui_help_menu.c src/ui_help_menu.h \
     src/ui_msg.c src/ui_msg.h \
+    src/ui_themes.c src/ui_themes.h \
     src/util.c src/util.h \
     src/auth.c src/auth.h \
     src/blake2s-ref.c src/blake2.h src/blake2-impl.h
@@ -95,6 +96,8 @@ dist-hook:
 	rm -f $(distdir)/ChangeLog
 	mkdir $(distdir)/doc
 	mv $(distdir)/help/arim-help.pdf $(distdir)/doc/arim-help-v$(PACKAGE_VERSION).pdf
+	mv $(distdir)/help/arim\(1\).pdf $(distdir)/doc/arim\(1\)-v$(PACKAGE_VERSION).pdf
+	mv $(distdir)/help/arim\(5\).pdf $(distdir)/doc/arim\(5\)-v$(PACKAGE_VERSION).pdf
 	mv $(distdir)/AUTHORS $(distdir)/doc/AUTHORS
 	mv $(distdir)/README $(distdir)/doc/README
 	mv $(distdir)/COPYING $(distdir)/doc/COPYING

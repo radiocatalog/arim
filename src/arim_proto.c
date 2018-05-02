@@ -123,6 +123,10 @@ const char *states[] = {
     "ST_ARQ_AUTH_SEND_A1",              /* 34 */
     "ST_ARQ_AUTH_SEND_A2",              /* 35 */
     "ST_ARQ_AUTH_SEND_A3",              /* 36 */
+    "ST_ARQ_FLIST_RCV_WAIT",            /* 37 */
+    "ST_ARQ_FLIST_RCV",                 /* 38 */
+    "ST_ARQ_FLIST_SEND_WAIT",           /* 39 */
+    "ST_ARQ_FLIST_SEND",                /* 40 */
 };
 
 const char *events[] = {
@@ -183,6 +187,12 @@ const char *events[] = {
     "EV_ARQ_AUTH_WAIT_CMD",             /* 54 */
     "EV_ARQ_AUTH_OK",                   /* 55 */
     "EV_ARQ_AUTH_ERROR",                /* 56 */
+    "EV_ARQ_FLIST_RCV_WAIT",            /* 57 */
+    "EV_ARQ_FLIST_RCV",                 /* 58 */
+    "EV_ARQ_FLIST_RCV_FRAME",           /* 59 */
+    "EV_ARQ_FLIST_RCV_DONE",            /* 60 */
+    "EV_ARQ_FLIST_SEND",                /* 61 */
+    "EV_ARQ_FLIST_SEND_CMD",            /* 62 */
 };
 
 void arim_copy_mycall(char *call, size_t size)
@@ -330,6 +340,10 @@ int arim_is_arq_state()
         state == ST_ARQ_AUTH_RCV_A2_WAIT  ||
         state == ST_ARQ_AUTH_RCV_A3_WAIT  ||
         state == ST_ARQ_AUTH_RCV_A4_WAIT  ||
+        state == ST_ARQ_FLIST_RCV_WAIT    ||
+        state == ST_ARQ_FLIST_RCV         ||
+        state == ST_ARQ_FLIST_SEND_WAIT   ||
+        state == ST_ARQ_FLIST_SEND        ||
         state == ST_ARQ_FILE_RCV_WAIT     ||
         state == ST_ARQ_FILE_RCV_WAIT_OK  ||
         state == ST_ARQ_FILE_RCV          ||
@@ -587,6 +601,18 @@ void arim_on_event(int event, int param)
         break;
     case ST_ARQ_CONNECTED:
         arim_proto_arq_conn_connected(event, param);
+        break;
+    case ST_ARQ_FLIST_RCV_WAIT:
+        arim_proto_arq_file_flist_rcv_wait(event, param);
+        break;
+    case ST_ARQ_FLIST_RCV:
+        arim_proto_arq_file_flist_rcv(event, param);
+        break;
+    case ST_ARQ_FLIST_SEND_WAIT:
+        arim_proto_arq_file_flist_send_wait(event, param);
+        break;
+    case ST_ARQ_FLIST_SEND:
+        arim_proto_arq_file_flist_send(event, param);
         break;
     case ST_ARQ_FILE_SEND_WAIT:
         arim_proto_arq_file_send_wait(event, param);

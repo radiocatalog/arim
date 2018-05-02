@@ -1,11 +1,11 @@
 
-.TH "ARIM" 5 "2018-03-31" "ARIM Messaging Program" "arim"
+.TH "ARIM" 5 "2018-04-26" "ARIM Messaging Program" "arim"
 .SH NAME
 arim - related files
 .SH FILES
 \fI${HOME}/arim/arim.ini\fR
 .PP
-This is an "INI File" format configuration file for ARIM, which is read on program start up. It is divided into sections, each containing a list of \fBkeys\fR which specify program properties as name=value pairs, one to a line. Section names occupy a line by themselves and are enclosed in square brackets. Lines beginning with the '#' character are treated as comments. If a key is not present in the file the property is set to its default value. The following sections and keys are defined:
+This is an "INI File" format configuration file for ARIM, which is read on program start up. It is divided into \fBsections\fR, each containing a list of \fBkeys\fR which specify program properties as name=value pairs, one to a line. Section names occupy a line by themselves and are enclosed in square brackets. Lines beginning with the '#' character are treated as comments. If a key is not present in the file the property is set to its default value. The following sections and keys are defined:
 .TP
 \fB[tnc]\fR
 Each ARDOP TNC is configured in a separate [tnc] section. The first [tnc] section in the file defines port 1, the second port 2, and so on. The limit is 10 TNC definitions.
@@ -157,7 +157,169 @@ Set to TRUE to enable timestamps in the traffic monitor view. Set to FALSE to di
 .TP
 \fButc-time\fR
 Selects the time zone used for timestamps in the UI and log output, and for the clock in the title bar. Set to TRUE for UTC, and FALSE for local time. Default: TRUE.
+.TP
+\fBtheme\fR
+The UI theme, either one of the built-in themes (DARK or LIGHT) or a custom theme defined in the \fIarim-themes\fR file described below. Default: DARK.
+.TE
+.RE
+.PP
+\fI${HOME}/arim/arim-themes\fR
+.PP
+This is an "INI File" format definition file which is read on program start up. It contains user defined UI theme definitions which augment the built-in "DARK" and "LIGHT" themes. The file is divided into \fBsections\fR, each containing a list of \fBkeys\fR which specify theme properties as name=value pairs, one to a line. Section names occupy a line by themselves and are enclosed in square brackets. Lines beginning with the '#' character are treated as comments. If a key is not present in the file the property is set to its default value. The following sections and keys are defined:
+.TP
+\fB[theme]\fR
+Each theme is configured in a separate [theme] section. This is a group of color and text attribute assignments for various UI elements in ARIM. The allowable colors are:
+BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, and WHITE. What you see will vary with the color palette used by your terminal emulator. The allowable text attributes are: BLINK, BOLD, DIM, ITALIC, NORMAL, REVERSE, STANDOUT and UNDERLINE. Not all of these attributes work on a given terminal type; you'll need to experiment with them. Up to 5 themes can be defined. Example themes are included in the distributed \fIarim-themes\fR file.
+.RS
+.TP
+\fBname\fR
+The name of the theme. Maximum length: 15 characters.
+.TP
+\fBui-background-color\fR
+The background color used everywhere except dialog boxes. Default: WHITE.
+.TP
+\fBui-dialog-background-color\fR
+The background color used in dialog boxes. Default: WHITE.
+.TP
+\fBui-dialog-attr\fR
+The text attribute for text in dialog boxes. Default: NORMAL.
+.TP
+\fBui-default-color\fR
+The default color for traces printed in the TRAFFIC MONITOR view not otherwise defined. Default: BLACK.
+.TP
+\fBui-default-attr\fR
+The default text attribute for traces printed in the TRAFFIC MONITOR view not otherwise defined. Default: NORMAL.
+.TP
+\fBui-status-indicator-color\fR
+The color for the "status indicators" section of the status bar. Default: BLACK.
+.TP
+\fBui-status-indicator-attr\fR
+The text attribute for the "status indicators" section of the status bar. Default: NORMAL.
+.TP
+\fBui-status-notify-color\fR
+The color for notification messages that temporarily replace the menu on the status bar. Default: BLACK.
+.TP
+\fBui-status-notify-attr\fR
+The text attribute for notification messages that temporarily replace the menu on the status bar. Default: NORMAL.
+.TP
+\fBui-clock-color\fR
+The color for the clock on the title bar. Default: BLACK.
+.TP
+\fBui-clock-attr\fR
+The text attribute for the clock on the title bar. Default: NORMAL.
+.TP
+\fBui-msg-cntr-color\fR
+The color for the new messages/files counter on the title bar. Default: BLACK.
+.TP
+\fBui-msg-cntr-attr\fR
+The text attribute for the new messages/files counter on the title bar. Default: NORMAL.
+.TP
+\fBui-ch-busy-color\fR
+The color for the "CHANNEL BUSY" indicator on the status bar. Default: BLACK.
+.TP
+\fBui-ch-busy-attr\fR
+The text attribute for the "CHANNEL BUSY" indicator on the status bar. Default: NORMAL.
+.TP
+\fBui-title-color\fR
+The color for the title text centered in the title bar. Default: BLACK.
+.TP
+\fBui-title-attr\fR
+The text attribute for the title text centered in the title bar. Default: NORMAL.
+.TP
+\fBtm-err-color\fR
+The color used for ARIM and ARDOP error frames printed in the TRAFFIC MONITOR view, e.g. [E] or [X] tags. Default: BLACK.
+.TP
+\fBtm-err-attr\fR
+The text attribute for ARIM and ARDOP error frames printed in the TRAFFIC MONITOR view, e.g. [E] or [X] tags. Default: NORMAL.
+.TP
+\fBtm-message-color\fR
+The color used for ARIM message frames printed in the TRAFFIC MONITOR view, [M] or [A] tags. Default: BLACK.
+.TP
+\fBtm-message-attr\fR
+The text attribute for ARIM message frames printed in the TRAFFIC MONITOR view, [M] or [A] tags. Default: NORMAL.
+.TP
+\fBtm-net-color\fR
+The color used for ARIM "net" message frames printed in the TRAFFIC MONITOR view, [M] tag. Default: BLACK.
+.TP
+\fBtm-net-attr\fR
+The text attribute for ARIM "net" message frames printed in the TRAFFIC MONITOR view, [M] or [A] tags. Default: NORMAL.
+.TP
+\fBtm-query-color\fR
+The color used for ARIM query frames printed in the TRAFFIC MONITOR view, [Q] or [R] tags. Default: BLACK.
+.TP
+\fBtm-query-attr\fR
+The text attribute for ARIM query frames printed in the TRAFFIC MONITOR view, [Q] or [R] tags. Default: NORMAL.
+.TP
+\fBtm-beacon-color\fR
+The color used for ARIM beacon frames printed in the TRAFFIC MONITOR view, [B] tag. Default: BLACK.
+.TP
+\fBtm-beacon-attr\fR
+The text attribute for ARIM beacon frames printed in the TRAFFIC MONITOR view, [B] tag. Default: NORMAL.
+.TP
+\fBtm-arq-color\fR
+The color used for ARDOP ARQ frames printed in the TRAFFIC MONITOR view, [@] tag. Default: BLACK.
+.TP
+\fBtm-ping-attr\fR
+The text attribute for ARDOP ARQ frames printed in the TRAFFIC MONITOR view, [@] tag. Default: NORMAL.
+.TP
+\fBtm-ping-color\fR
+The color used for ARDOP PING and PINGACK frames printed in the TRAFFIC MONITOR view, [P] or [p] tags. Default: BLACK.
+.TP
+\fBtm-ping-attr\fR
+The text attribute for ARDOP PING and PINGACK printed in the TRAFFIC MONITOR view, [P] or [p] tags. Default: NORMAL.
+.TP
+\fBtm-id-color\fR
+The color used for ARDOP ID frames printed in the TRAFFIC MONITOR view, [P] or [p] tags. Default: BLACK.
+.TP
+\fBtm-id-attr\fR
+The text attribute for ARDOP ID frames printed in the TRAFFIC MONITOR view, [P] or [p] tags. Default: NORMAL.
+.TP
+\fBtm-tx-frame-attr\fR
+The text attribute for ARDOP or ARIM frames printed in the TRAFFIC MONITOR view that are sent to the TNC for transmission over the air. This can be used to distinguish outgoing from incoming frames. This attribute is ORed with any other attribute set for the frame type. Default: NORMAL.
+.TP
+\fBtc-cmd-color\fR
+The color used for commands sent by ARIM to the ARDOP TNC and printed in the TNC COMMANDS view. Default: BLACK.
+.TP
+\fBtc-cmd-attr\fR
+The text attribute for commands sent by ARIM to the ARDOP TNC and printed in the TNC COMMANDS view. This helps to distinguish outgoing commands from incoming responses. Default: NORMAL.
+.TP
+\fBtc-ptt-true-color\fR
+The color used for PTT TRUE async response sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: BLACK.
+.TP
+\fBtc-ptt-true-attr\fR
+The text attribute for PTT TRUE async responses sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: NORMAL.
+.TP
+\fBtc-ptt-false-color\fR
+The color used for PTT NORMAL async response sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: BLACK.
+.TP
+\fBtc-ptt-false-attr\fR
+The text attribute for PTT NORMAL async responses sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: NORMAL.
+.TP
+\fBtc-buffer-color\fR
+The color used for BUFFER async response sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: BLACK.
+.TP
+\fBtc-buffer-attr\fR
+The text attribute for BUFFER async responses sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: NORMAL.
+.TP
+\fBtc-ping-color\fR
+The color used for PING, PINGACK and PINGREPLY async responses sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: BLACK.
+.TP
+\fBtc-ping-attr\fR
+The text attribute for PING, PINGACK and PINGREPLY async responses sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: NORMAL.
+.TP
+\fBtc-busy-color\fR
+The color used for BUSY async response sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: BLACK.
+.TP
+\fBtc-busy-attr\fR
+The text attribute for BUSY async responses sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: NORMAL.
+.TP
+\fBtc-newstate-color\fR
+The color used for NEWSTATE async response sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: BLACK.
+.TP
+\fBtc-newstate-attr\fR
+The text attribute for NEWSTATE async responses sent by the ARDOP TNC and printed in the TNC COMMANDS view. Default: NORMAL.
+.RE
 .TE
 .SH SEE ALSO
-\fBarim\fR(1)
+\fBarim\fR(1), \fI/usr/local/share/doc/arim/arim-help.pdf\fR
 

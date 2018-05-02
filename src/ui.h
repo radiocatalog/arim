@@ -117,6 +117,13 @@
 #define STATUS_ARQ_EAUTH_LOCAL      77
 #define STATUS_ARQ_EAUTH_REMOTE     78
 #define STATUS_ARQ_RUN_CACHED_CMD   79
+#define STATUS_ARQ_FLIST_RCV_WAIT   80
+#define STATUS_ARQ_FLIST_RCV        81
+#define STATUS_ARQ_FLIST_RCV_DONE   82
+#define STATUS_ARQ_FLIST_RCV_ERROR  83
+#define STATUS_ARQ_FLIST_SEND       84
+#define STATUS_ARQ_FLIST_SEND_DONE  85
+#define STATUS_ARQ_FLIST_SEND_ACK   86
 
 extern WINDOW *main_win;
 extern WINDOW *tnc_data_win;
@@ -131,6 +138,7 @@ extern WINDOW *tnc_cmd_box;
 extern WINDOW *prompt_box;
 extern WINDOW *prompt_win;
 
+extern int color_code;
 extern int data_buf_scroll_timer;
 extern int status_timer;
 extern int status_dirty;

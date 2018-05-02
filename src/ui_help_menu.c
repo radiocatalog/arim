@@ -56,6 +56,7 @@ const char *help[] = {
     "  Press 's' to open the sent messages viewer.",
     "  Press 't' to toggle timestamp format (Clock/Elapsed Time).",
     "  Press 'n' to clear the new message and file counters.",
+    "  Press '#' to reopen the remote file listing viewer.",
     "  Press 'h' to open this Help view.",
     "",
     "Press Spacebar to access interactive command line:",
@@ -152,8 +153,8 @@ const char *help[] = {
     "    'rf n' to read file, 'sf n call' to send, 'cd n' to change",
     "    directory where n is file or dir nbr, and call is",
     "    destination call sign, 'ri' to read the ARIM configuration,",
-    "    file, 'rp' to read the 'arim-digest' password file.",
-    "    Press 'q' to quit.",
+    "    file, 'rp' to read the 'arim-digest' password file, 'rt' to",
+    "    read the 'arim-themes' UI themes file. Press 'q' to quit.",
     "",
     "ARQ mode commands and queries:",
     "  'conn c n' to connect where c is call sign of remote station",
@@ -170,9 +171,15 @@ const char *help[] = {
     "      '/info' returns the ARIM info statement.",
     "      '/pname' returns the ARIM port 'name' for the TNC in use.",
     "      '/heard' returns the ARIM Calls Heard list.",
-    "      '/flist [dir]' returns a listing of files at the remote",
-    "        station where 'dir' is an optional directory path.",
     "      '/netcalls' returns the ARIM netcall list.",
+    "      '/flist [dir]' where dir is an optional directory path,"
+    "        returns a listing of files at the remote station.",
+    "      '/flget [-z] [dir]', where -z is compression option and dir",
+    "        is an optional directory path on the remote station.",
+    "        Downloads a directory listing and displays it in the remote",
+    "        shared files viewer for easy file reading and downloading.",
+    "        If dir is not specified then the default shared files",
+    "        at the remote station is listed.",
     "      '/file fn', where fn is a filename from the shared files",
     "        folder on the remote station, or a file path relative to",
     "        that folder; prints the file to the traffic monitor view.",
@@ -239,8 +246,16 @@ const char *help[] = {
     "    change directory where -z is compression option, n is file",
     "    or directory nbr, dir is optional destination folder at the",
     "    remote station, 'ri' to read the ARIM configuration file,",
-    "    'rp' to read the 'arim-digest' password file.",
-    "    Press 'q' to quit.",
+    "    'rp' to read the 'arim-digest' password file, 'rt' to read",
+    "    the 'arim-themes' UI themes file. Press 'q' to quit.",
+    "",
+    "ARQ mode remote shared files viewer commands:",
+    "  Use to '/flget' command to open a remote files listing. Then:",
+    "    'rf n' to read file, 'gf [-z] n [dir]' to get (download),",
+    "    'cd n' to change directory where -z is compression option,",
+    "    n is file or directory nbr, dir is optional destination folder",
+    "    at the local station. Press 'q' to quit.",
+    "  Note: after closing the viewer, press '#' to reopen it.",
     "",
     "ARQ setup commands:",
     "  'arqto n' to set connection timeout, where n is time in seconds.",
@@ -274,6 +289,12 @@ const char *help[] = {
     "  'clrheard' to clear the Calls Heard view.",
     "  'clrping' to clear the Ping History view.",
     "  'clrrec' to clear the Recent Messages view.",
+    "",
+    "UI theme control:",
+    "  'theme tn' to change theme, where tn is the name of the theme.",
+    "  The theme name is limited to 15 characters, and is not case",
+    "  sensitive. The built-in themes 'dark' and 'light' are always",
+    "  available; others may be defined in the arim-themes file.",
     "",
     "ARIM status bar indicator key (ARQ Mode):",
     "------------------------------",
@@ -366,6 +387,8 @@ void ui_show_help()
         ui_print_status("Help: failed to create Help window", 1);
         return;
     }
+    if (color_code)
+        wbkgd(help_win, COLOR_PAIR(7));
     prev_win = ui_set_active_win(help_win);
     max_help_rows = tnc_data_box_h - 2;
     i = 0;

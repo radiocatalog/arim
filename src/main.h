@@ -71,6 +71,7 @@
 #define MBOX_TYPE_SENT         2
 
 #define DEFAULT_DIGEST_FNAME   "arim-digest"
+#define DEFAULT_THEMES_FNAME   "arim-themes"
 #define DEFAULT_INI_FNAME      "arim.ini"
 #define DEFAULT_FILE_FNAME     "test.txt"
 #define DEFAULT_DOWNLOAD_DIR   "download"

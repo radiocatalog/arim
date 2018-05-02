@@ -158,7 +158,7 @@ int arim_arq_on_connected()
                 util_timestamp(timestamp, sizeof(timestamp)), remote_call, target_call);
     }
     ui_queue_data_in(buffer);
-    snprintf(buffer, sizeof(buffer), "7[@] %-10s ", remote_call);
+    snprintf(buffer, sizeof(buffer), "9[@] %-10s ", remote_call);
     ui_queue_heard(buffer);
     show_recents = show_ptable = 0; /* close recents or ping history view if open */
     arq_cmd_size = 0; /* reset ARQ command size */
@@ -206,7 +206,7 @@ int arim_arq_on_disconnected()
     ui_queue_data_in(buffer);
     /* show in heard list if valid call sign */
     if (ini_validate_mycall(remote_call)) {
-        snprintf(buffer, sizeof(buffer), "7[@] %-10s ", remote_call);
+        snprintf(buffer, sizeof(buffer), "9[@] %-10s ", remote_call);
         ui_queue_heard(buffer);
     }
     arq_cmd_size = 0; /* reset ARQ command size */
@@ -407,6 +407,8 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             switch (state) {
             case ST_ARQ_FILE_SEND_WAIT:
             case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FLIST_SEND_WAIT:
+            case ST_ARQ_FLIST_RCV_WAIT:
             case ST_ARQ_AUTH_RCV_A2_WAIT:
             case ST_ARQ_AUTH_RCV_A3_WAIT:
             case ST_ARQ_MSG_SEND_WAIT:
@@ -435,6 +437,8 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             case ST_ARQ_FILE_SEND_WAIT_OK:
             case ST_ARQ_FILE_RCV_WAIT:
             case ST_ARQ_FILE_RCV_WAIT_OK:
+            case ST_ARQ_FLIST_SEND_WAIT:
+            case ST_ARQ_FLIST_RCV_WAIT:
             case ST_ARQ_AUTH_RCV_A2_WAIT:
             case ST_ARQ_AUTH_RCV_A3_WAIT:
             case ST_ARQ_MSG_SEND_WAIT:
@@ -451,6 +455,57 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
                 arim_arq_files_on_fget(cmdbuf, size, eol);
                 break;
             }
+        } else if (!strncasecmp(cmdbuf, "/FLPUT ", 7)) {
+            /* remote station sends a file listing. If in a wait state already,
+               abandon that transaction and respond to the /fput to avoid
+               deadlock when commands are issued by both parties simultaneously */
+            switch (state) {
+            case ST_ARQ_FILE_SEND_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FLIST_SEND_WAIT:
+            case ST_ARQ_AUTH_RCV_A2_WAIT:
+            case ST_ARQ_AUTH_RCV_A3_WAIT:
+            case ST_ARQ_MSG_SEND_WAIT:
+                arim_on_event(EV_ARQ_CANCEL_WAIT, 0);
+                state = arim_get_state();
+                break;
+            }
+            switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* /FLPUT implies remote stn accepted our /A3, auth successful */
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
+                /* fallthrough intentional */
+            case ST_ARQ_FLIST_RCV_WAIT:
+                arim_arq_files_on_flput(cmdbuf, size, eol);
+                break;
+            }
+        } else if (!strncasecmp(cmdbuf, "/FLGET ", 6)) {
+            /* remote station requests a file listing. If in a wait state already,
+               abandon that transaction and respond to the /FLGET to avoid
+               deadlock when commands are issued by both parties simultaneously */
+            switch (state) {
+            case ST_ARQ_FILE_SEND_WAIT:
+            case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FILE_RCV_WAIT:
+            case ST_ARQ_FILE_RCV_WAIT_OK:
+            case ST_ARQ_FLIST_SEND_WAIT:
+            case ST_ARQ_FLIST_RCV_WAIT:
+            case ST_ARQ_AUTH_RCV_A2_WAIT:
+            case ST_ARQ_AUTH_RCV_A3_WAIT:
+            case ST_ARQ_MSG_SEND_WAIT:
+                arim_on_event(EV_ARQ_CANCEL_WAIT, 0);
+                state = arim_get_state();
+                break;
+            }
+            switch (state) {
+            case ST_ARQ_AUTH_RCV_A4_WAIT:
+                /* /FLGET implies remote stn accepted our /A3, auth successful */
+                arim_on_event(EV_ARQ_AUTH_OK, 0);
+                /* fallthrough intentional */
+            case ST_ARQ_CONNECTED:
+                arim_arq_files_on_flget(cmdbuf, size, eol);
+                break;
+            }
         } else if (!strncasecmp(cmdbuf, "/MPUT ", 6)) {
             /* remote station sends a message. If in a wait state already,
                abandon that transaction and respond to the /mput to avoid
@@ -460,6 +515,8 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             case ST_ARQ_FILE_SEND_WAIT_OK:
             case ST_ARQ_FILE_RCV_WAIT:
             case ST_ARQ_FILE_RCV_WAIT_OK:
+            case ST_ARQ_FLIST_SEND_WAIT:
+            case ST_ARQ_FLIST_RCV_WAIT:
             case ST_ARQ_AUTH_RCV_A2_WAIT:
             case ST_ARQ_AUTH_RCV_A3_WAIT:
             case ST_ARQ_MSG_SEND_WAIT:
@@ -485,6 +542,8 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             case ST_ARQ_FILE_SEND_WAIT_OK:
             case ST_ARQ_FILE_RCV_WAIT:
             case ST_ARQ_FILE_RCV_WAIT_OK:
+            case ST_ARQ_FLIST_SEND_WAIT:
+            case ST_ARQ_FLIST_RCV_WAIT:
             case ST_ARQ_AUTH_RCV_A2_WAIT:
             case ST_ARQ_AUTH_RCV_A3_WAIT:
             case ST_ARQ_MSG_SEND_WAIT:
@@ -509,6 +568,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             case ST_ARQ_CONNECTED:
             case ST_ARQ_FILE_RCV_WAIT:
             case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FLIST_RCV_WAIT:
                 arim_arq_auth_on_a1(cmdbuf, size, eol);
                 break;
             }
@@ -557,6 +617,10 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             case ST_ARQ_FILE_RCV_WAIT:
             case ST_ARQ_FILE_SEND:
             case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FLIST_SEND:
+            case ST_ARQ_FLIST_SEND_WAIT:
+            case ST_ARQ_FLIST_RCV:
+            case ST_ARQ_FLIST_RCV_WAIT:
                 arim_on_event(EV_ARQ_FILE_ERROR, 0);
                 break;
             case ST_ARQ_MSG_RCV:
@@ -568,6 +632,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             switch (state) {
             case ST_ARQ_FILE_RCV_WAIT:
             case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FLIST_RCV_WAIT:
             case ST_ARQ_AUTH_RCV_A2_WAIT:
             case ST_ARQ_AUTH_RCV_A3_WAIT:
             case ST_ARQ_AUTH_RCV_A4_WAIT:
@@ -579,6 +644,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             switch (state) {
             case ST_ARQ_FILE_SEND:
             case ST_ARQ_FILE_SEND_WAIT_OK:
+            case ST_ARQ_FLIST_SEND:
                 arim_on_event(EV_ARQ_FILE_OK, 0);
                 break;
             case ST_ARQ_MSG_SEND:
@@ -735,7 +801,7 @@ int arim_arq_on_data(char *data, size_t size)
     char *s, *e, linebuf[MAX_LOG_LINE_SIZE], remote_call[TNC_MYCALL_SIZE];
 
     arim_copy_remote_call(remote_call, sizeof(remote_call));
-    snprintf(linebuf, sizeof(linebuf), "7[@] %-10s ", remote_call);
+    snprintf(linebuf, sizeof(linebuf), "9[@] %-10s ", remote_call);
     ui_queue_heard(linebuf);
     /* pass to command or response handler */
     if (!arq_cmd_size && data[0] == '/') {

@@ -187,11 +187,11 @@ int auth_store_passwd(const char *remote_call, const char *local_call, const cha
     /* force calls to uppercase */
     snprintf(rcall, sizeof(rcall), "%s", remote_call);
     len = strlen(rcall);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         rcall[i] = toupper(rcall[i]);
     snprintf(lcall, sizeof(lcall), "%s", local_call);
     len = strlen(lcall);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         lcall[i] = toupper(lcall[i]);
     /* create arim-digest file line */
     snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", rcall, lcall, password);
@@ -257,11 +257,11 @@ int auth_delete_passwd(const char *remote_call, const char *local_call)
     /* force calls to uppercase */
     snprintf(rcall, sizeof(rcall), "%s", remote_call);
     len = strlen(rcall);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         rcall[i] = toupper(rcall[i]);
     snprintf(lcall, sizeof(lcall), "%s", local_call);
     len = strlen(lcall);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         lcall[i] = toupper(lcall[i]);
     /* create arim-digest file line */
     snprintf(entry, sizeof(entry), "%s:%s:", rcall, lcall);
@@ -305,11 +305,11 @@ int auth_check_passwd(const char *remote_call, const char *local_call, char *ha1
     /* force calls to uppercase */
     snprintf(rcall, sizeof(rcall), "%s", remote_call);
     len = strlen(rcall);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         rcall[i] = toupper(rcall[i]);
     snprintf(lcall, sizeof(lcall), "%s", local_call);
     len = strlen(lcall);
-    for (i = 0; i < len; i++) 
+    for (i = 0; i < len; i++)
         lcall[i] = toupper(lcall[i]);
     /* create arim-digest file line */
     snprintf(entry, sizeof(entry), "%s:%s:", rcall, lcall);

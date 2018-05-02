@@ -2,6 +2,73 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.9
+-----------
+* Add "remote file listing" feature in ARQ mode. Use new commmand
+  '/flget' to download a file listing for a shared files folder on
+  the remote station. This listing is displayed in the new "List
+  Remote Files" view, which opens automatically after the listing
+  is downloaded. Like the existing local file viewer, directories
+  and files are assigned an index number, making it easy to work
+  with them without typing in lengthy commands at the prompt. The
+  following commands are available in the viewer:
+    'cd [-z] nbr' is used to change directories. The optional '-z'
+       switch enables compression to reduce the transfer time of the
+       new listing. 'nbr' is the index number of the directory. A
+       file listing for the specified directory is downloaded and
+       shown in a fresh instance of the viewer.
+    'rf nbr' closes the view and prints the specified remote file in
+       the Traffic Monitor.
+    'gf [-z] nbr [dir]' closes the view and downloads the specified
+       file nbr. The '-z' option enables compression to reduce the
+       transfer time of the download. The 'dir' option allows the
+       operator to specify a particular local directory to store the
+       file in.
+    'q' quits the viewer.
+  The viewer closes automatically when one of these commands is
+  invoked. Press the '#' hot key to reopen it if you need to continue
+  working with the remote file listing it contains. Note: the viewer
+  can be reopened only in ARQ mode.
+* Add new ARQ mode command:
+     '/flget [-z] [dir]'
+  This command is used to download a file listing from the remote
+  station and display it in the Remote File Listing view. The '-z'
+  option enables compression to reduce the transfer time of the
+  file listing download. 'dir' is the directory of interest at the
+  remote station. If not specified, the default shared files folder
+  at the remote station is listed. Examples:
+     /flget
+     /flget -z skeds/rr-net
+  Mutual authentication will be triggered automatically if '/flget'
+  is used to list an access-controlled directory when the session is
+  not yet authenticated.
+* Add UI themes feature. Themes control the color coding and text
+  attributes of the various elements of the user interface. Two
+  built-in themes, DARK and LIGHT, are always available, and up to 5
+  custom themes can be defined by the user in the 'arim-themes' file.
+  When ARIM starts, the theme set by the 'theme' parameter of the
+  [ui] section of the configuration file is loaded. You can change
+  the UI theme at any time by using the 'theme' command at the
+  command prompt. Note: themes work only when the 'color-code'
+  parameter in the [ui] section of the arim.ini configuration file is
+  TRUE. See the PDF Help file and the 'arim(5)' man page for details.
+* Add new command 'theme'. Use this to change the UI theme. For
+  example:
+     theme name
+  Where 'name' is the name of a UI theme, either one of the built-in
+  themes DARK or LIGHT, or a custom theme define in the arim-themes
+  file. This erases the terminal and re-draws it using the specified
+  theme.
+* Add new parameter 'theme' to the [ui] section of the arim.ini
+  configuration file:
+     theme = name
+  where 'name' is the name of a UI theme, either one of the built-in
+  themes DARK or LIGHT, or a custom theme defined in the arim-themes
+  file. The specified theme will be loaded when ARIM starts. The
+  default theme is DARK.
+* Add PDF versions of the ARIM man pages to the distributions.
+* Update embedded Help and PDF Help file.
+
 Version 1.8
 -----------
 * Discontinue use of PTT asynch responses from the ARDOP TNC as an

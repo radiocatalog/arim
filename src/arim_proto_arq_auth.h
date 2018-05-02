@@ -27,10 +27,6 @@
 extern void arim_proto_arq_auth_send_a1_wait(int event, int param);
 extern void arim_proto_arq_auth_send_a2_wait(int event, int param);
 extern void arim_proto_arq_auth_send_a3_wait(int event, int param);
-#if 0
-// XXX remove
-extern void arim_proto_arq_auth_send_a4_wait(int event, int param);
-#endif
 extern void arim_proto_arq_auth_rcv_a2_wait(int event, int param);
 extern void arim_proto_arq_auth_rcv_a3_wait(int event, int param);
 extern void arim_proto_arq_auth_rcv_a4_wait(int event, int param);

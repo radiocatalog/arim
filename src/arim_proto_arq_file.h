@@ -30,6 +30,10 @@ extern void arim_proto_arq_file_send(int event, int param);
 extern void arim_proto_arq_file_rcv_wait(int event, int param);
 extern void arim_proto_arq_file_rcv_wait_ok(int event, int param);
 extern void arim_proto_arq_file_rcv(int event, int param);
+extern void arim_proto_arq_file_flist_rcv_wait(int event, int param);
+extern void arim_proto_arq_file_flist_rcv(int event, int param);
+extern void arim_proto_arq_file_flist_send_wait(int event, int param);
+extern void arim_proto_arq_file_flist_send(int event, int param);
 
 #endif
 

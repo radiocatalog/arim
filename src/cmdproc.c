@@ -44,6 +44,7 @@
 #include "ui_dialog.h"
 #include "ui_files.h"
 #include "ui_msg.h"
+#include "ui_themes.h"
 #include "util.h"
 #include "auth.h"
 #include "cmdproc.h"
@@ -72,6 +73,16 @@ int cmdproc_cmd(const char *cmd)
     case ST_ARQ_FILE_SEND:
         /* busy with file upload */
         ui_print_status("ARIM Busy: ARQ file upload in progress", 1);
+        return 0;
+    case ST_ARQ_FLIST_RCV_WAIT:
+    case ST_ARQ_FLIST_RCV:
+        /* busy with file listing download */
+        ui_print_status("ARIM Busy: ARQ file listing download in progress", 1);
+        return 0;
+    case ST_ARQ_FLIST_SEND_WAIT:
+    case ST_ARQ_FLIST_SEND:
+        /* busy with file listing upload */
+        ui_print_status("ARIM Busy: ARQ file listing upload in progress", 1);
         return 0;
     case ST_ARQ_MSG_RCV:
         /* busy with message receive */
@@ -166,6 +177,23 @@ int cmdproc_cmd(const char *cmd)
                     t = msgbuffer;
                 }
                 arim_arq_msg_on_client_mget(cmd, t, zoption);
+                return 1;
+            } else if (!strncasecmp(cmd, "/FLGET", 6)) {
+                arim_arq_cache_cmd(cmd);
+                /* check for -z option */
+                snprintf(buffer, sizeof(buffer), "%s", cmd + 7);
+                t = buffer;
+                while (*t && (*t == ' ' || *t == '/'))
+                    ++t;
+                if (*t && (t == strstr(t, "-z"))) {
+                    zoption = 1;
+                    t += 2;
+                    while (*t && (*t == ' ' || *t == '/'))
+                        ++t;
+                }
+                /* check for dir path */
+                destdir = (*t) ? t : NULL;
+                arim_arq_files_on_client_flget(cmd, destdir, zoption);
                 return 1;
             } else if (!strncasecmp(cmd, "/FLIST", 6)) {
                 arim_arq_cache_cmd(cmd);
@@ -950,6 +978,20 @@ int cmdproc_cmd(const char *cmd)
             } else {
                 ui_print_status("Invalid name, pname not changed", 1);
             }
+        } else if (!strncasecmp(t, "theme", 4)) {
+            t = strtok(NULL, "\t");
+            if (!t)
+                break;
+            snprintf(buffer, sizeof(buffer), "%s", t);
+            result1 = ui_themes_validate_theme(buffer);
+            if (result1 != -1) {
+                theme = result1;
+                snprintf(status, sizeof(status), "UI theme changed to: %s", buffer);
+                ui_print_status(status, 1);
+                g_win_changed = 1;
+            } else {
+                ui_print_status("Invalid theme name, not changed", 1);
+            }
         } else if (!strncasecmp(t, "btime", 4) && g_tnc_attached) {
             t = strtok(NULL, " \t");
             if (!t)
@@ -1037,7 +1079,7 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
         t = strtok(NULL, "\0");
         if (t) {
             /* trim leading and trailing spaces */
-            while (*t && *t == ' ')
+            while (*t && (*t == ' ' || *t == '/'))
                 ++t;
             len = strlen(t);
             if (len) {

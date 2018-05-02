@@ -64,6 +64,10 @@
 #define ST_ARQ_AUTH_SEND_A1             34
 #define ST_ARQ_AUTH_SEND_A2             35
 #define ST_ARQ_AUTH_SEND_A3             36
+#define ST_ARQ_FLIST_RCV_WAIT           37
+#define ST_ARQ_FLIST_RCV                38
+#define ST_ARQ_FLIST_SEND_WAIT          39
+#define ST_ARQ_FLIST_SEND               40
 
 #define EV_NULL                         0
 #define EV_PERIODIC                     1
@@ -122,6 +126,12 @@
 #define EV_ARQ_AUTH_WAIT_CMD            54
 #define EV_ARQ_AUTH_OK                  55
 #define EV_ARQ_AUTH_ERROR               56
+#define EV_ARQ_FLIST_RCV_WAIT           57
+#define EV_ARQ_FLIST_RCV                58
+#define EV_ARQ_FLIST_RCV_FRAME          59
+#define EV_ARQ_FLIST_RCV_DONE           60
+#define EV_ARQ_FLIST_SEND               61
+#define EV_ARQ_FLIST_SEND_CMD           62
 
 #define MAX_ACKNAK_SIZE                 50
 

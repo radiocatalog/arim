@@ -135,6 +135,8 @@ int ui_read_msg(const char *fn, const char *hdr, int msgnbr, int is_recent)
     read_pad = newpad(max_pad_rows + num_read_rows, max_read_cols);
     if (!read_pad)
         return 0;
+    if (color_code)
+        wbkgd(read_pad, COLOR_PAIR(7));
     waddstr(read_pad, msgbuffer);
     prefresh(read_pad, top, 0, min_read_rows, min_read_cols,
                  max_read_rows, max_read_cols);
@@ -369,6 +371,8 @@ int ui_create_msg(char *buffer, size_t bufsize, const char *to)
         ui_print_status("New message: failed to create window", 1);
         return 0;
     }
+    if (color_code)
+        wbkgd(msg_win, COLOR_PAIR(7));
     show_cmds = 0;
     scrollok(msg_win, TRUE);
     if (show_titles) {
@@ -652,6 +656,8 @@ void ui_list_msg(const char *fn, int mbox_type)
         ui_print_status("List: failed to create list window", 1);
         return;
     }
+    if (color_code)
+        wbkgd(mbox_win, COLOR_PAIR(7));
     prev_win = ui_set_active_win(mbox_win);
     max_mbox_rows = tnc_data_box_h - 2;
     mbox_purge(fn, atoi(g_arim_settings.max_msg_days));

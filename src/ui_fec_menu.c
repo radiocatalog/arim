@@ -131,6 +131,8 @@ void ui_show_fec_menu()
         ui_print_status("Help: failed to create FEC Ctl window", 1);
         return;
     }
+    if (color_code)
+        wbkgd(fecmenu_win, COLOR_PAIR(7));
     prev_win = ui_set_active_win(fecmenu_win);
     max_fecmenu_rows = tnc_data_box_h - 2;
     i = 0;

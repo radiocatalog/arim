@@ -41,6 +41,7 @@
 #include "ini.h"
 #include "ui.h"
 #include "ui_dialog.h"
+#include "ui_themes.h"
 #include "log.h"
 #include "util.h"
 #include "auth.h"
@@ -217,6 +218,8 @@ int ui_read_file(const char *fn, int index)
     read_pad = newpad(max_pad_rows + num_read_rows, max_read_cols);
     if (!read_pad)
         return 0;
+    if (color_code)
+        wbkgd(read_pad, COLOR_PAIR(7));
     waddstr(read_pad, filebuf);
     prefresh(read_pad, top, 0, min_read_rows, min_read_cols,
                  max_read_rows, max_read_cols);
@@ -227,6 +230,10 @@ int ui_read_file(const char *fn, int index)
     else if (index == -2) /* special case, password digest file */
         snprintf(status, sizeof(status),
                 "Password digest file: %d lines - use UP, DOWN keys to scroll, 'q' to quit",
+                    max_pad_rows);
+    else if (index == -3) /* special case, themes file */
+        snprintf(status, sizeof(status),
+                "UI themes file: %d lines - use UP, DOWN keys to scroll, 'q' to quit",
                     max_pad_rows);
     else
         snprintf(status, sizeof(status),
@@ -333,7 +340,7 @@ int ui_get_file_list(const char *basedir, const char *dir,
 
     if (atoi(g_arim_settings.max_file_size) <= 0) {
         snprintf(listbuf, listbufsize, "File list: file sharing disabled.\n");
-        return 1;
+        return 0;
     }
     /* dir may be null if flist query has no argument */
     if (dir) {
@@ -371,7 +378,7 @@ int ui_get_file_list(const char *basedir, const char *dir,
                 /* don't list password digest file */
                 if (!strstr(dent->d_name, DEFAULT_DIGEST_FNAME) && stats.st_size <= max_file_size) {
                     numch = snprintf(linebuf, sizeof(linebuf),
-                                "%20s%8jd\n", dent->d_name, (intmax_t)stats.st_size);
+                                "%24s%8jd\n", dent->d_name, (intmax_t)stats.st_size);
                     if (numch >= sizeof(linebuf))
                         ui_truncate_line(linebuf, sizeof(linebuf));
                     len = strlen(linebuf);
@@ -382,7 +389,7 @@ int ui_get_file_list(const char *basedir, const char *dir,
                 }
             } else if (strcmp(dent->d_name, "..") && strcmp(dent->d_name, ".")) {
                 if (ini_check_add_files_dir(fn)) {
-                    numch = snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "DIR");
+                    numch = snprintf(linebuf, sizeof(linebuf), "%24s%8s\n", dent->d_name, "DIR");
                     if (numch >= sizeof(linebuf))
                         ui_truncate_line(linebuf, sizeof(linebuf));
                     len = strlen(linebuf);
@@ -391,7 +398,7 @@ int ui_get_file_list(const char *basedir, const char *dir,
                         cnt += len;
                     }
                 } else if (ini_check_ac_files_dir(fn)) {
-                    numch = snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", dent->d_name, "!DIR");
+                    numch = snprintf(linebuf, sizeof(linebuf), "%24s%8s\n", dent->d_name, "!DIR");
                     if (numch >= sizeof(linebuf))
                         ui_truncate_line(linebuf, sizeof(linebuf));
                     len = strlen(linebuf);
@@ -412,7 +419,7 @@ int ui_get_file_list(const char *basedir, const char *dir,
             p = strstr(fn, ":");
             if (p) {
                 *p = '\0';
-                numch = snprintf(linebuf, sizeof(linebuf), "%20s%8s\n", fn, "DYN");
+                numch = snprintf(linebuf, sizeof(linebuf), "%24s%8s\n", fn, "DYN");
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
                 len = strlen(linebuf);
@@ -433,14 +440,14 @@ int ui_get_file_list(const char *basedir, const char *dir,
     return 1;
 }
 
-void ui_print_file_list_title(const char *path)
+void ui_print_file_list_title(const char *path, const char *label)
 {
     char *p, title[MAX_DIR_PATH_SIZE], temp[MAX_DIR_PATH_SIZE];
     int center, start;
     size_t len, max_len;
 
     snprintf(temp, sizeof(temp), "%s", path);
-    snprintf(title, sizeof(title), " LIST FILES: %s ", temp);
+    snprintf(title, sizeof(title), " %s: %s ", label, temp);
     len = strlen(title);
     max_len = tnc_data_box_w - 2;
     if (sizeof(title) < max_len)
@@ -452,7 +459,7 @@ void ui_print_file_list_title(const char *path)
             ++p;
         if (*p)
             ++p;
-        snprintf(title, sizeof(title), " LIST FILES: .../%s ", p);
+        snprintf(title, sizeof(title), " %s: .../%s ", label, p);
         len = strlen(title);
     }
     center = (tnc_data_box_w / 2) - 1;
@@ -664,6 +671,8 @@ void ui_list_files(const char *dir)
         ui_print_status("List files: failed to create list window", 1);
         return;
     }
+    if (color_code)
+        wbkgd(dir_win, COLOR_PAIR(7));
     max_dir_rows = tnc_data_box_h - 2;
     max_cols = (tnc_data_box_w - 4) + 1;
     if (max_cols > MAX_DIR_LINE_SIZE)
@@ -758,7 +767,7 @@ restart:
     }
     wrefresh(dir_win);
     if (show_titles)
-        ui_print_file_list_title(dpath);
+        ui_print_file_list_title(dpath, "LIST FILES");
     status_timer = 1;
     while (!quit) {
         if (status_timer && --status_timer == 0) {
@@ -856,6 +865,11 @@ restart:
                         ui_print_status("Read file: cannot open password file", 1);
                     if (show_recents)
                         ui_refresh_recents();
+                } else if (!strncasecmp(p, "rt", 2)) {
+                    if (!ui_read_file(g_arim_themes_fname, -3))
+                        ui_print_status("Read file: cannot open themes file", 1);
+                    if (show_recents)
+                        ui_refresh_recents();
                 } else if (!strncasecmp(p, "sf", 2)) {
                     if (!g_tnc_attached) {
                         ui_print_status("Send file: cannot send, no TNC attached", 1);
@@ -889,15 +903,13 @@ restart:
                                     /* initiate ARQ file upload */
                                     p = path[i] + strlen(g_arim_settings.files_dir) + 1;
                                     snprintf(fn, sizeof(fn), "%s", p);
-                                    arim_arq_files_on_client_fput(fn, destdir, zoption);
-                                    /* cache command */
                                     if (destdir)
                                         snprintf(msgbuffer, sizeof(msgbuffer), "%s %s > %s",
                                                  zoption ? "/FPUT -z" : "/FPUT", fn, destdir);
                                     else
                                         snprintf(msgbuffer, sizeof(msgbuffer), "%s %s",
                                                  zoption ? "/FPUT -z" : "/FPUT", fn);
-                                    arim_arq_cache_cmd(msgbuffer);
+                                    cmdproc_cmd(msgbuffer);
                                 } else {
                                     ui_print_status("Send file: cannot send, TNC busy", 1);
                                 }
@@ -1102,5 +1114,349 @@ restart:
 
 void ui_list_shared_files() {
     ui_list_files(g_arim_settings.files_dir);
+}
+
+void ui_list_remote_files(const char *flist, const char *dir)
+{
+    WINDOW *dir_win, *prev_win;
+    static char cache[MIN_MSG_BUF_SIZE];
+    static char dpath[MAX_DIR_PATH_SIZE];
+    static int is_root = 0;
+    static int initialized = 0;
+    char buffer[MIN_MSG_BUF_SIZE], linebuf[MAX_DIR_LINE_SIZE+1];
+    char list[MAX_DIR_LIST_LEN+1][MAX_DIR_LINE_SIZE];
+    char path[MAX_DIR_LIST_LEN+1][MAX_DIR_PATH_SIZE+MAX_FILE_NAME_SIZE+1];
+    char fn[MAX_FILE_NAME_SIZE], temp[MAX_PATH_SIZE], cmdbuffer[MAX_CMD_SIZE];
+    char *p, *s, *e, *eob, *destdir;
+    int i, max_cols, max_dir_rows, max_dir_lines;
+    int cmd, cur, top, quit = 0, zoption = 0;
+
+    if (!flist && !initialized) {
+        ui_print_status("List remote files: No data, you must run '/flget' first", 1);
+        return;
+    }
+    dir_win = newwin(tnc_data_box_h - 2, tnc_data_box_w - 2,
+                                 tnc_data_box_y + 1, tnc_data_box_x + 1);
+    if (!dir_win) {
+        ui_print_status("List remote files: failed to create list window", 1);
+        return;
+    }
+    if (color_code)
+        wbkgd(dir_win, COLOR_PAIR(7));
+    max_dir_rows = tnc_data_box_h - 2;
+    max_cols = (tnc_data_box_w - 4) + 1;
+    if (max_cols > MAX_DIR_LINE_SIZE)
+        max_cols = MAX_DIR_LINE_SIZE;
+    prev_win = ui_set_active_win(dir_win);
+    wclear(dir_win);
+
+    if (flist) {
+        /* /flget data passed in, copy it into buffer */
+        if (dir) {
+            snprintf(dpath, sizeof(dpath), "%s", dir);
+            is_root = 0;
+        } else {
+            snprintf(dpath, sizeof(dpath), "%s", "/");
+            is_root = 1;
+        }
+        snprintf(cache, sizeof(cache), "%s", flist);
+        initialized = 1;
+    }
+    snprintf(buffer, sizeof(buffer), "%s", cache);
+    eob = buffer + strlen(buffer) - 1;
+    memset(&list, 0, sizeof(list));
+    memset(&path, 0, sizeof(path));
+    i = 0;
+    if (!is_root) {
+        /* put parent directory at top of listing */
+        snprintf(list[0], sizeof(list[0]), "D[01]%24s%8s\n", ".." , "DIR");
+        /* store in path list */
+        snprintf(temp, sizeof(temp), "%s", dpath);
+        p = temp + strlen(temp) - 1;
+        while (p > temp && *p != '/')
+            --p;
+        *p = '\0';
+        snprintf(path[i], sizeof(path[0]), "%s", temp);
+        ++i;
+    }
+    s = buffer;
+    e = buffer;
+    /* skip first line */
+    while (*e && e < eob && *e != '\n')
+        ++e;
+    s = e + 1;
+    e = s;
+    do {
+        while (*e && e < eob && *e != '\n')
+            ++e;
+        /* is this the end? */
+        if (s == strstr(s, "End\n"))
+            break;
+        /* no, add to list */
+        *e = '\0';
+        p = e - 3;
+        if (!strncmp(p, "DIR", 3))
+            snprintf(list[i], sizeof(list[0]), "D[%02d]%s", i + 1, s);
+        else
+            snprintf(list[i], sizeof(list[0]), "F[%02d]%s", i + 1, s);
+        /* extract file name */
+        p = e;
+        while (p > s && *p != ' ')
+            --p;
+        while (p > s && *p == ' ')
+            --p;
+        ++p;
+        *p = '\0';
+        while (*s && *s == ' ')
+            ++s;
+        snprintf(fn, sizeof(fn), "%s", s);
+        /* store in path list */
+        if (!is_root)
+            snprintf(path[i], sizeof(path[0]), "%s/%s", dpath, fn);
+        else
+            snprintf(path[i], sizeof(path[0]), "%s", fn);
+        ++i;
+        if (i == MAX_DIR_LIST_LEN)
+            break;
+        s = e + 1;
+        e = s;
+    } while (s < eob);
+    max_dir_lines = i;
+    cur = top = 0;
+    for (i = 0; i < max_dir_rows && cur < max_dir_lines; i++) {
+        mvwprintw(dir_win, i, 1, &(list[cur][1]));
+        ++cur;
+    }
+    wrefresh(dir_win);
+    if (show_titles)
+        ui_print_file_list_title(dpath, "LIST REMOTE FILES");
+    status_timer = 1;
+    while (!quit) {
+        if (status_timer && --status_timer == 0) {
+            ui_print_status("<SP> for prompt: 'cd [-z] n' ch dir, 'rf n' read, "
+                "'gf [-z] n [dir]' get, 'q' quit", 0);
+        }
+        cmd = getch();
+        switch (cmd) {
+        case ' ':
+            memset(linebuf, 0, sizeof(linebuf));
+            ui_files_get_line(linebuf, max_cols - 1);
+            /* process the command */
+            if (linebuf[0] == 'q') {
+                quit = 1;
+            } else {
+                p = strtok(linebuf, " \t");
+                if (!p)
+                    break;
+                if (!strncasecmp(p, "rf", 2)) {
+                    p = strtok(NULL, " \t");
+                    if (!p || !(i = atoi(p))) {
+                        ui_print_status("Read file: invalid file number", 1);
+                        break;
+                    }
+                    --i;
+                    if (i >= 0 && i <= max_dir_lines) {
+                        if (list[i][0] == 'F') {
+                            /* ordinary data file, try to read it */
+                            snprintf(cmdbuffer, sizeof(cmdbuffer), "/FILE %s", path[i]);
+                            cmdproc_cmd(cmdbuffer);
+                            quit = 1;
+                        } else {
+                            ui_print_status("Read file: cannot read directory", 1);
+                        }
+                    } else {
+                        ui_print_status("Read file: invalid file number", 1);
+                    }
+                } else if (!strncasecmp(p, "cd", 2)) {
+                    zoption = 0;
+                    p = strtok(NULL, " \t");
+                    if (p && !strcmp(p, "-z")) {
+                        p = strtok(NULL, " >\t");
+                        zoption = 1;
+                    }
+                    if (!p || !(i = atoi(p))) {
+                        ui_print_status("Change directory: invalid directory number", 1);
+                        break;
+                    }
+                    --i;
+                    if (i >= 0 && i <= max_dir_lines) {
+                        if (list[i][0] == 'D') {
+                            /* directory, try to list it */
+                            snprintf(cmdbuffer, sizeof(cmdbuffer),
+                                     "%s %s", zoption ? "/FLGET -z" : "/FLGET", path[i]);
+                            cmdproc_cmd(cmdbuffer);
+                            quit = 1;
+                        } else {
+                            ui_print_status("Change directory: not a directory", 1);
+                        }
+                    } else {
+                        ui_print_status("Change directory: invalid directory number", 1);
+                    }
+                    if (show_recents)
+                        ui_refresh_recents();
+                } else if (!strncasecmp(p, "gf", 2)) {
+                    zoption = 0;
+                    p = strtok(NULL, " >\t");
+                    if (p && !strcmp(p, "-z")) {
+                        p = strtok(NULL, " >\t");
+                        zoption = 1;
+                    }
+                    if (!p || !(i = atoi(p))) {
+                        ui_print_status("Get file: invalid file number", 1);
+                        break;
+                    }
+                    --i;
+                    if (i >= 0 && i <= max_dir_lines) {
+                        if (list[i][0] == 'F') {
+                            if (arim_get_state() == ST_ARQ_CONNECTED) {
+                                /* get destination directory path */
+                                destdir = strtok(NULL, "\0");
+                                if (destdir) {
+                                    snprintf(temp, sizeof(temp), "%s", destdir);
+                                    destdir = temp;
+                                }
+                                /* initiate ARQ file downlaod */
+                                if (destdir)
+                                    snprintf(cmdbuffer, sizeof(cmdbuffer), "%s %s > %s",
+                                             zoption ? "/FGET -z" : "/FGET", path[i], destdir);
+                                else
+                                    snprintf(cmdbuffer, sizeof(cmdbuffer), "%s %s",
+                                             zoption ? "/FGET -z" : "/FGET", path[i]);
+                                cmdproc_cmd(cmdbuffer);
+                                quit = 1;
+                            } else {
+                                ui_print_status("Get file: cannot download, TNC busy", 1);
+                            }
+                        } else {
+                            ui_print_status("Get file: cannot download directory", 1);
+                        }
+                    } else {
+                        ui_print_status("Get file: invalid file number", 1);
+                    }
+                }
+            }
+            break;
+        case 't':
+        case 'T':
+            if (last_time_heard == LT_HEARD_ELAPSED) {
+                last_time_heard = LT_HEARD_CLOCK;
+                ui_print_status("Showing clock time in Heard List, press 't' to toggle", 1);
+            } else {
+                last_time_heard = LT_HEARD_ELAPSED;
+                ui_print_status("Showing elapsed time in Heard List, press 't' to toggle", 1);
+            }
+            ui_refresh_heard_list();
+            break;
+        case KEY_HOME:
+            top = 0;
+            cur = top;
+            wclear(dir_win);
+            for (i = 0; i < max_dir_rows && cur < max_dir_lines; i++) {
+                mvwprintw(dir_win, i, 1, &(list[cur][1]));
+                ++cur;
+            }
+            wrefresh(dir_win);
+            break;
+        case KEY_END:
+            if (max_dir_lines < max_dir_rows)
+                break;
+            top = max_dir_lines - max_dir_rows;
+            cur = top;
+            wclear(dir_win);
+            for (i = 0; i < max_dir_rows && cur < max_dir_lines; i++) {
+                mvwprintw(dir_win, i, 1, &(list[cur][1]));
+                ++cur;
+            }
+            wrefresh(dir_win);
+            break;
+        case KEY_NPAGE:
+            top += max_dir_rows;
+            if (top > max_dir_lines - 1)
+                top = max_dir_lines - 1;
+            cur = top;
+            wclear(dir_win);
+            for (i = 0; i < max_dir_rows && cur < max_dir_lines; i++) {
+                mvwprintw(dir_win, i, 1, &(list[cur][1]));
+                ++cur;
+            }
+            wrefresh(dir_win);
+            break;
+        case '-':
+        case KEY_PPAGE:
+            top -= max_dir_rows;
+            if (top < 0)
+                top = 0;
+            cur = top;
+            wclear(dir_win);
+            for (i = 0; i < max_dir_rows && cur < max_dir_lines; i++) {
+                mvwprintw(dir_win, i, 1, &(list[cur][1]));
+                ++cur;
+            }
+            wrefresh(dir_win);
+            break;
+        case KEY_UP:
+            top -= 1;
+            if (top < 0)
+                top = 0;
+            cur = top;
+            wclear(dir_win);
+            for (i = 0; i < max_dir_rows && cur < max_dir_lines; i++) {
+                mvwprintw(dir_win, i, 1, &(list[cur][1]));
+                ++cur;
+            }
+            wrefresh(dir_win);
+            break;
+        case '\n':
+        case KEY_DOWN:
+            top += 1;
+            if (top > max_dir_lines - 1)
+                top = max_dir_lines - 1;
+            cur = top;
+            wclear(dir_win);
+            for (i = 0; i < max_dir_rows && cur < max_dir_lines; i++) {
+                mvwprintw(dir_win, i, 1, &(list[cur][1]));
+                ++cur;
+            }
+            wrefresh(dir_win);
+            break;
+        case 'n':
+        case 'N':
+            ui_clear_new_ctrs();
+            break;
+        case 'q':
+        case 'Q':
+            quit = 1;
+            break;
+        case 24: /* CTRL-X */
+            cmd = ui_show_dialog("\tAre you sure\n\tyou want to disconnect?\n \n\t[Y]es   [N]o", "yYnN");
+            if (cmd == 'y' || cmd == 'Y') {
+                arim_arq_send_disconn_req();
+                quit = 1;
+            }
+            break;
+        case 27:
+            ui_on_cancel();
+            quit = 1;
+            break;
+        default:
+            ui_print_cmd_in();
+            ui_print_heard_list();
+            ui_check_status_dirty();
+            /* quit if ARQ session has ended */
+            if (!arim_is_arq_state())
+                quit = 1;
+            break;
+        }
+        if (g_win_changed)
+            quit = 1;
+        usleep(100000);
+    }
+    delwin(dir_win);
+    ui_set_active_win(prev_win);
+    touchwin(tnc_data_box);
+    wrefresh(tnc_data_box);
+    if (show_titles)
+        ui_print_data_title();
+    status_timer = 1;
 }
 
