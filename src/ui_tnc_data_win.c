@@ -52,6 +52,20 @@ void ui_data_win_refresh()
     wrefresh(tnc_data_box);
 }
 
+void ui_queue_data_in(const char *text)
+{
+    pthread_mutex_lock(&mutex_data_in);
+    dataq_push(&g_data_in_q, text);
+    pthread_mutex_unlock(&mutex_data_in);
+}
+
+void ui_queue_data_out(const char *text)
+{
+    pthread_mutex_lock(&mutex_data_out);
+    dataq_push(&g_data_out_q, text);
+    pthread_mutex_unlock(&mutex_data_out);
+}
+
 void ui_print_data_win_title()
 {
     char buffer[64];
@@ -155,7 +169,7 @@ attr_t ui_calc_data_in_attr(char *linebuf)
                     }
                 }
                 /* special check for ARDOP pings */
-                if ((*p == '>') && (p - linebuf) < (MAX_CALLSIGN_SIZE*2) + 4) {
+                if ((*p == '>') && (p - linebuf) < (MAX_CALLSIGN_SIZE*2)+4) {
                     if (!strncasecmp(p + 1, mycall, strlen(mycall))) {
                         found_call = 1;
                         break;

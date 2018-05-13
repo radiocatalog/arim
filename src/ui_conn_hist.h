@@ -31,6 +31,7 @@ extern int ctable_start_line;
 extern void ui_ctable_init(void);
 extern void ui_print_ctable(void);
 extern void ui_refresh_ctable(void);
+extern void ui_queue_ctable(const char *text);
 extern void ui_clear_ctable(void);
 extern void ui_ctable_inc_start_line(void);
 extern void ui_ctable_dec_start_line(void);

@@ -34,7 +34,6 @@
 #include "ui_ping_hist.h"
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
-#include "bufq.h"
 #include "util.h"
 
 static char ping_tcall[TNC_MYCALL_SIZE], ping_scall[TNC_MYCALL_SIZE];
@@ -43,11 +42,11 @@ static int ping_rpts, ping_count;
 
 int arim_send_ping(const char *repeats, const char *to_call, int event)
 {
-    char buffer[MAX_LOG_LINE_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
     char mycall[TNC_MYCALL_SIZE], tcall[TNC_MYCALL_SIZE];
     size_t i, len;
 
-    if (!arim_tnc_is_idle() || !repeats || !to_call)
+    if (!repeats || !to_call)
         return 0;
     /* force call to uppercase */
     len = strlen(to_call);
@@ -67,11 +66,15 @@ int arim_send_ping(const char *repeats, const char *to_call, int event)
     /* print trace to traffic monitor view */
     arim_copy_mycall(mycall, sizeof(mycall));
     snprintf(buffer, sizeof(buffer), "<< [P] %s>%s (Pinging...)", mycall, tcall);
-    bufq_queue_traffic_log(buffer);
-    bufq_queue_data_in(buffer);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer), "[%s] << [P] %s>%s (Pinging...)",
+                util_timestamp(timestamp, sizeof(timestamp)), mycall, tcall);
+    }
+    ui_queue_data_in(buffer);
     /* queue command for TNC */
     snprintf(buffer, sizeof(buffer), "PING %s %d", tcall, ping_rpts);
-    bufq_queue_cmd_out(buffer);
+    ui_queue_cmd_out(buffer);
     return 1;
 }
 
@@ -86,7 +89,7 @@ int arim_proc_ping()
 {
     char *e, *scall, *tcall, *sn, *qual, *rpts;
     char pingdata[MAX_PING_SIZE], buffer[MAX_LOG_LINE_SIZE];
-    char mycall[TNC_MYCALL_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE], mycall[TNC_MYCALL_SIZE];
     int mycall_is_target = 0;
 
     /* inbound ping */
@@ -121,7 +124,7 @@ int arim_proc_ping()
         arim_copy_mycall(mycall, sizeof(mycall));
         if (!strncasecmp(mycall, tcall, strlen(mycall))) {
             snprintf(buffer, sizeof(buffer), "4[P] %-10s ", scall);
-            bufq_queue_heard(buffer);
+            ui_queue_heard(buffer);
             /* cache info until pingreply notification from TNC */
             snprintf(ping_tcall, sizeof(ping_tcall), "%s", tcall);
             snprintf(ping_scall, sizeof(ping_scall), "%s", scall);
@@ -130,18 +133,23 @@ int arim_proc_ping()
             mycall_is_target = 1;
         } else {
             snprintf(buffer, sizeof(buffer), "7[P] %-10s ", scall);
-            bufq_queue_heard(buffer);
+            ui_queue_heard(buffer);
         }
         snprintf(buffer, sizeof(buffer), ">> [P] %s>%s", scall, tcall);
-        bufq_queue_traffic_log(buffer);
-        bufq_queue_data_in(buffer);
+        ui_queue_traffic_log(buffer);
+        if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+            snprintf(buffer, sizeof(buffer), "[%s] >> [P] %s>%s",
+                     util_timestamp(timestamp, sizeof(timestamp)), scall, tcall);
+        }
+        ui_queue_data_in(buffer);
     }
     return mycall_is_target;
 }
 
 int arim_send_ping_ack()
 {
-    char mycall[TNC_MYCALL_SIZE], buffer[MAX_LOG_LINE_SIZE];
+    char mycall[TNC_MYCALL_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE], buffer[MAX_LOG_LINE_SIZE];
     int db;
 
     arim_copy_mycall(mycall, sizeof(mycall));
@@ -150,11 +158,17 @@ int arim_send_ping_ack()
     snprintf(buffer, sizeof(buffer),
              "<< [p] %s>%s S/N: %sdB, Quality: %s",
                 mycall, ping_scall, db > 20 ? ">20" : ping_sn, ping_qual);
-    bufq_queue_traffic_log(buffer);
-    bufq_queue_data_in(buffer);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                 "[%s] << [p] %s>%s S/N: %sdB, Quality: %s",
+                     util_timestamp(timestamp, sizeof(timestamp)), mycall,
+                         ping_scall, db > 20 ? ">20" : ping_sn, ping_qual);
+    }
+    ui_queue_data_in(buffer);
     snprintf(buffer, sizeof(buffer), "S%-12s------%3s%3s",
              ping_scall, db > 20 ? ">20" : ping_sn, ping_qual);
-    bufq_queue_ptable(buffer);
+    ui_queue_ptable(buffer);
     arim_on_event(EV_SEND_PING_ACK, 0);
     return 1;
 }
@@ -163,7 +177,7 @@ int arim_recv_ping_ack(const char *data)
 {
     char *e, *sn, *qual;
     char pingdata[MAX_PING_SIZE], buffer[MAX_LOG_LINE_SIZE];
-    char mycall[TNC_MYCALL_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE], mycall[TNC_MYCALL_SIZE];
     int state, db = 0, status = 0;
 
     state = arim_get_state();
@@ -189,21 +203,26 @@ int arim_recv_ping_ack(const char *data)
         if (sn && qual) {
             db = atoi(sn);
             snprintf(buffer, sizeof(buffer), "4[p] %-10s ", ping_tcall);
-            bufq_queue_heard(buffer);
+            ui_queue_heard(buffer);
             arim_copy_mycall(mycall, sizeof(mycall));
             snprintf(buffer, sizeof(buffer), ">> [p] %s>%s S/N: %sdB, Quality: %s",
                      ping_tcall, mycall, db > 20 ? ">20" : sn, qual);
-            bufq_queue_traffic_log(buffer);
-            bufq_queue_data_in(buffer);
+            ui_queue_traffic_log(buffer);
+            if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+                snprintf(buffer, sizeof(buffer), "[%s] >> [p] %s>%s S/N: %sdB, Quality: %s",
+                         util_timestamp(timestamp, sizeof(timestamp)), ping_tcall,
+                             mycall, db > 20 ? ">20" : sn, qual);
+            }
+            ui_queue_data_in(buffer);
             snprintf(buffer, sizeof(buffer), "R%-12s%3s%3s------",
                      ping_tcall, db > 20 ? ">20" : sn, qual);
-            bufq_queue_ptable(buffer);
+            ui_queue_ptable(buffer);
             if (atoi(qual) < atoi(g_arim_settings.pilot_ping_thr)) {
                 status = -1;
                 snprintf(buffer, sizeof(buffer),
                          "PP: Send canceled, PINGACK quality %s below threshold %s",
                              qual, g_arim_settings.pilot_ping_thr);
-                bufq_queue_debug_log(buffer);
+                ui_queue_debug_log(buffer);
             }
         }
         arim_on_event(EV_RCV_PING_ACK, status);
@@ -213,7 +232,7 @@ int arim_recv_ping_ack(const char *data)
 
 int arim_cancel_ping()
 {
-    char buffer[MAX_LOG_LINE_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
     char mycall[TNC_MYCALL_SIZE];
 
     /* operator has canceled the ping sequence by pressing ESC key,
@@ -221,8 +240,13 @@ int arim_cancel_ping()
     arim_copy_mycall(mycall, sizeof(mycall));
     snprintf(buffer, sizeof(buffer), ">> [X] %s>%s (Ping canceled by operator)",
              mycall, ping_tcall);
-    bufq_queue_traffic_log(buffer);
-    bufq_queue_data_in(buffer);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer), "[%s] >> [X] %s>%s (Ping canceled by operator)",
+                 util_timestamp(timestamp, sizeof(timestamp)),
+                     mycall, ping_tcall);
+    }
+    ui_queue_data_in(buffer);
     return 1;
 }
 

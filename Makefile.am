@@ -63,7 +63,6 @@ arim_SOURCES = \
     src/arim_query.c src/arim_query.h \
     src/bufq.c src/bufq.h \
     src/cmdproc.c src/cmdproc.h \
-    src/tnc_attach.c src/tnc_attach.h \
     src/cmdthread.c src/cmdthread.h \
     src/datathread.c src/datathread.h \
     src/ini.c src/ini.h \

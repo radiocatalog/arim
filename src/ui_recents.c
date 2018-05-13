@@ -41,6 +41,13 @@ int recents_list_cnt;
 int recents_start_line;
 int refresh_recents;
 
+typedef struct hl {
+    char htext[MAX_HEARD_SIZE];
+    time_t htime;
+} HL_ENTRY;
+HL_ENTRY heard_list[MAX_HEARD_LIST_LEN+1];
+int heard_list_cnt;
+
 void ui_recents_init()
 {
     recents_row = 0, recents_col = 1;
@@ -100,7 +107,7 @@ void ui_print_recents()
 {
     static int once = 0;
     char *p, recent[MAX_MBOX_HDR_SIZE+8];
-    int i, numch, max_cols, max_recents_rows, cur_recents_row = 0;
+    int i, max_cols, max_recents_rows, cur_recents_row = 0;
 
     if (!once) {
         once = 1;
@@ -129,7 +136,7 @@ void ui_print_recents()
     if (p) {
         snprintf(recent, sizeof(recent), "%s", p);
         memmove(&recents_list[1], &recents_list[0], MAX_RECENTS_LIST_LEN*MAX_MBOX_HDR_SIZE);
-        numch = snprintf(recents_list[0], sizeof(recents_list[0]), "%s ---", recent);
+        snprintf(recents_list[0], sizeof(recents_list[0]), "%s ---", recent);
         ++recents_list_cnt;
         if (recents_list_cnt > MAX_RECENTS_LIST_LEN)
             --recents_list_cnt;
@@ -171,7 +178,6 @@ void ui_print_recents()
         wrefresh(tnc_cmd_box);
         refresh_recents = recents_start_line = 0;
     }
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 void ui_refresh_recents()

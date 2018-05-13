@@ -31,7 +31,6 @@
 #include "ui_tnc_cmd_win.h"
 #include "ini.h"
 #include "util.h"
-#include "bufq.h"
 #include "datathread.h"
 
 WINDOW *ui_ptable_win;
@@ -58,6 +57,13 @@ void ui_ptable_init()
 {
     ptable_row = 0, ptable_col = 1;
     cur_ptable_row = ptable_row;
+}
+
+void ui_queue_ptable(const char *text)
+{
+    pthread_mutex_lock(&mutex_ptable);
+    cmdq_push(&g_ptable_q, text);
+    pthread_mutex_unlock(&mutex_ptable);
 }
 
 void ui_ptable_inc_start_line()
@@ -274,7 +280,7 @@ void ui_print_ptable()
                 snprintf(out_time, sizeof(out_time), "--:--:--");
             }
             snprintf(ping_data, max_cols,
-                "[%2d]%.11s [%s] >> S/N:%3sdB,Q:%3s  [%s] << S/N:%3sdB,Q:%3s",
+                "[%2d]%.11s [%s]>>S/N:%3sdB,Q:%3s  [%s]<<S/N:%3sdB,Q:%3s",
                     i + 1, ptable_list[i].call, in_time, ptable_list[i].in_sn,
                         ptable_list[i].in_qual, out_time, ptable_list[i].out_sn,
                                 ptable_list[i].out_qual);

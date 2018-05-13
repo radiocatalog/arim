@@ -1,5 +1,5 @@
 
-.TH "ARIM" 5 "2018-07-28" "ARIM Messaging Program" "arim"
+.TH "ARIM" 5 "2018-05-02" "ARIM Messaging Program" "arim"
 .SH NAME
 arim - related files
 .SH FILES
@@ -34,7 +34,7 @@ A name assigned to the TNC and advertised by the beacon, e.g. RRNET/ARIM. This i
 Information describing the TNC, returned in response to the 'info' query. Use the character pair \n to indicate a line break if you want to format the text into multiple lines; this will be converted to a newline character in the response. Max length is 127 characters. Default: Empty.
 .TP
 \fBfecmode\fR
-The initial ARDOP FECMODE. This is the frame type, in the format modulation.bandwidth.baudrate. Max length is 20 characters. Default: 4FSK.200.50S.
+The initial ARDOP FECMODE. This is the frame type, in the format modulation.bandwidth.baudrate. Max length is 20 characters. Default: 4PSK.200.50.
 .TP
 \fBfecrepeats\fR
 The initial ARDOP FECREPEATS value. This is the number of times each FEC frame will be repeated by the sender. This may be useful when propagation is poor, but at thecost of reduced throughput - depending on FEC mode, an ARIM frame may extend across multiple ARDOP FEC frames, each of which will be repeated. Max value is 5. Default: 0.
@@ -61,10 +61,8 @@ Controls whether or not the TNC listens for ARQ connect requests or pings from o
 Controls whether or not the TNC responds to pings from other stations. Set to TRUE to enable ping ACKs, FALSE to disable them. Default: TRUE. Note: works only with ARDOP TNC version 0.9.5 or higher.
 .TP
 \fBarq-bandwidth\fR
-Sets the ARQ connection bandwidth, either a maximum negotiated value, or a forced value. The value must be one of: 200MAX, 500MAX, 1000MAX, 2000MAX, 200FORCED, 500FORCED, 1000FORCED or 2000FORCED. Default is 500MAX.
-.TP
-\fBarq-timeout\fR
-The inactivity timeout for ARQ connections in seconds. Range is 30-600. Default: 120.
+Sets the ARQ connection bandwidth. The value must be one of: 200, 500 or 2500. Default is 500.
+arq-timeout The inactivity timeout for ARQ connections in seconds. Range is 30-600. Default: 120.
 .TP
 \fBarq-sendcr\fR
 Controls whether or not CRLF line endings are sent in ARQ mode, instead of Unix style LF endings. Set to TRUE to send CR, FALSE to send only LF. Default: TRUE.
@@ -82,7 +80,7 @@ ack-timeout The maximum time in seconds after sending a message that ARIM will w
 .TP
 \fBfecmode-downshift\fR
 Controls whether or not the FEC mode is progressively "downshifted", or changed to a more robust mode each time an ARIM message is repeated after a NAK or ACK timeout. Set to TRUE to enable, FALSE to disable downshifting. Default: FALSE.
-This works in tandem with the 'send-repeats' parameter. If 'fecmode-downshift' is TRUE and 'send-repeats' is nonzero, then progressively more robust FEC modes are used for re-transmissions after a NAK or timeout. The strategy is to move to the next member of the same modulation family that uses less bandwidth. The mode of last resort is 4FSK.200.50S. For example, if the initial mode is 8PSK.2000.100, then downshifting would progress to 8PSK.1000.100, then 8PSK.500.100, and so on. The original FEC mode is restored after the message send operation completes. This is experimental. There are many kinds of channel impairments and no single downshift strategy is best for all. For details look at the FEC mode downshift table in the msg.c source code file.
+This works in tandem with the 'send-repeats' parameter. If 'fecmode-downshift' is TRUE and 'send-repeats' is nonzero, then progressively more robust FEC modes are used for re-transmissions after a NAK or timeout. The mode of last resort is 4PSK.200.50. For example, if the initial mode is 4PSK.500.100, then downshifting would progress to 4FSK.500.100, then 16QAM.200.100, and so on. The original FEC mode is restored after the message send operation completes. This is experimental. There are many kinds of channel impairments and no single downshift strategy is best for all. For details look at the FEC mode downshift table in the msg.c source code file.
 .TP
 \fBframe-timeout\fR
 The time in seconds after which an incomplete ARIM frame will be abandoned and the receive buffer cleared. Because an ARIM frame may be spread over many ARDOP frames, a failure to receive one or more ARDOP frames will cause an ARIM timeout. Max is 999 seconds. Default: 30.

@@ -30,7 +30,6 @@
 #include "ui.h"
 #include "log.h"
 #include "auth.h"
-#include "bufq.h"
 #include "arim_arq.h"
 
 static int arq_auth_session_status;
@@ -55,7 +54,7 @@ void arim_arq_auth_on_ok(void)
     snprintf(linebuf, sizeof(linebuf), "ARQ: Authentication with %s succeeded",
                 g_tnc_settings[g_cur_tnc].arq_remote_call);
     pthread_mutex_unlock(&mutex_tnc_set);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
 }
 
 void arim_arq_auth_on_error(void)
@@ -67,7 +66,7 @@ void arim_arq_auth_on_error(void)
     snprintf(linebuf, sizeof(linebuf), "ARQ: Authentication with %s failed",
                 g_tnc_settings[g_cur_tnc].arq_remote_call);
     pthread_mutex_unlock(&mutex_tnc_set);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
 }
 
 void arim_arq_auth_set_ha2_info(const char *method, const char *path)
@@ -77,7 +76,7 @@ void arim_arq_auth_set_ha2_info(const char *method, const char *path)
     snprintf(fpath, sizeof(fpath), "%s", path);
     snprintf(fmethod, sizeof(fmethod), "%s", method);
     snprintf(linebuf, sizeof(linebuf), "AUTH: Caching HA2 string %s", ha2);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
 }
 
 int arim_arq_auth_on_send_a1(const char *call, const char *method, const char *path)
@@ -98,20 +97,20 @@ int arim_arq_auth_on_send_a1(const char *call, const char *method, const char *p
     if (!auth_check_passwd(remote_call, mycall, ha1, sizeof(ha1))) {
         snprintf(linebuf, sizeof(linebuf),
             "AUTH: No entry for call %s in arim-digest file)", remote_call);
-        bufq_queue_debug_log(linebuf);
+        ui_queue_debug_log(linebuf);
         return 0;
     }
     snprintf(linebuf, sizeof(linebuf),
         "AUTH: Found HA1 for call %s in arim-digest file (%s)",
             remote_call, ha1);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
     /* generate HA2 from method and path info */
     snprintf(linebuf, sizeof(linebuf), "%s:%s", method, path);
     auth_b64_digest(AUTH_HA2_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), ha2, sizeof(ha2));
     snprintf(linebuf, sizeof(linebuf),
                 "AUTH: Caching HA2 string H(%s:%s)", method, path);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
     /* compute and cache server nonce */
     auth_b64_nonce(snonce, sizeof(snonce));
     /* send auth challenge */
@@ -120,10 +119,10 @@ int arim_arq_auth_on_send_a1(const char *call, const char *method, const char *p
     snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Authentication required for access to %s by %s",
                     path, call);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
     snprintf(linebuf, sizeof(linebuf),
                 "AUTH: Sending challenge with snonce %s", snonce);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -135,33 +134,30 @@ int arim_arq_auth_on_send_a1(const char *call, const char *method, const char *p
 int arim_arq_auth_on_send_a2()
 {
     char linebuf[MAX_LOG_LINE_SIZE], resp[AUTH_BUFFER_SIZE];
-    int numch;
 
     /* generate HA2 from method and path info */
-    numch = snprintf(linebuf, sizeof(linebuf), "%s:%s", fmethod, fpath);
+    snprintf(linebuf, sizeof(linebuf), "%s:%s", fmethod, fpath);
     auth_b64_digest(AUTH_HA2_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), ha2, sizeof(ha2));
-    numch = snprintf(linebuf, sizeof(linebuf),
-                     "AUTH: Caching HA2 string (%s:%s)", fmethod, fpath);
-    bufq_queue_debug_log(linebuf);
+    snprintf(linebuf, sizeof(linebuf),
+                "AUTH: Caching HA2 string (%s:%s)", fmethod, fpath);
+    ui_queue_debug_log(linebuf);
     /* compute response */
-    numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
+    snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
     auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), resp, sizeof(resp));
-    numch = snprintf(linebuf, sizeof(linebuf),
-                     "AUTH: Sending response string H(%s:%s:%s)", ha1, snonce, ha2);
-    if (numch >= sizeof(linebuf))
-        ui_truncate_line(linebuf, sizeof(linebuf));
-    bufq_queue_debug_log(linebuf);
+    snprintf(linebuf, sizeof(linebuf),
+                "AUTH: Sending response string H(%s:%s:%s)", ha1, snonce, ha2);
+    ui_queue_debug_log(linebuf);
     /* compute and cache client nonce */
     auth_b64_nonce(cnonce, sizeof(cnonce));
     snprintf(linebuf, sizeof(linebuf), "AUTH: Sending client nonce %s", cnonce);
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
     /* send the response */
     snprintf(linebuf, sizeof(linebuf), "/A2 %s %s", resp, cnonce);
     arim_arq_send_remote(linebuf);
     snprintf(linebuf, sizeof(linebuf), "ARQ: Sending /A2 response");
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -173,22 +169,19 @@ int arim_arq_auth_on_send_a2()
 int arim_arq_auth_on_send_a3()
 {
     char linebuf[MAX_LOG_LINE_SIZE], resp[AUTH_BUFFER_SIZE];
-    int numch;
 
     /* compute response */
-    numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
+    snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
     auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), resp, sizeof(resp));
-    numch = snprintf(linebuf, sizeof(linebuf),
-                     "AUTH: Sending response string H(%s:%s:%s)", ha1, cnonce, ha2);
-    if (numch >= sizeof(linebuf))
-        ui_truncate_line(linebuf, sizeof(linebuf));
-    bufq_queue_debug_log(linebuf);
+    snprintf(linebuf, sizeof(linebuf),
+                "AUTH: Sending response string H(%s:%s:%s)", ha1, cnonce, ha2);
+    ui_queue_debug_log(linebuf);
     /* send the response */
     snprintf(linebuf, sizeof(linebuf), "/A3 %s", resp);
     arim_arq_send_remote(linebuf);
     snprintf(linebuf, sizeof(linebuf), "ARQ: Sending /A3 response");
-    bufq_queue_debug_log(linebuf);
+    ui_queue_debug_log(linebuf);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -204,7 +197,7 @@ int arim_arq_auth_on_a1(char *cmd, size_t size, char *eol)
     char linebuf[MAX_LOG_LINE_SIZE];
     size_t i, len;
 
-    bufq_queue_debug_log("ARQ: processing /A1 command");
+    ui_queue_debug_log("ARQ: processing /A1 command");
 
     /* inbound auth challenge, get server nonce */
     p_nonce = NULL;
@@ -224,10 +217,10 @@ int arim_arq_auth_on_a1(char *cmd, size_t size, char *eol)
             snprintf(snonce, sizeof(snonce), "%s", p_nonce);
             snprintf(linebuf, sizeof(linebuf),
                         "AUTH: Received server nonce %s", snonce);
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
         } else {
             snprintf(linebuf, sizeof(linebuf), "ARQ: Bad /A1 command");
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/EAUTH");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -246,7 +239,7 @@ int arim_arq_auth_on_a1(char *cmd, size_t size, char *eol)
         if (!auth_check_passwd(mycall, remote_call, ha1, sizeof(ha1))) {
             snprintf(linebuf, sizeof(linebuf),
                 "AUTH: No entry for call %s in arim-digest file", mycall);
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/EAUTH");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -255,13 +248,13 @@ int arim_arq_auth_on_a1(char *cmd, size_t size, char *eol)
         snprintf(linebuf, sizeof(linebuf),
                     "AUTH: Found HA1 for call %s in arim-digest file (%s)",
                         remote_call, ha1);
-        bufq_queue_debug_log(linebuf);
+        ui_queue_debug_log(linebuf);
         /* send a2 response/challenge */
         arim_on_event(EV_ARQ_AUTH_SEND_CMD, 2);
     } else {
         /* bad challenge */
         snprintf(linebuf, sizeof(linebuf), "ARQ: Bad /A1 command");
-        bufq_queue_debug_log(linebuf);
+        ui_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/EAUTH");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -274,9 +267,8 @@ int arim_arq_auth_on_a2(char *cmd, size_t size, char *eol)
 {
     char *p_a1_resp, *p_nonce, *s, *e;
     char linebuf[MAX_LOG_LINE_SIZE], calc_resp[AUTH_BUFFER_SIZE];
-    int numch;
 
-    bufq_queue_debug_log("ARQ: processing /A2 command");
+    ui_queue_debug_log("ARQ: processing /A2 command");
 
     /* inbound auth response + challenge, get response and cnonce */
     p_a1_resp = p_nonce = NULL;
@@ -305,22 +297,20 @@ int arim_arq_auth_on_a2(char *cmd, size_t size, char *eol)
         if (strlen(p_nonce) == AUTH_NONCE_B64_SIZE &&
             strlen(p_a1_resp) == AUTH_RESP_B64_SIZE) {
             /* check response */
-            numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
+            snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
             auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                                strlen(linebuf), calc_resp, sizeof(calc_resp));
-            numch = snprintf(linebuf, sizeof(linebuf),
-                             "AUTH: HA1, snonce, HA2 are %s, %s, %s", ha1, snonce, ha2);
-            if (numch >= sizeof(linebuf))
-                ui_truncate_line(linebuf, sizeof(linebuf));
-            bufq_queue_debug_log(linebuf);
+            snprintf(linebuf, sizeof(linebuf),
+                        "AUTH: HA1, snonce, HA2 are %s, %s, %s", ha1, snonce, ha2);
+            ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf),
                         "AUTH: Calc response, actual response are %s, %s",
                             calc_resp, p_a1_resp);
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
             if (strcmp(calc_resp, p_a1_resp)) {
                 /* bad response */
                 snprintf(linebuf, sizeof(linebuf), "ARQ: Bad response to /A1 challenge");
-                bufq_queue_debug_log(linebuf);
+                ui_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/EAUTH");
                 arim_arq_send_remote(linebuf);
                 arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -329,12 +319,12 @@ int arim_arq_auth_on_a2(char *cmd, size_t size, char *eol)
             /* cache client nonce */
             snprintf(cnonce, sizeof(cnonce), "%s", p_nonce);
             snprintf(linebuf, sizeof(linebuf), "AUTH: Received client nonce %s", cnonce);
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
             /* send a3 response/challenge */
             arim_on_event(EV_ARQ_AUTH_SEND_CMD, 3);
         } else {
             snprintf(linebuf, sizeof(linebuf), "ARQ: Bad response to /A1 challenge");
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/EAUTH");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -342,13 +332,12 @@ int arim_arq_auth_on_a2(char *cmd, size_t size, char *eol)
         }
     } else {
         snprintf(linebuf, sizeof(linebuf), "ARQ: Bad /A2 auth command");
-        bufq_queue_debug_log(linebuf);
+        ui_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/EAUTH");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_AUTH_ERROR, 0);
         return 0;
     }
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 
@@ -356,11 +345,10 @@ int arim_arq_auth_on_a3(char *cmd, size_t size, char *eol)
 {
     char *p_a2_resp, *s, *e;
     char linebuf[MAX_LOG_LINE_SIZE], calc_resp[AUTH_BUFFER_SIZE];
-    int numch;
 
-    bufq_queue_debug_log("ARQ: processing /A3 command");
+    ui_queue_debug_log("ARQ: processing /A3 command");
 
-    /* inbound auth response, get response token */
+    /* inbound file transfer, get parameters */
     p_a2_resp = NULL;
     s = cmd + 4;
     while (*s && *s == ' ')
@@ -375,23 +363,21 @@ int arim_arq_auth_on_a3(char *cmd, size_t size, char *eol)
         }
         if (strlen(p_a2_resp) == AUTH_RESP_B64_SIZE) {
             /* check response */
-            numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
+            snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
             auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                                strlen(linebuf), calc_resp, sizeof(calc_resp));
-            numch = snprintf(linebuf, sizeof(linebuf),
+            snprintf(linebuf, sizeof(linebuf),
                          "AUTH: HA1, cnonce, HA2 are %s, %s, %s", ha1, cnonce, ha2);
-            if (numch >= sizeof(linebuf))
-                ui_truncate_line(linebuf, sizeof(linebuf));
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf),
                          "AUTH: Calc response, actual response are %s, %s",
                              calc_resp, p_a2_resp);
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
 
             if (strcmp(calc_resp, p_a2_resp)) {
                 /* bad response */
                 snprintf(linebuf, sizeof(linebuf), "ARQ: Bad response to /A2 challenge");
-                bufq_queue_debug_log(linebuf);
+                ui_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/EAUTH");
                 arim_arq_send_remote(linebuf);
                 arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -404,7 +390,7 @@ int arim_arq_auth_on_a3(char *cmd, size_t size, char *eol)
             ui_set_status_dirty(STATUS_ARQ_RUN_CACHED_CMD);
         } else {
             snprintf(linebuf, sizeof(linebuf), "ARQ: Bad response to /A2 challenge");
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/EAUTH");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -412,7 +398,7 @@ int arim_arq_auth_on_a3(char *cmd, size_t size, char *eol)
         }
     } else {
         snprintf(linebuf, sizeof(linebuf), "ARQ: Bad /A3 auth command");
-        bufq_queue_debug_log(linebuf);
+        ui_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/EAUTH");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_AUTH_ERROR, 0);
@@ -433,7 +419,7 @@ int arim_arq_auth_on_client_challenge(char *cmd)
     if (!auth_check_passwd(mycall, remote_call, ha1, sizeof(ha1))) {
         snprintf(linebuf, sizeof(linebuf),
             "AUTH: No entry for call %s in arim-digest file)", remote_call);
-        bufq_queue_debug_log(linebuf);
+        ui_queue_debug_log(linebuf);
         ui_set_status_dirty(STATUS_ARQ_EAUTH_REMOTE);
         return 0;
     }
@@ -488,7 +474,7 @@ int arim_arq_auth_on_challenge(char *cmd, size_t size, char *eol)
             snprintf(linebuf, sizeof(linebuf), "/EAUTH");
             arim_arq_send_remote(linebuf);
             snprintf(linebuf, sizeof(linebuf), "AUTH: Cannot authenticate %s", remote_call);
-            bufq_queue_debug_log(linebuf);
+            ui_queue_debug_log(linebuf);
         }
     } else {
         /* session previously authenticated */

@@ -141,8 +141,6 @@ int ui_cmd_prompt()
                 --len;
                 --cur;
                 mvwdelch(prompt_win, prompt_row, prompt_col + cur);
-            } else if (len == 0) {
-                quit = 1;
             }
             break;
         case 4: /* CTRL-D */
@@ -273,8 +271,7 @@ int ui_cmd_prompt()
     wmove(prompt_win, prompt_row, prompt_col);
     wclrtoeol(prompt_win);
     wrefresh(prompt_win);
-    if (ch == '\n')
-        cmdproc_cmd(cmd_line); /* process the command */
+    cmdproc_cmd(cmd_line); /* process the command */
     return 1;
 }
 

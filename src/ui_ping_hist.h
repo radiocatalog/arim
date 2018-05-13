@@ -30,6 +30,7 @@ extern int ptable_list_cnt;
 extern void ui_ptable_init(void);
 extern void ui_print_ptable(void);
 extern void ui_refresh_ptable(void);
+extern void ui_queue_ptable(const char *text);
 extern void ui_clear_ptable(void);
 extern void ui_ptable_inc_start_line(void);
 extern void ui_ptable_dec_start_line(void);

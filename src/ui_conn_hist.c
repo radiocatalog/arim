@@ -39,7 +39,7 @@ int max_ctable_rows;
 
 typedef struct ct {
     char call[16];
-    char arqbw[12];
+    char gridsq[12];
     int inbound;
     int disconnected;
     time_t start_time;
@@ -56,6 +56,13 @@ void ui_ctable_init()
 {
     ctable_row = 0, ctable_col = 1;
     cur_ctable_row = ctable_row;
+}
+
+void ui_queue_ctable(const char *text)
+{
+    pthread_mutex_lock(&mutex_ctable);
+    cmdq_push(&g_ctable_q, text);
+    pthread_mutex_unlock(&mutex_ctable);
 }
 
 void ui_ctable_inc_start_line()
@@ -141,9 +148,9 @@ void ui_print_ctable()
 
     /*
       layout of record taken from queue:
-         byte 1:     inbound/outbound flag
+         byte 1: inbound/outbound flag
          byte 2-13:  remote station call sign
-         byte 14-23: arq bandwidth
+         byte 14-21: remote/local station grid square
     */
 
     if (p) {
@@ -152,7 +159,7 @@ void ui_print_ctable()
             memset(&ctable_list[0], 0, sizeof(CT_ENTRY));
             ctable_list[0].inbound = (p[1] == 'I' ? 1 : 0);
             snprintf(ctable_list[0].call, sizeof(ctable_list[0].call), "%.11s", &p[2]);
-            snprintf(ctable_list[0].arqbw, sizeof(ctable_list[0].arqbw), "%.10s", &p[14]);
+            snprintf(ctable_list[0].gridsq, sizeof(ctable_list[0].gridsq), "%.8s", &p[14]);
             ctable_list[0].start_time = time(NULL);
             ++ctable_list_cnt;
             if (ctable_list_cnt > MAX_CTABLE_LIST_LEN)
@@ -201,10 +208,10 @@ void ui_print_ctable()
                 secs = telapsed;
                 snprintf(elapsed_time, sizeof(elapsed_time),
                             "%02d:%02d:%02d", hours, minutes, secs);
-                snprintf(conn_data, max_cols, "[%2d] %s %.11s %s [%s] In: %7zu Out: %7zu BW=%s",
+                snprintf(conn_data, max_cols, "[%2d] %s %.11s [%.8s] %s [%s] In: %7zu Out: %7zu", 
                          i + 1, ctable_list[i].inbound ? ">>" : "<<", ctable_list[i].call,
-                             start_time, elapsed_time, ctable_list[i].num_bytes_in,
-                                 ctable_list[i].num_bytes_out, ctable_list[i].arqbw);
+                             ctable_list[i].gridsq, start_time, elapsed_time,
+                                 ctable_list[i].num_bytes_in, ctable_list[i].num_bytes_out);
                 mvwprintw(ui_ctable_win, cur_ctable_row, ctable_col, "%s", conn_data);
                 cur_ctable_row++;
             }

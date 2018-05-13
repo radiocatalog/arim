@@ -24,8 +24,6 @@
 #ifndef _INI_H_INCLUDED_
 #define _INI_H_INCLUDED_
 
-#include "main.h"
-
 #define TNC_IPADDR_SIZE          256
 #define TNC_PORT_SIZE            8
 #define TNC_MYCALL_SIZE          12
@@ -64,7 +62,7 @@
 #define DEFAULT_TNC_GRIDSQ       "DM65"
 #define DEFAULT_TNC_MYCALL       "NOCALL"
 #define DEFAULT_TNC_NETCALL      "QST"
-#define DEFAULT_TNC_FECMODE      "4FSK.200.50S"
+#define DEFAULT_TNC_FECMODE      "4PSK.200.50"
 #define DEFAULT_TNC_FECID        "FALSE"
 #define DEFAULT_TNC_FECREPEATS   "0"
 #define DEFAULT_TNC_LEADER       "240"
@@ -76,7 +74,7 @@
 #define DEFAULT_TNC_STATE        "DISC"
 #define DEFAULT_TNC_LISTEN       "TRUE"
 #define DEFAULT_TNC_EN_PINGACK   "TRUE"
-#define DEFAULT_TNC_ARQ_BW       "500MAX"
+#define DEFAULT_TNC_ARQ_BW       "500"
 #define DEFAULT_TNC_ARQ_TO       "120"
 #define DEFAULT_TNC_ARQ_SENDCR   "TRUE"
 #define DEFAULT_TNC_RESET_BT_TX  "FALSE"
@@ -119,13 +117,14 @@ typedef struct tnc_set {
     char state[TNC_STATE_SIZE];
     char arq_target_call[TNC_MYCALL_SIZE];
     char arq_remote_call[TNC_MYCALL_SIZE];
+    char arq_remote_gridsq[TNC_GRIDSQ_SIZE];
+    char listen[TNC_LISTEN_SIZE];
+    char tmp_listen[TNC_LISTEN_SIZE];
+    char en_pingack[TNC_EN_PINGACK_SIZE];
     char arq_bandwidth[TNC_ARQ_BW_SIZE];
     char arq_bandwidth_hz[TNC_ARQ_BW_SIZE];
     char arq_timeout[TNC_ARQ_TO_SIZE];
     char arq_sendcr[TNC_ARQ_SENDCR_SIZE];
-    char listen[TNC_LISTEN_SIZE];
-    char tmp_listen[TNC_LISTEN_SIZE];
-    char en_pingack[TNC_EN_PINGACK_SIZE];
     char reset_btime_tx[TNC_RESET_BT_TX_SIZE];
     char tnc_init_cmds[TNC_INIT_CMDS_MAX_CNT][TNC_INIT_CMD_SIZE];
     int tnc_init_cmds_cnt;

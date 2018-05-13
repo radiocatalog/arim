@@ -41,7 +41,6 @@
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
 #include "ui_cmd_prompt_win.h"
-#include "bufq.h"
 #include "mbox.h"
 
 #define MAX_CMD_HIST            10+1
@@ -514,8 +513,6 @@ int ui_list_get_line(char *cmd_line, size_t max_len)
                 --len;
                 --cur;
                 mvwdelch(prompt_win, prompt_row, prompt_col + cur);
-            } else if (len == 0) {
-                quit = 1;
             }
             break;
         case 4: /* CTRL-D */
@@ -637,7 +634,7 @@ int ui_list_get_line(char *cmd_line, size_t max_len)
 
 void ui_list_msg(const char *fn, int mbox_type)
 {
-    WINDOW *mbox_win;
+    WINDOW *mbox_win, *prev_win;
     FILE *mboxfp;
     char *p, linebuf[MAX_MBOX_HDR_SIZE+1], msgbuffer[MIN_MSG_BUF_SIZE];
     static char list[MAX_MBOX_LIST_LEN+1][MAX_MBOX_HDR_SIZE];
@@ -659,7 +656,7 @@ void ui_list_msg(const char *fn, int mbox_type)
     }
     if (color_code)
         wbkgd(mbox_win, COLOR_PAIR(7));
-    ui_set_active_win(mbox_win);
+    prev_win = ui_set_active_win(mbox_win);
     max_mbox_rows = tnc_data_box_h - 2;
     mbox_purge(fn, atoi(g_arim_settings.max_msg_days));
 
@@ -671,7 +668,7 @@ restart:
     mboxfp = fopen(fpath, "r");
     if (!mboxfp) {
         ui_print_status("List: failed to open mailbox file", 1);
-        ui_set_active_win(tnc_data_box);
+        ui_set_active_win(prev_win);
         return;
     }
     flockfile(mboxfp);
@@ -738,11 +735,11 @@ restart:
             /* process the command */
             if (linebuf[0] == ':') {
                 if (g_tnc_attached)
-                    bufq_queue_data_out(&linebuf[1]);
+                    ui_queue_data_out(&linebuf[1]);
                 break;
             } else if (linebuf[0] == '!') {
                 if (g_tnc_attached)
-                    bufq_queue_cmd_out(&linebuf[1]);
+                    ui_queue_cmd_out(&linebuf[1]);
                 break;
             } else if (linebuf[0] == 'q') {
                 quit = 1;
@@ -1123,7 +1120,7 @@ restart:
         usleep(100000);
     }
     delwin(mbox_win);
-    ui_set_active_win(tnc_data_box);
+    ui_set_active_win(prev_win);
     touchwin(tnc_data_box);
     wrefresh(tnc_data_box);
     if (show_titles)

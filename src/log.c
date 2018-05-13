@@ -98,20 +98,19 @@ void log_on_alarm()
     time_t t;
     struct tm *utc;
     char datestamp[MAX_TIMESTAMP_SIZE];
-    int numch;
 
     t = time(NULL);
     utc = gmtime(&t);
     if (utc->tm_yday > prev_yday || (!utc->tm_yday && prev_yday)) {
         prev_yday = utc->tm_yday;
         /* new day, rotate logs */
-        numch = snprintf(traffic_fn, sizeof(traffic_fn), "%s/traffic-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
-        numch = snprintf(debug_fn, sizeof(debug_fn), "%s/debug-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+        snprintf(traffic_fn, sizeof(traffic_fn), "%s/traffic-%s.log",
+                    log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+        snprintf(debug_fn, sizeof(debug_fn), "%s/debug-%s.log",
+                    log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         pthread_mutex_lock(&mutex_df_error_log);
-        numch =snprintf(g_df_error_fn, sizeof(g_df_error_fn), "%s/dyn-file-error-%s.log",
-                        log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+        snprintf(g_df_error_fn, sizeof(g_df_error_fn), "%s/dyn-file-error-%s.log",
+                    log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         pthread_mutex_unlock(&mutex_df_error_log);
     }
     /* called every 6 secs (1/10 minute granularity) */
@@ -123,7 +122,6 @@ void log_on_alarm()
         if (g_debug_log_enable)
             log_write_debug_log();
     }
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 int log_init()
@@ -131,7 +129,6 @@ int log_init()
     FILE *fp;
     DIR *dirp;
     char datestamp[MAX_TIMESTAMP_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
-    int numch;
 
     time_interval = (LOG_WRITE_INTERVAL_SEC / ALARM_INTERVAL_SEC);
     time_elapsed = time_interval;
@@ -146,8 +143,8 @@ int log_init()
     }
     if (!strncasecmp(g_log_settings.traffic_en, "TRUE", 4)) {
         g_traffic_log_enable = 1;
-        numch = snprintf(traffic_fn, sizeof(traffic_fn), "%s/traffic-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+        snprintf(traffic_fn, sizeof(traffic_fn), "%s/traffic-%s.log",
+                    log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         fp = fopen(traffic_fn, "a");
         if (fp == NULL) {
             g_traffic_log_enable = 0;
@@ -161,8 +158,8 @@ int log_init()
     }
     if (!strncasecmp(g_log_settings.debug_en, "TRUE", 4)) {
         g_debug_log_enable = 1;
-        numch = snprintf(debug_fn, sizeof(debug_fn), "%s/debug-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+        snprintf(debug_fn, sizeof(debug_fn), "%s/debug-%s.log",
+                    log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         fp = fopen(debug_fn, "a");
         if (fp == NULL) {
             g_debug_log_enable = 0;
@@ -174,8 +171,8 @@ int log_init()
             fclose(fp);
         }
     }
-    numch = snprintf(g_df_error_fn, sizeof(g_df_error_fn), "%s/dyn-file-error-%s.log",
-                     log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+    snprintf(g_df_error_fn, sizeof(g_df_error_fn), "%s/dyn-file-error-%s.log",
+                log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
     fp = fopen(g_df_error_fn, "a");
     if (fp == NULL) {
         return 0;
@@ -185,7 +182,6 @@ int log_init()
                     "--- Program start, initializing log ---");
         fclose(fp);
     }
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 

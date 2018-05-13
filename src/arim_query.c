@@ -68,7 +68,7 @@ int arim_send_query(const char *query, const char *to_call)
                     len,
                     check,
                     query);
-    bufq_queue_data_out(msg_buffer);
+    ui_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -82,27 +82,27 @@ int arim_send_query(const char *query, const char *to_call)
 int arim_send_query_pp()
 {
     char mycall[TNC_MYCALL_SIZE];
-    unsigned int check, numch;
+    unsigned int check;
     size_t len = 0;
 
     arim_copy_mycall(mycall, sizeof(mycall));
     check = ccitt_crc16((unsigned char *)prev_msg, strlen(prev_msg));
-    numch = snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
-                     ARIM_PROTO_VERSION,
-                     mycall,
-                     prev_to_call,
-                     len,
-                     check,
-                     prev_msg);
+    snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
+                    ARIM_PROTO_VERSION,
+                    mycall,
+                    prev_to_call,
+                    len,
+                    check,
+                    prev_msg);
     len = strlen(msg_buffer);
-    numch = snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
-                     ARIM_PROTO_VERSION,
-                     mycall,
-                     prev_to_call,
-                     len,
-                     check,
-                     prev_msg);
-    bufq_queue_data_out(msg_buffer);
+    snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
+                    ARIM_PROTO_VERSION,
+                    mycall,
+                    prev_to_call,
+                    len,
+                    check,
+                    prev_msg);
+    ui_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -110,7 +110,6 @@ int arim_send_query_pp()
     pthread_mutex_unlock(&mutex_tnc_set);
     ack_timeout = atoi(g_arim_settings.ack_timeout);
     arim_on_event(EV_SEND_QRY, 0);
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 
@@ -142,7 +141,7 @@ int arim_recv_response(const char *fm_call, const char *to_call,
     } else {
         snprintf(buffer, sizeof(buffer), "7[R] %-10s ", fm_call);
     }
-    bufq_queue_heard(buffer);
+    ui_queue_heard(buffer);
     return result;
 }
 
@@ -151,7 +150,7 @@ int arim_recv_query(const char *fm_call, const char *to_call,
 {
     char buffer[MAX_HEARD_SIZE], respbuf[MIN_MSG_BUF_SIZE];
     char mycall[TNC_MYCALL_SIZE];
-    int is_mycall, numch, result = 1;
+    int is_mycall, result = 1;
     size_t len = 0;
 
     /* is this message directed to mycall? */
@@ -163,25 +162,21 @@ int arim_recv_query(const char *fm_call, const char *to_call,
             arim_copy_mycall(mycall, sizeof(mycall));
             cmdproc_query(query, respbuf, sizeof(respbuf));
             check = ccitt_crc16((unsigned char *)respbuf, strlen(respbuf));
-            numch = snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
-                             ARIM_PROTO_VERSION,
-                             mycall,
-                             fm_call,
-                             len,
-                             check,
-                             respbuf);
+            snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
+                            ARIM_PROTO_VERSION,
+                            mycall,
+                            fm_call,
+                            len,
+                            check,
+                            respbuf);
             len = strlen(msg_buffer);
-            numch = snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
-                             ARIM_PROTO_VERSION,
-                             mycall,
-                             fm_call,
-                             len,
-                             check,
-                             respbuf);
-            /* initialize arim_proto global */
-            msg_len = len;
-            /* start progress meter */
-            ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);
+            snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
+                            ARIM_PROTO_VERSION,
+                            mycall,
+                            fm_call,
+                            len,
+                            check,
+                            respbuf);
             arim_on_event(EV_RCV_QRY, 0);
             snprintf(buffer, sizeof(buffer), "3[Q] %-10s ", fm_call);
         } else {
@@ -190,31 +185,24 @@ int arim_recv_query(const char *fm_call, const char *to_call,
     } else {
         snprintf(buffer, sizeof(buffer), "7[Q] %-10s ", fm_call);
     }
-    bufq_queue_heard(buffer);
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
+    ui_queue_heard(buffer);
     return result;
-}
-
-size_t arim_on_send_response_buffer(size_t size)
-{
-    static size_t last_size;
-    if (size != last_size) {
-        last_size = size;
-        /* update progress meter */
-        ui_status_xfer_update(msg_len - size);
-    }
-    return size;
 }
 
 int arim_cancel_query()
 {
-    char buffer[MAX_LOG_LINE_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
 
     /* operator has canceled the query by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Query canceled by operator)");
-    bufq_queue_traffic_log(buffer);
-    bufq_queue_data_in(buffer);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Query canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
     return 1;
 }
 

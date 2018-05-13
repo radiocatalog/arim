@@ -43,7 +43,7 @@
 #define MAX_RECENTS_LIST_LEN   32
 #define MAX_PTABLE_LIST_LEN    32
 #define MAX_PTABLE_ROW_SIZE    128
-#define MAX_CTABLE_LIST_LEN    64
+#define MAX_CTABLE_LIST_LEN    32
 #define MAX_CTABLE_ROW_SIZE    128
 #define MAX_MBOX_HDR_SIZE      76
 #define MAX_MBOX_LIST_LEN      256

@@ -33,7 +33,6 @@
 #include "arim_arq_auth.h"
 #include "ini.h"
 #include "mbox.h"
-#include "bufq.h"
 #include "ui.h"
 #include "util.h"
 
@@ -104,7 +103,7 @@ void arim_proto_arq_conn_out_wait(int event, int param)
        with a timeout mechanism as additional protection */
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -183,7 +182,7 @@ void arim_proto_arq_conn_out_wait_rpt(int event, int param)
        repeating a connection request with a new ARQBW */
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -205,7 +204,7 @@ void arim_proto_arq_conn_pp_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -249,7 +248,7 @@ void arim_proto_arq_conn_in_wait(int event, int param)
        with a timeout mechanism as additional protection */
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -321,7 +320,7 @@ void arim_proto_arq_conn_connected(int event, int param)
     /* handle every case encountered in testing to date */
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);

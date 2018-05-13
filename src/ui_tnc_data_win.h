@@ -40,6 +40,8 @@ extern void ui_data_win_on_key_pg_dwn(void);
 extern void ui_data_win_on_key_up(void);
 extern void ui_data_win_on_key_dwn(void);
 extern void ui_data_win_on_end_scroll(void);
+extern void ui_queue_data_in(const char *text);
+extern void ui_queue_data_out(const char *text);
 extern void ui_clear_data_in(void);
 
 #endif

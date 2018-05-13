@@ -50,6 +50,7 @@
 
 static int arim_data_waiting = 0;
 static time_t arim_start_time = 0;
+static int mon_timestamp_en;
 static size_t num_bytes_in, num_bytes_out;
 
 void datathread_inc_num_bytes_in(size_t num)
@@ -93,6 +94,57 @@ void datathread_reset_num_bytes()
     pthread_mutex_unlock(&mutex_num_bytes);
 }
 
+void datathread_queue_heard(const char *text)
+{
+    pthread_mutex_lock(&mutex_heard);
+    cmdq_push(&g_heard_q, text);
+    pthread_mutex_unlock(&mutex_heard);
+}
+
+void datathread_queue_traffic_log(const char *text)
+{
+    char buffer[MIN_MSG_BUF_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE];
+
+    if (g_traffic_log_enable) {
+        snprintf(buffer, sizeof(buffer), "[%s] %s",
+                util_timestamp(timestamp, sizeof(timestamp)), text);
+        pthread_mutex_lock(&mutex_traffic_log);
+        dataq_push(&g_traffic_log_q, buffer);
+        pthread_mutex_unlock(&mutex_traffic_log);
+    }
+}
+
+void datathread_queue_debug_log(const char *text)
+{
+    char buffer[MAX_CMD_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE];
+
+    if (g_debug_log_enable) {
+        snprintf(buffer, sizeof(buffer), "[%s] %s",
+                util_timestamp_usec(timestamp, sizeof(timestamp)), text);
+        pthread_mutex_lock(&mutex_debug_log);
+        cmdq_push(&g_debug_log_q, buffer);
+        pthread_mutex_unlock(&mutex_debug_log);
+    }
+}
+
+void datathread_queue_data_in(const char *text)
+{
+    char buffer[MIN_MSG_BUF_SIZE+MAX_TIMESTAMP_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE];
+
+    pthread_mutex_lock(&mutex_data_in);
+    if (mon_timestamp_en) {
+        snprintf(buffer, sizeof(buffer), "[%s] %s",
+                util_timestamp(timestamp, sizeof(timestamp)), text);
+        dataq_push(&g_data_in_q, buffer);
+    } else {
+        dataq_push(&g_data_in_q, text);
+    }
+    pthread_mutex_unlock(&mutex_data_in);
+}
+
 void datathread_send_file_out(int sock)
 {
     char *p, buffer[MAX_FILE_SIZE+4];
@@ -106,19 +158,19 @@ void datathread_send_file_out(int sock)
     pthread_mutex_unlock(&mutex_file_out);
     if (!item)
         return;
-    bufq_queue_debug_log("Data thread: sending file to TNC");
+    datathread_queue_debug_log("Data thread: sending file to TNC");
     p = buffer;
     s = item->data;
     nblk = item->size / TNC_DATA_BLOCK_SIZE;
     nrem = item->size % TNC_DATA_BLOCK_SIZE;
     for (i = 0; i < nblk; i++) {
-        bufq_queue_debug_log("Data thread: writing block of data to socket");
+        datathread_queue_debug_log("Data thread: writing block of data to socket");
         *p++ = (TNC_DATA_BLOCK_SIZE >> 8) & 0xFF;
         *p++ = TNC_DATA_BLOCK_SIZE & 0xFF;
         memcpy(p, s, TNC_DATA_BLOCK_SIZE);
         sent = write(sock, buffer, TNC_DATA_BLOCK_SIZE + 2);
         if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
         s += TNC_DATA_BLOCK_SIZE;
@@ -127,13 +179,13 @@ void datathread_send_file_out(int sock)
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
     if (nrem) {
-        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
+        datathread_queue_debug_log("Data thread: writing remainder of data to socket");
         *p++ = (nrem >> 8) & 0xFF;
         *p++ = nrem & 0xFF;
         memcpy(p, s, nrem);
         sent = write(sock, buffer, nrem + 2);
         if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
         datathread_inc_num_bytes_out(nrem + 2);
@@ -153,19 +205,19 @@ void datathread_send_msg_out(int sock)
     pthread_mutex_unlock(&mutex_msg_out);
     if (!item)
         return;
-    bufq_queue_debug_log("Data thread: sending message to TNC");
+    datathread_queue_debug_log("Data thread: sending message to TNC");
     p = buffer;
     s = item->data;
     nblk = item->size / TNC_DATA_BLOCK_SIZE;
     nrem = item->size % TNC_DATA_BLOCK_SIZE;
     for (i = 0; i < nblk; i++) {
-        bufq_queue_debug_log("Data thread: writing block of data to socket");
+        datathread_queue_debug_log("Data thread: writing block of data to socket");
         *p++ = (TNC_DATA_BLOCK_SIZE >> 8) & 0xFF;
         *p++ = TNC_DATA_BLOCK_SIZE & 0xFF;
         memcpy(p, s, TNC_DATA_BLOCK_SIZE);
         sent = write(sock, buffer, TNC_DATA_BLOCK_SIZE + 2);
         if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
         s += TNC_DATA_BLOCK_SIZE;
@@ -174,13 +226,13 @@ void datathread_send_msg_out(int sock)
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
     if (nrem) {
-        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
+        datathread_queue_debug_log("Data thread: writing remainder of data to socket");
         *p++ = (nrem >> 8) & 0xFF;
         *p++ = nrem & 0xFF;
         memcpy(p, s, nrem);
         sent = write(sock, buffer, nrem + 2);
         if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
         datathread_inc_num_bytes_out(nrem + 2);
@@ -200,20 +252,20 @@ void datathread_send_data_out(int sock)
     pthread_mutex_unlock(&mutex_data_out);
     if (!data)
         return;
-    bufq_queue_debug_log("Data thread: sending data to TNC");
+    datathread_queue_debug_log("Data thread: sending data to TNC");
     len = strlen(data);
     p = buffer;
     s = data;
     nblk = len / TNC_DATA_BLOCK_SIZE;
     nrem = len % TNC_DATA_BLOCK_SIZE;
     for (i = 0; i < nblk; i++) {
-        bufq_queue_debug_log("Data thread: writing block of data to socket");
+        datathread_queue_debug_log("Data thread: writing block of data to socket");
         *p++ = (TNC_DATA_BLOCK_SIZE >> 8) & 0xFF;
         *p++ = TNC_DATA_BLOCK_SIZE & 0xFF;
         memcpy(p, s, TNC_DATA_BLOCK_SIZE);
         sent = write(sock, buffer, TNC_DATA_BLOCK_SIZE + 2);
         if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
         s += TNC_DATA_BLOCK_SIZE;
@@ -222,13 +274,13 @@ void datathread_send_data_out(int sock)
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
     if (nrem) {
-        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
+        datathread_queue_debug_log("Data thread: writing remainder of data to socket");
         *p++ = (nrem >> 8) & 0xFF;
         *p++ = nrem & 0xFF;
         memcpy(p, s, nrem);
         sent = write(sock, buffer, nrem + 2);
         if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
         datathread_inc_num_bytes_out(nrem + 2);
@@ -259,8 +311,8 @@ void datathread_send_data_out(int sock)
         snprintf(buffer, sizeof(buffer), "<< [@] %s", data);
     else
         snprintf(buffer, sizeof(buffer), "<< [U] %s", data);
-    bufq_queue_data_in(buffer);
-    bufq_queue_traffic_log(buffer);
+    datathread_queue_data_in(buffer);
+    datathread_queue_traffic_log(buffer);
     if (state != ST_ARQ_CONNECTED           &&
         state != ST_ARQ_FILE_RCV            &&
         state != ST_ARQ_FILE_RCV_WAIT       &&
@@ -280,7 +332,7 @@ void datathread_send_data_out(int sock)
         state != ST_ARQ_AUTH_RCV_A4_WAIT    &&
         state != ST_ARQ_MSG_SEND_WAIT       &&
         state != ST_ARQ_MSG_SEND)
-        bufq_queue_cmd_out("FECSEND TRUE");
+        ui_queue_cmd_out("FECSEND TRUE");
 }
 
 void datathread_on_fec(char *data, size_t size)
@@ -288,9 +340,9 @@ void datathread_on_fec(char *data, size_t size)
     char inbuffer[MIN_MSG_BUF_SIZE];
 
     snprintf(inbuffer, size + 8, ">> [U] %s", data);
-    bufq_queue_data_in(inbuffer);
-    bufq_queue_traffic_log(inbuffer);
-    bufq_queue_debug_log("Data thread: received ARDOP FEC frame from TNC");
+    datathread_queue_data_in(inbuffer);
+    datathread_queue_traffic_log(inbuffer);
+    datathread_queue_debug_log("Data thread: received ARDOP FEC frame from TNC");
 }
 
 void datathread_on_idf(char *data, size_t size)
@@ -304,8 +356,8 @@ void datathread_on_idf(char *data, size_t size)
         while (isprint(*e))
             ++e;
         *e = '\0';
-        bufq_queue_data_in(inbuffer);
-        bufq_queue_traffic_log(inbuffer);
+        datathread_queue_data_in(inbuffer);
+        datathread_queue_traffic_log(inbuffer);
         s += 3;
         while (*s && *s == ' ')
             ++s;
@@ -314,13 +366,13 @@ void datathread_on_idf(char *data, size_t size)
             ++e;
         *e = '\0';
         snprintf(inbuffer, sizeof(inbuffer), "8[I] %-10s ", s);
-        bufq_queue_heard(inbuffer);
-        bufq_queue_debug_log("Data thread: received ARDOP IDF frame from TNC");
+        datathread_queue_heard(inbuffer);
+        datathread_queue_debug_log("Data thread: received ARDOP IDF frame from TNC");
     } else {
         /* this sent by tnc to host when SENDID invoked */
         snprintf(inbuffer, size + 8, "<< [I] %s", data);
-        bufq_queue_data_in(inbuffer);
-        bufq_queue_traffic_log(inbuffer);
+        datathread_queue_data_in(inbuffer);
+        datathread_queue_traffic_log(inbuffer);
     }
 }
 
@@ -329,25 +381,25 @@ void datathread_on_arq(char *data, size_t size)
     char *s, *e, inbuffer[MIN_MSG_BUF_SIZE], remote_call[TNC_MYCALL_SIZE];
     int state;
 
-    bufq_queue_debug_log("Data thread: received ARDOP ARQ frame from TNC");
+    datathread_queue_debug_log("Data thread: received ARDOP ARQ frame from TNC");
     state = arim_get_state();
     switch(state) {
     case ST_ARQ_FLIST_RCV:
         arim_copy_remote_call(remote_call, sizeof(remote_call));
         snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", remote_call);
-        bufq_queue_heard(inbuffer);
+        datathread_queue_heard(inbuffer);
         arim_arq_files_flist_on_rcv_frame(data, size);
         break;
     case ST_ARQ_FILE_RCV:
         arim_copy_remote_call(remote_call, sizeof(remote_call));
         snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", remote_call);
-        bufq_queue_heard(inbuffer);
+        datathread_queue_heard(inbuffer);
         arim_arq_files_on_rcv_frame(data, size);
         break;
     case ST_ARQ_MSG_RCV:
         arim_copy_remote_call(remote_call, sizeof(remote_call));
         snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", remote_call);
-        bufq_queue_heard(inbuffer);
+        datathread_queue_heard(inbuffer);
         arim_arq_msg_on_rcv_frame(data, size);
         break;
     case ST_ARQ_CONNECTED:
@@ -377,8 +429,8 @@ void datathread_on_arq(char *data, size_t size)
             while (isprint(*e))
                 ++e;
             *e = '\0';
-            bufq_queue_data_in(inbuffer);
-            bufq_queue_traffic_log(inbuffer);
+            datathread_queue_data_in(inbuffer);
+            datathread_queue_traffic_log(inbuffer);
             ++s;
             while (*s && *s == ' ')
                 ++s;
@@ -387,7 +439,7 @@ void datathread_on_arq(char *data, size_t size)
                 ++e;
             *e = '\0';
             snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", s);
-            bufq_queue_heard(inbuffer);
+            datathread_queue_heard(inbuffer);
         }
         break;
     }
@@ -402,9 +454,9 @@ void datathread_on_err(char *data, size_t size)
     while (isprint(*p))
         ++p;
     *p = '\0';
-    bufq_queue_data_in(inbuffer);
-    bufq_queue_traffic_log(inbuffer);
-    bufq_queue_debug_log("Data thread: received ARDOP ERR frame from TNC");
+    datathread_queue_data_in(inbuffer);
+    datathread_queue_traffic_log(inbuffer);
+    datathread_queue_debug_log("Data thread: received ARDOP ERR frame from TNC");
 }
 
 //#define VIEW_DATA_IN
@@ -448,7 +500,7 @@ char buf[MIN_MSG_BUF_SIZE];
         /* got all data, dispatch on frame type */
 #ifdef VIEW_DATA_IN
 snprintf(buf, datasize + 7, "[%04X]%s", datasize, buffer + 2);
-bufq_queue_debug_log(buf);
+datathread_queue_debug_log(buf);
 sleep(1);
 #endif
         if (buffer[2] == 'F') { /* FEC frame */
@@ -457,7 +509,7 @@ sleep(1);
             if (is_new_frame) {
                 arim_frame_type = is_arim_frame;
                 arim_on_event(EV_FRAME_START, arim_frame_type);
-                bufq_queue_debug_log("Data thread: received start of ARIM frame");
+                datathread_queue_debug_log("Data thread: received start of ARIM frame");
             }
             if (arim_data_waiting || is_new_frame)
                 arim_data_waiting = arim_on_data((char *)&buffer[5], datasize - 3);
@@ -494,7 +546,7 @@ void *datathread_func(void *data)
     time_t cur_time;
 
     memset(&hints, 0, sizeof hints);
-    bufq_queue_debug_log("Data thread: initializing");
+    datathread_queue_debug_log("Data thread: initializing");
     hints.ai_family = AF_UNSPEC;  /* IPv4 or IPv6 */
     hints.ai_socktype = SOCK_STREAM;
     portnum = atoi(g_tnc_settings[g_cur_tnc].port) + 1;
@@ -502,13 +554,13 @@ void *datathread_func(void *data)
     getaddrinfo(g_tnc_settings[g_cur_tnc].ipaddr, (char *)buffer, &hints, &res);
     if (!res)
     {
-        bufq_queue_debug_log("Data thread: failed to resolve IP address");
+        datathread_queue_debug_log("Data thread: failed to resolve IP address");
         g_datathread_stop = 1;
         pthread_exit(data);
     }
     datasock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (connect(datasock, res->ai_addr, res->ai_addrlen) == -1) {
-        bufq_queue_debug_log("Data thread: failed to open TCP socket");
+        datathread_queue_debug_log("Data thread: failed to open TCP socket");
         g_datathread_stop = 1;
         pthread_exit(data);
     }
@@ -517,6 +569,10 @@ void *datathread_func(void *data)
     /* timeout specified in secs */
     arim_timeout = atoi(g_arim_settings.frame_timeout);
     arim_reset();
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4))
+        mon_timestamp_en = 1;
+    else
+        mon_timestamp_en = 0;
 
     while (1) {
         FD_ZERO(&datareadfds);
@@ -539,7 +595,7 @@ void *datathread_func(void *data)
                     /* timeout, reset arim state */
                     arim_reset();
                     arim_data_waiting = arim_start_time = 0;
-                    bufq_queue_debug_log("Data thread: ARIM frame time out");
+                    datathread_queue_debug_log("Data thread: ARIM frame time out");
                     arim_on_event(EV_FRAME_TO, 0);
                 }
             }
@@ -548,7 +604,7 @@ void *datathread_func(void *data)
             arim_arq_on_resp(NULL, 0);
             break;
         case -1:
-            bufq_queue_debug_log("Data thread: Socket select error (-1)");
+            datathread_queue_debug_log("Data thread: Socket select error (-1)");
             break;
         default:
             if (FD_ISSET(datasock, &datareadfds)) {
@@ -557,7 +613,7 @@ void *datathread_func(void *data)
                     datathread_handle_data(buffer, rsize);
             }
             if (FD_ISSET(datasock, &dataerrorfds)) {
-                bufq_queue_debug_log("Data thread: Socket select error (FD_ISSET)");
+                datathread_queue_debug_log("Data thread: Socket select error (FD_ISSET)");
                 break;
             }
         }
@@ -565,7 +621,7 @@ void *datathread_func(void *data)
             break;
         }
     }
-    bufq_queue_debug_log("Data thread: terminating");
+    datathread_queue_debug_log("Data thread: terminating");
     sleep(2);
     close(datasock);
     return data;

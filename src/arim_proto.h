@@ -154,6 +154,7 @@ extern int arim_test_mycall(const char *call);
 extern int arim_test_netcall(const char *call);
 extern void arim_copy_gridsq(char *gridsq, size_t size);
 extern void arim_copy_remote_call(char *call, size_t size);
+extern void arim_copy_remote_gridsq(char *gridsq, size_t size);
 extern void arim_copy_target_call(char *call, size_t size);
 extern void arim_copy_arq_sendcr(char *val, size_t size);
 extern void arim_copy_arq_bw(char *val, size_t size);
@@ -172,7 +173,6 @@ extern int arim_tnc_is_idle(void);
 extern int arim_is_channel_busy(void);
 extern void arim_set_channel_not_busy(void);
 
-extern size_t msg_len;
 extern time_t prev_time;
 extern int rcv_nak_cnt;
 extern int ack_timeout;

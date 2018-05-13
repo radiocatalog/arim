@@ -26,16 +26,15 @@
 #include <unistd.h>
 #include <string.h>
 #include "main.h"
+#include "arim.h"
+#include "arim_proto.h"
+#include "arim_ping.h"
+#include "arim_arq.h"
 #include "ini.h"
 #include "mbox.h"
 #include "ui.h"
 #include "ui_tnc_data_win.h"
 #include "util.h"
-#include "bufq.h"
-#include "arim.h"
-#include "arim_proto.h"
-#include "arim_ping.h"
-#include "arim_arq.h"
 #include "arim_proto_idle.h"
 #include "arim_proto_ping.h"
 #include "arim_proto_msg.h"
@@ -54,7 +53,6 @@ pthread_mutex_t mutex_send_repeats = PTHREAD_MUTEX_INITIALIZER;
 char msg_acknak_buffer[MAX_ACKNAK_SIZE];
 char msg_buffer[MIN_MSG_BUF_SIZE];
 
-size_t msg_len;
 time_t prev_time;
 char prev_fecmode[TNC_FECMODE_SIZE];
 char prev_to_call[TNC_MYCALL_SIZE];
@@ -63,28 +61,18 @@ int rcv_nak_cnt = 0, ack_timeout = 30, send_repeats = 0, fecmode_downshift = 0;
 static int arim_state = 0;
 
 const char *downshift[] = {
-    /* 4FSK family */
-    "4FSK.200.50S,4FSK.200.50S",
-    "4FSK.500.100S,4FSK.200.50S",
-    "4FSK.500.100,4FSK.500.100S",
-    "4FSK.2000.600S,4FSK.500.100",
-    "4FSK.2000.600,4FSK.2000.600S",
-    /* 4PSK family */
-    "4PSK.200.100S,4FSK.200.50S",
-    "4PSK.200.100,4PSK.200.100S",
-    "4PSK.500.100,4PSK.200.100",
-    "4PSK.1000.100,4PSK.500.100",
-    "4PSK.2000.100,4PSK.1000.100",
-    /* 8PSK family */
-    "8PSK.200.100,4FSK.200.50S",
-    "8PSK.500.100,8PSK.200.100",
-    "8PSK.1000.100,8PSK.500.100",
-    "8PSK.2000.100,8PSK.1000.100",
-    /* 16QAM family */
-    "16QAM.200.100,4FSK.200.50S",
-    "16QAM.500.100,16QAM.200.100",
-    "16QAM.1000.100,16QAM.500.100",
-    "16QAM.2000.100,16QAM.1000.100",
+    "4PSK.200.50,4PSK.200.50",
+    "4PSK.200.100,4PSK.200.50",
+    "16QAM.200.100,4PSK.200.100",
+    "4FSK.500.50,16QAM.200.100",
+    "4PSK.500.50,4FSK.500.50",
+    "16QAMR.500.100,4PSK.500.50",
+    "16QAM.500.100,16QAMR.500.100",
+    "4FSK.1000.50,16QAM.500.100",
+    "4PSKR.2500.50,4FSK.1000.50",
+    "4PSK.2500.50,4PSKR.2500.50",
+    "16QAMR.2500.100,4PSK.2500.50",
+    "16QAM.2500.100,16QAMR.2500.100",
     0,
 };
 
@@ -213,6 +201,13 @@ void arim_copy_gridsq(char *gridsq, size_t size)
     pthread_mutex_unlock(&mutex_tnc_set);
 }
 
+void arim_copy_remote_gridsq(char *gridsq, size_t size)
+{
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(gridsq, size, "%s", g_tnc_settings[g_cur_tnc].arq_remote_gridsq);
+    pthread_mutex_unlock(&mutex_tnc_set);
+}
+
 int arim_get_netcall_cnt()
 {
     int cnt;
@@ -338,7 +333,7 @@ void arim_restore_prev_fecmode()
     char temp[MAX_CMD_SIZE];
 
     snprintf(temp, sizeof(temp), "FECMODE %s", prev_fecmode);
-    bufq_queue_cmd_out(temp);
+    ui_queue_cmd_out(temp);
 }
 
 int arim_is_arq_state()
@@ -388,10 +383,10 @@ void arim_set_state(int newstate)
     char buffer[TNC_LISTEN_SIZE], cmd[MAX_CMD_SIZE];
 
     if (newstate == ST_IDLE) {
-        bufq_queue_cmd_out("PROTOCOLMODE FEC");
+        ui_queue_cmd_out("PROTOCOLMODE FEC");
         arim_copy_listen(buffer, sizeof(buffer));
         snprintf(cmd, sizeof(cmd), "LISTEN %s", buffer);
-        bufq_queue_cmd_out(cmd);
+        ui_queue_cmd_out(cmd);
     }
     pthread_mutex_lock(&mutex_arim_state);
     arim_state = newstate;
@@ -427,18 +422,19 @@ void arim_set_channel_not_busy()
     snprintf(g_tnc_settings[g_cur_tnc].busy,
         sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
     pthread_mutex_unlock(&mutex_tnc_set);
-    bufq_queue_debug_log("ARIM: TNC is not BUSY");
+    arim_queue_debug_log("ARIM: TNC is not BUSY");
 }
 
 int arim_tnc_is_idle()
 {
-    int tnc_disc, tnc_ch_not_busy;
+    int buffer_cnt, not_fec_send, not_ch_busy;
 
     pthread_mutex_lock(&mutex_tnc_set);
-    tnc_disc = strncmp(g_tnc_settings[g_cur_tnc].state, "DISC", 4) ? 0 : 1;
-    tnc_ch_not_busy = strncmp(g_tnc_settings[g_cur_tnc].busy, "TRUE", 4);
+    buffer_cnt = atoi(g_tnc_settings[g_cur_tnc].buffer);
+    not_fec_send = strncmp(g_tnc_settings[g_cur_tnc].state, "FECSEND", 7);
+    not_ch_busy = strncmp(g_tnc_settings[g_cur_tnc].busy, "TRUE", 4);
     pthread_mutex_unlock(&mutex_tnc_set);
-    return (tnc_disc && tnc_ch_not_busy);
+    return (!buffer_cnt && not_fec_send && not_ch_busy);
 }
 
 int arim_get_send_repeats()
@@ -510,7 +506,7 @@ void arim_fecmode_downshift()
         if (!result && *(p + len) == ',') {
             p += (len + 1);
             snprintf(temp, sizeof(temp), "FECMODE %s", p);
-            bufq_queue_cmd_out(temp);
+            ui_queue_cmd_out(temp);
             break;
         }
         p = downshift[++i];
@@ -520,30 +516,40 @@ void arim_fecmode_downshift()
 void arim_cancel_trans()
 {
     if (arim_get_buffer_cnt() > 0)
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
 }
 
 int arim_cancel_unproto()
 {
-    char buffer[MAX_LOG_LINE_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
 
     /* operator has canceled the unproto transmission by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Unproto message canceled by operator)");
-    bufq_queue_traffic_log(buffer);
-    bufq_queue_data_in(buffer);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Unproto message canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
     return 1;
 }
 
 int arim_cancel_frame()
 {
-    char buffer[MAX_LOG_LINE_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
 
     /* operator has canceled the data frame receipt by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Wait for ARIM frame canceled by operator)");
-    bufq_queue_traffic_log(buffer);
-    bufq_queue_data_in(buffer);
+    ui_queue_traffic_log(buffer);
+    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
+        snprintf(buffer, sizeof(buffer),
+                "[%s] >> [X] (Wait for ARIM frame canceled by operator)",
+                    util_timestamp(timestamp, sizeof(timestamp)));
+    }
+    ui_queue_data_in(buffer);
     return 1;
 }
 
@@ -687,7 +693,7 @@ void arim_on_event(int event, int param)
         snprintf(buffer, sizeof(buffer),
             "ARIM: Event %s, Param %d, State %s==>%s",
                 events[event], param, states[prev_state], states[next_state]);
-        bufq_queue_debug_log(buffer);
+        arim_queue_debug_log(buffer);
     }
 }
 

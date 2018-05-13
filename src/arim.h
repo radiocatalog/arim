@@ -27,6 +27,7 @@
 extern void *arim_reset(void);
 extern int arim_on_data(char *data, size_t size);
 extern int arim_test_frame(char *data, size_t size);
+extern void arim_queue_debug_log(const char *text);
 
 #endif
 

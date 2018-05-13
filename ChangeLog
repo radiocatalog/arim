@@ -1,53 +1,69 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
-v1.12 01Sep2018
+v2.0  13May2018
 ---------------
-1. Do not send PING command to TNC if it's not in DISC state.
-2. In FEC mode, don't start download progress meter when ARIM
-   message frames addressed to a different station are heard.
-3. If the command prompt is active, but empty, pressing the backspace
-   key will deactivate it.
-
-v1.11 11Aug2018
----------------
-1. Introduce progress meter feature for file, message, query response,
-   and directory listing data transfers. The meter is located on the
-   status bar and appears when an upload or download begins to
-   indicate percentage of completion as the tranfer progresses.
-   Suggested by Doug, WB6VAC, thanks!
-2. Fix bug where remote file listing view didn't close and return to
-   the traffic monitor view when the 'cd' command was invoked.
-3. Extend dwell time of status bar messages to 5 seconds.
-4. Update the PDF Help doc.
-
-v1.10 28Jul2018
----------------
-1. Add new "CONNECTION HISTORY" view, which displays a list of ARQ
+1. Adapt ARIM to ARDOP TNC version 2.
+   The ARQ bandwidth selection is simplified, with 3 options:
+      200, 500 and 2500 Hz.
+   The FECMODE selection is changed. The options are:
+     4PSK.200.50, 4PSK.200.100, 16QAM.200.100, 4FSK.500.50,
+     4PSK.500.50, 16QAMR.500.100, 16QAM.500.100, 4FSK.1000.50,
+     4PSKR.2500.50, 4PSK.2500.50, 16QAMR.2500.100, 16QAM.2500.100
+   The FEC Control menu is updated to reflect these changes.
+   Note: This version of ARIM is NOT compatible with ARDOP TNC
+   versions 1.0.x.x, nor with ARIM versions 1.9 and earlier.
+2. Extend syntax of the 'conn' command to allow specification of the
+   ARQBW for the connection attempt. An ARDOP 2 connection request
+   fails immediately if the ARQBW of the connecting ("client")
+   station's TNC and the remote station's TNC are not identical. The
+   'conn' command now offers the operator control of the arq bandwidth
+   setting for individual connection requests, and a way to connect
+   efficiently if the ARQBW of the remote station is unknown:
+      conn call rpts [bw]
+   'call' is the remote station call sign. 'rpts' is the max number
+   of repeats, and 'bw' is an optional ARQ connection bandwidth
+   specifier. The allowed values for 'bw' are:
+      200, 500, 2500 or 'any' (not case sensitive).
+   - If no 'bw' parameter is given then ARIM will use the current
+     ARQBW setting (set in the arim.ini file or by using the 'arqbw'
+     command in ARIM).
+   - If '200', '500' or '2500' are given then ARIM will attempt to
+     connect using only the specified bandwidth. This is useful if
+     the ARQBW of the remote station is known, but different from that
+     of the connecting station's TNC.
+   - If 'any' is specified, ARIM will attempt to connect using each of
+     the possible ARQBW settings in succession, starting with the
+     current ARQBW. If the the result is a REJECTEDBW response from
+     the remote station, then the attempt is repeated with another
+     ARQBW after a 5 second settling time has passed. NOTE: ARIM
+     stops trying if the remote station is unreachable (has not
+     responded with either a CONACK or a REJECTEDBW frame after 'rpts'
+     requests have been sent).
+   Examples:
+      conn nw8l 5      (uses the currently set ARQBW)
+      conn nw8l 5 200  (uses an ARQBW setting of 200)
+      conn nw8l 5 any  (tries all ARQBW settings in turn)
+   The effect of forcing an ARQBW setting with the 'conn' command is
+   temporary; when the ARQ session ends the client station's ARQBW
+   setting reverts to it's original value.
+3. Add new "CONNECTION HISTORY" view, which displays a list of ARQ
    connections made, both inbound and outbound. Press 'c' to open the
    view. Connection info shown is:
       Direction of connection request, in or out.
       Call sign of remote station.
+      Grid square of calling station (local or remote).
       Connection start time, format: Mon DD HH:MM:SS.
       Connection duration time, format: HH:MM:SS.
       Number of bytes received.
       Number of bytes transmitted.
    Press 'u' and 'd' to scroll. Press 'c' again to close the view.
    To clear the view, type 'clrconn' at the command prompt.
-2. Copy 'test.txt' file from /usr/local/share/arim only when missing
-   from user's local shared files directory.
-3. Set LISTEN to FALSE when sending ARQ connection requests.
-4. Fix bug causing occasional failure to prompt user to save message
-   to outbox when the message send operation is canceled with ESC.
-5. Fix bug preventing clean compile of ARIM from source code on older
+4. Fix bug preventing clean compile of ARIM from source code on older
    Linux operating systems with ncurses library versions < 5.10. On
    these systems the ITALIC text attribute won't work in UI theme
    definitions in the arim-themes file; it will default to NORMAL.
-6. Adjust to new gcc 8 string format truncation diagnostics. Change
-   'snprintf' destination buffer sizes where needed and explicitly
-   handle certain format truncation cases to satisfy the compiler and
-   prevent warnings.
-7. Update embedded Help, PDF Help doc and man files as needed.
+5. Update embedded Help, PDF Help doc and man files as needed.
 
 v1.9  01May2018
 ---------------

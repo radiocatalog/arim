@@ -35,7 +35,6 @@
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
-#include "bufq.h"
 #include "arim_proto.h"
 
 #define MAX_FEC_ROW_SIZE  256
@@ -46,17 +45,17 @@ const char *fecmenu[] = {
     "             or 'q' to quit",
     " ----------------------------------------",
     " FSK Modes:              PSK Modes:",
-    " [a] 4FSK.200.50S        [f] 4PSK.200.100S",
-    " [b] 4FSK.500.100S       [g] 4PSK.200.100",
-    " [c] 4FSK.500.100        [h] 8PSK.200.100",
-    " [d] 4FSK.2000.600S      [i] 4PSK.500.100",
-    " [e] 4FSK.2000.600       [j] 8PSK.500.100",
-    "                         [k] 4PSK.1000.100",
-    " QAM Modes:              [l] 8PSK.1000.100",
-    " [w] 16QAM.200.100       [m] 4PSK.2000.100",
-    " [x] 16QAM.500.100       [n] 8PSK.2000.100",
-    " [y] 16QAM.1000.100",
-    " [z] 16QAM.2000.100",
+    " [a] 4FSK.500.50         [c] 4PSK.200.50",
+    " [b] 4FSK.1000.50        [d] 4PSK.200.100",
+    "                         [e] 4PSK.500.50",
+    "                         [f] 4PSKR.2500.50",
+    "                         [g] 4PSK.2500.50",
+    " QAM Modes:",
+    " [h] 16QAM.200.100",
+    " [i] 16QAMR.500.100",
+    " [j] 16QAM.500.100",
+    " [k] 16QAMR.2500.100",
+    " [l] 16QAM.2500.100",
     "",
     " FEC Repeats: [0] None [1] One [2] Two [3] Three",
     "    (Repeats allow better copy in marginal",
@@ -64,34 +63,27 @@ const char *fecmenu[] = {
     "",
     " Key to FEC modes:",
     "   The first component is the modulation type",
-    "   e.g. 4FSK, 8PSK. The second is the bandwidth",
+    "   e.g. 4FSK, 16QAM. The second is the bandwidth",
     "   in Hz at the -26 dB points. The third is the",
-    "   baud rate. A trailing 'S' indicates a mode",
-    "   with a shortened frame. NOTE: baud rates",
-    "   over 300 are not currently permitted in the",
-    "   United States below 29 MHz.",
+    "   baud rate. Note: the 4PSK and 16QAM modulation",
+    "   types ending in 'R' use redundant carriers for",
+    "   increased robustness.",
     0,
 };
 
 char *feccmds[] = {
-    "aFECMODE 4FSK.200.50S",
-    "bFECMODE 4FSK.500.100S",
-    "cFECMODE 4FSK.500.100",
-    "dFECMODE 4FSK.2000.600S",
-    "eFECMODE 4FSK.2000.600",
-    "fFECMODE 4PSK.200.100S",
-    "gFECMODE 4PSK.200.100",
-    "hFECMODE 8PSK.200.100",
-    "iFECMODE 4PSK.500.100",
-    "jFECMODE 8PSK.500.100",
-    "kFECMODE 4PSK.1000.100",
-    "lFECMODE 8PSK.1000.100",
-    "mFECMODE 4PSK.2000.100",
-    "nFECMODE 8PSK.2000.100",
-    "wFECMODE 16QAM.200.100",
-    "xFECMODE 16QAM.500.100",
-    "yFECMODE 16QAM.1000.100",
-    "zFECMODE 16QAM.2000.100",
+    "aFECMODE 4FSK.500.50",
+    "bFECMODE 4FSK.1000.50",
+    "cFECMODE 4PSK.200.50",
+    "dFECMODE 4PSK.200.100",
+    "eFECMODE 4PSK.500.50",
+    "fFECMODE 4PSKR.2500.50",
+    "gFECMODE 4PSK.2500.50",
+    "hFECMODE 16QAM.200.100",
+    "iFECMODE 16QAMR.500.100",
+    "jFECMODE 16QAM.500.100",
+    "kFECMODE 16QAMR.2500.100",
+    "lFECMODE 16QAM.2500.100",
     "0FECREPEATS 0",
     "1FECREPEATS 1",
     "2FECREPEATS 2",
@@ -253,7 +245,7 @@ void ui_show_fec_menu()
                 state != ST_ARQ_OUT_CONNECT_WAIT) {
                 p = ui_get_feccmd(cmd);
                 if (p) {
-                    bufq_queue_cmd_out(p);
+                    ui_queue_cmd_out(p);
                     ui_print_status(p, 1);
                 }
             }

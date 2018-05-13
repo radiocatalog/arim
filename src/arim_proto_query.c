@@ -35,7 +35,6 @@
 #include "mbox.h"
 #include "ui.h"
 #include "util.h"
-#include "bufq.h"
 #include "ui_tnc_data_win.h"
 
 void arim_proto_query_buf_wait(int event, int param)
@@ -69,7 +68,7 @@ void arim_proto_query_resp_buf_wait(int event, int param)
         break;
     case EV_PERIODIC:
         /* wait until tx buffer is empty before announcing idle state */
-        if (!arim_on_send_response_buffer(arim_get_buffer_cnt())) {
+        if (!arim_get_buffer_cnt()) {
             arim_set_state(ST_IDLE);
             ui_set_status_dirty(STATUS_RESP_SENT);
         }
@@ -91,7 +90,7 @@ void arim_proto_query_resp_pend(int event, int param)
         /* 1 to 2 second delay for sending response to query */
         t = time(NULL);
         if (t > prev_time + 2) {
-            bufq_queue_data_out(msg_buffer);
+            ui_queue_data_out(msg_buffer);
             arim_set_state(ST_SEND_RESP_BUF_WAIT);
             ui_set_status_dirty(STATUS_RESP_SEND);
         }
@@ -105,10 +104,10 @@ void arim_proto_query_pingack_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT"); /* unconditionally abort */
+        ui_queue_cmd_out("ABORT"); /* unconditionally abort */
         arim_set_state(ST_IDLE);
         arim_cancel_query();
-        ui_set_status_dirty(STATUS_QRY_SEND_CAN);
+        ui_set_status_dirty(STATUS_PING_SEND_CAN);
         break;
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */

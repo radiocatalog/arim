@@ -35,7 +35,6 @@
 #include "ini.h"
 #include "mbox.h"
 #include "util.h"
-#include "bufq.h"
 #include "ui_msg.h"
 #include "ui.h"
 
@@ -44,9 +43,9 @@ char mbox_dir_path[MAX_PATH_SIZE];
 int mbox_purge(const char *fn, int days)
 {
     FILE *mboxfp, *tempfp;
-    int fd, numch;
+    int fd;
     char *p, header[MAX_MBOX_HDR_SIZE], linebuf[MAX_MSG_LINE_SIZE];
-    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE], tempfn[MAX_PATH_SIZE];
     char month[16], day[8], timestamp[16], year[8], datetime[64], logbuf[MAX_LOG_LINE_SIZE];
     struct tm tm, *ptm;
     time_t hdr_time, cur_time;
@@ -112,10 +111,8 @@ int mbox_purge(const char *fn, int days)
                         if (hdr_time != -1) {
                             if (difftime(cur_time, hdr_time) > (double)(days*24*60*60)) {
                                 /* message aged out, skip over it */
-                                numch = snprintf(logbuf, sizeof(logbuf), "MBOX %s purged: [%s]", fn, linebuf);
-                                if (numch >= sizeof(logbuf))
-                                    ui_truncate_line(logbuf, sizeof(logbuf));
-                                bufq_queue_debug_log(logbuf);
+                                snprintf(logbuf, sizeof(logbuf), "MBOX %s purged: [%s]", fn, linebuf);
+                                ui_queue_debug_log(logbuf);
                                 p = fgets(linebuf, sizeof(linebuf), mboxfp);
                                 while (p && strncmp(p, "From ", 5)) {
                                     p = fgets(linebuf, sizeof(linebuf), mboxfp);
@@ -142,7 +139,7 @@ int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call, int c
 {
     FILE *mboxfp;
     char timestamp[MAX_TIMESTAMP_SIZE];
-    char fpath[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE];
     const char *p, *prev, *stop;
 
     stop = msg + strlen(msg);
@@ -191,7 +188,7 @@ int mbox_clear_flag(const char *fn, const char *hdr, int flag)
     FILE *mboxfp, *tempfp;
     int fd;
     char *p, linebuf[MAX_MSG_LINE_SIZE];
-    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE], tempfn[MAX_PATH_SIZE];
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -264,9 +261,9 @@ int mbox_get_msg_list(char *msgbuffer, size_t msgbufsize,
     FILE *mboxfp;
     size_t len, cnt = 0;
     int numlines = 0;
-    char linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_PATH_SIZE*2];
+    char linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_PATH_SIZE];
     char *p, test[TNC_MYCALL_SIZE+8], header[MAX_MBOX_HDR_SIZE];
-    int i, numch;
+    int i;
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -295,7 +292,7 @@ int mbox_get_msg_list(char *msgbuffer, size_t msgbufsize,
             if (strstr(header, test)) {
                 /* print header into buffer */
                 linebuf[59] = '\0';
-                numch = snprintf(header, sizeof(header), "%3d %s\n", numlines, &linebuf[16]);
+                snprintf(header, sizeof(header), "%3d %s\n", numlines, &linebuf[16]);
                 len = strlen(header);
                 if ((cnt + len) < msgbufsize) {
                     strncat(msgbuffer, header, msgbufsize - cnt - 1);
@@ -324,7 +321,6 @@ int mbox_get_msg_list(char *msgbuffer, size_t msgbufsize,
     }
     funlockfile(mboxfp);
     fclose(mboxfp);
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return numlines;
 }
 
@@ -332,9 +328,9 @@ int mbox_get_headers_to(char headers[][MAX_MBOX_HDR_SIZE],
                             int max_hdrs, const char *fn, const char *to_call)
 {
     FILE *mboxfp;
-    char linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_PATH_SIZE*2];
+    char linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_PATH_SIZE];
     char *p, test[TNC_MYCALL_SIZE+8], header[MAX_MBOX_HDR_SIZE];
-    int i, numch, len, cnt = 0;
+    int i, len, cnt = 0;
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -353,7 +349,7 @@ int mbox_get_headers_to(char headers[][MAX_MBOX_HDR_SIZE],
                 header[i] = toupper(linebuf[i]);
             if (strstr(header, test)) {
                 /* print header into buffer */
-                numch = snprintf(headers[cnt++], MAX_MBOX_HDR_SIZE, "%s", linebuf);
+                snprintf(headers[cnt++], MAX_MBOX_HDR_SIZE, "%s", linebuf);
                 if (cnt == max_hdrs)
                     break;
             }
@@ -362,7 +358,6 @@ int mbox_get_headers_to(char headers[][MAX_MBOX_HDR_SIZE],
     }
     funlockfile(mboxfp);
     fclose(mboxfp);
-    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return cnt;
 }
 
@@ -371,7 +366,7 @@ int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
 {
     FILE *mboxfp;
     size_t len, cnt = 0;
-    char *p, linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_PATH_SIZE*2];
+    char *p, linebuf[MAX_MSG_LINE_SIZE], fpath[MAX_PATH_SIZE];
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -433,7 +428,7 @@ int mbox_delete_msg(const char *fn, const char *hdr)
     FILE *mboxfp, *tempfp;
     int fd;
     char *p, linebuf[MAX_MSG_LINE_SIZE];
-    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE], tempfn[MAX_PATH_SIZE];
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -488,7 +483,7 @@ int mbox_save_msg(const char *fn, const char *hdr, const char *savefn)
 {
     FILE *mboxfp, *savefp, *tempfp;
     char *p, *f, linebuf[MAX_MSG_LINE_SIZE];
-    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE], tempfn[MAX_PATH_SIZE];
     int fd;
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
@@ -574,7 +569,7 @@ int mbox_read_msg(char *msgbuffer, size_t msgbufsize,
     size_t len, cnt = 0;
     int fd, numlines = 0;
     char *p, linebuf[MAX_MSG_LINE_SIZE];
-    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE], tempfn[MAX_PATH_SIZE];
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -675,7 +670,7 @@ int mbox_fwd_msg(char *msgbuffer, size_t msgbufsize, const char *fn, const char 
     size_t len, cnt = 0;
     int fd;
     char *p, linebuf[MAX_MSG_LINE_SIZE];
-    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE], tempfn[MAX_PATH_SIZE];
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -774,7 +769,7 @@ int mbox_send_msg(char *msgbuffer, size_t msgbufsize,
     size_t len, cnt = 0;
     int fd;
     char *p, *s, *e, linebuf[MAX_MSG_LINE_SIZE];
-    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+    char fpath[MAX_PATH_SIZE], tempfn[MAX_PATH_SIZE];
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "r");
@@ -870,7 +865,7 @@ int mbox_send_msg(char *msgbuffer, size_t msgbufsize,
 int mbox_init()
 {
     FILE *tempfp;
-    char file_path[MAX_PATH_SIZE*2];
+    char file_path[MAX_PATH_SIZE];
 #ifndef PORTABLE_BIN
     FILE *srcfp;
     char *p, linebuf[MAX_MSG_LINE_SIZE];

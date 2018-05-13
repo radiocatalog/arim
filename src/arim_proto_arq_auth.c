@@ -25,7 +25,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "main.h"
-#include "bufq.h"
 #include "arim.h"
 #include "arim_proto.h"
 #include "arim_arq.h"
@@ -40,7 +39,7 @@ void arim_proto_arq_auth_send_a1_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -107,7 +106,7 @@ void arim_proto_arq_auth_send_a2_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -174,7 +173,7 @@ void arim_proto_arq_auth_send_a3_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -241,7 +240,7 @@ void arim_proto_arq_auth_rcv_a2_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -316,7 +315,7 @@ void arim_proto_arq_auth_rcv_a3_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -383,7 +382,7 @@ void arim_proto_arq_auth_rcv_a4_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        bufq_queue_cmd_out("ABORT");
+        ui_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
