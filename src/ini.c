@@ -407,6 +407,7 @@ void ini_read_tnc_set(FILE *inifp, int which)
     snprintf(g_tnc_settings[which].arq_sendcr, sizeof(g_tnc_settings[which].arq_sendcr), DEFAULT_TNC_ARQ_SENDCR);
     snprintf(g_tnc_settings[which].arq_bandwidth, sizeof(g_tnc_settings[which].arq_bandwidth), DEFAULT_TNC_ARQ_BW);
     snprintf(g_tnc_settings[which].arq_timeout, sizeof(g_tnc_settings[which].arq_timeout), DEFAULT_TNC_ARQ_TO);
+    snprintf(g_tnc_settings[which].arq_negotiate_bw, sizeof(g_tnc_settings[which].arq_negotiate_bw), DEFAULT_TNC_NEGOTIATE_BW);
     snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), DEFAULT_TNC_RESET_BT_TX);
 
     /* if program invoked with --print-conf switch, print section header */
@@ -589,6 +590,15 @@ void ini_read_tnc_set(FILE *inifp, int which)
                 if (g_print_config)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-bandwidth", g_tnc_settings[which].arq_bandwidth);
             }
+            else if ((v = ini_get_value("arq-negotiate-bw", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].arq_negotiate_bw, sizeof(g_tnc_settings[which].arq_negotiate_bw), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].arq_negotiate_bw, sizeof(g_tnc_settings[which].arq_negotiate_bw), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-negotiate-bw", g_tnc_settings[which].arq_negotiate_bw);
+            }
             else if ((v = ini_get_value("tnc-init-cmd", p))) {
                 if (g_tnc_settings[which].tnc_init_cmds_cnt < TNC_INIT_CMDS_MAX_CNT)
                     snprintf(g_tnc_settings[which].tnc_init_cmds[g_tnc_settings[which].tnc_init_cmds_cnt],
@@ -707,7 +717,7 @@ void ini_read_arim_set(FILE *inifp)
     DIR *dirp;
     char *p, *v, linebuf[MAX_INI_LINE_SIZE];
     size_t len;
-    int test;
+    int test, numch;
 
     /* if program invoked with --print-conf switch, print section header */
     if (g_print_config)
@@ -775,7 +785,7 @@ void ini_read_arim_set(FILE *inifp)
                 if (v[0] == '/')
                     snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s", v);
                 else
-                    snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s/%s", g_arim_path, v);
+                    numch = snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s/%s", g_arim_path, v);
                 /* trim trailing '/' if present */
                 len = strlen(g_arim_settings.files_dir);
                 if (g_arim_settings.files_dir[len - 1] == '/')
@@ -788,25 +798,28 @@ void ini_read_arim_set(FILE *inifp)
                 } else {
                     closedir(dirp);
                 }
-
 #ifndef PORTABLE_BIN
-                snprintf(file_path, sizeof(file_path), ARIM_FILESDIR "/" DEFAULT_FILE_FNAME);
-                srcfp = fopen(file_path, "r");
-                if (srcfp == NULL)
-                    return;
+                /* populate this shared files dir with the 'test.txt' file if not found */
                 snprintf(file_path, sizeof(file_path), "%s/%s", g_arim_settings.files_dir, DEFAULT_FILE_FNAME);
-                destfp = fopen(file_path, "w");
-                if (inifp == NULL) {
-                    fclose(srcfp);
-                    return;
+                if (access(file_path, F_OK) != 0) {
+                    snprintf(file_path, sizeof(file_path), ARIM_FILESDIR "/" DEFAULT_FILE_FNAME);
+                    srcfp = fopen(file_path, "r");
+                    if (srcfp != NULL) {
+                        snprintf(file_path, sizeof(file_path), "%s/%s", g_arim_settings.files_dir, DEFAULT_FILE_FNAME);
+                        destfp = fopen(file_path, "w");
+                        if (destfp != NULL) {
+                            p = fgets(linebuf, sizeof(linebuf), srcfp);
+                            while (p) {
+                                fprintf(destfp, "%s", linebuf);
+                                p = fgets(linebuf, sizeof(linebuf), srcfp);
+                            }
+                            fclose(destfp);
+                            fclose(srcfp);
+                        } else {
+                            fclose(srcfp);
+                        }
+                    }
                 }
-                p = fgets(linebuf, sizeof(linebuf), srcfp);
-                while (p) {
-                    fprintf(destfp, "%s", linebuf);
-                    p = fgets(linebuf, sizeof(linebuf), srcfp);
-                }
-                fclose(destfp);
-                fclose(srcfp);
 #endif
                 /* if program invoked with --print-conf switch, print key/value pair */
                 if (g_print_config)
@@ -879,12 +892,14 @@ void ini_read_arim_set(FILE *inifp)
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);
     }
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 int ini_get_arim_set(const char *fn)
 {
     FILE *inifp;
     char *p, linebuf[MAX_INI_LINE_SIZE];
+    int numch;
 
     /* populate with default values */
     memset(&g_arim_settings, 0, sizeof(ARIM_SET));
@@ -894,7 +909,7 @@ int ini_get_arim_set(const char *fn)
     snprintf(g_arim_settings.pilot_ping_thr, sizeof(g_arim_settings.pilot_ping_thr), DEFAULT_ARIM_PILOT_PING_THR);
     snprintf(g_arim_settings.ack_timeout, sizeof(g_arim_settings.ack_timeout), DEFAULT_ARIM_ACK_TIMEOUT);
     snprintf(g_arim_settings.frame_timeout, sizeof(g_arim_settings.frame_timeout), DEFAULT_ARIM_FRAME_TIMEOUT);
-    snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s/%s", g_arim_path, DEFAULT_ARIM_FILES_DIR);
+    numch = snprintf(g_arim_settings.files_dir, sizeof(g_arim_settings.files_dir), "%s/%s", g_arim_path, DEFAULT_ARIM_FILES_DIR);
     snprintf(g_arim_settings.max_file_size, sizeof(g_arim_settings.max_file_size), DEFAULT_ARIM_FILES_MAX_SIZE);
     snprintf(g_arim_settings.max_msg_days, sizeof(g_arim_settings.max_msg_days), DEFAULT_ARIM_MSG_MAX_DAYS);
     snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), DEFAULT_ARIM_FECMODE_DOWN);
@@ -915,6 +930,7 @@ int ini_get_arim_set(const char *fn)
         p = fgets(linebuf, sizeof(linebuf), inifp);
     }
     fclose(inifp);
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 
@@ -1026,7 +1042,7 @@ int ini_get_ui_set(const char *fn)
 
 int ini_read_settings()
 {
-    int result;
+    int result, numch;
 #ifndef PORTABLE_BIN
     FILE *inifp, *srcfp;
     char *p, *home_path, linebuf[MAX_INI_LINE_SIZE];
@@ -1043,12 +1059,12 @@ int ini_read_settings()
         if (errno == ENOENT && mkdir(g_arim_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
             return 0;
         /* make symlinks to NEWS and Help PDF files */
-        snprintf(linebuf, sizeof(linebuf), "%s/doc", g_arim_path);
+        numch = snprintf(linebuf, sizeof(linebuf), "%s/doc", g_arim_path);
         if (mkdir(linebuf, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
             return 0;
-        snprintf(linebuf, sizeof(linebuf), "%s/doc/NEWS", g_arim_path);
+        numch = snprintf(linebuf, sizeof(linebuf), "%s/doc/NEWS", g_arim_path);
         symlink(ARIM_DOCDIR "/NEWS", linebuf);
-        snprintf(linebuf, sizeof(linebuf), "%s/doc/arim-help.pdf", g_arim_path);
+        numch = snprintf(linebuf, sizeof(linebuf), "%s/doc/arim-help.pdf", g_arim_path);
         symlink(ARIM_DOCDIR "/arim-help.pdf", linebuf);
     } else {
         closedir(dirp);
@@ -1057,7 +1073,7 @@ int ini_read_settings()
     snprintf(g_arim_path, sizeof(g_arim_path), ".");
 #endif
     if (!g_config_clo)
-        snprintf(g_config_fname, sizeof(g_config_fname), "%s/%s", g_arim_path, DEFAULT_INI_FNAME);
+        numch = snprintf(g_config_fname, sizeof(g_config_fname), "%s/%s", g_arim_path, DEFAULT_INI_FNAME);
     if (access(g_config_fname, F_OK) != 0) {
 #ifndef PORTABLE_BIN
         if (g_config_clo)  /* if default config file overridden on command line, fail */
@@ -1103,6 +1119,7 @@ int ini_read_settings()
         if (printconf_fp)
             fclose(printconf_fp);
     }
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return result;
 }
 

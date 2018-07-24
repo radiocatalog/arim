@@ -280,7 +280,7 @@ void ui_print_ptable()
                 snprintf(out_time, sizeof(out_time), "--:--:--");
             }
             snprintf(ping_data, max_cols,
-                "[%2d]%.11s [%s]>>S/N:%3sdB,Q:%3s  [%s]<<S/N:%3sdB,Q:%3s",
+                "[%2d]%.11s [%s] >> S/N:%3sdB,Q:%3s  [%s] << S/N:%3sdB,Q:%3s",
                     i + 1, ptable_list[i].call, in_time, ptable_list[i].in_sn,
                         ptable_list[i].in_qual, out_time, ptable_list[i].out_sn,
                                 ptable_list[i].out_qual);

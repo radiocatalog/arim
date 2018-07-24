@@ -129,9 +129,9 @@ am_arim_OBJECTS = src/main.$(OBJEXT) src/arim.$(OBJEXT) \
 	src/arim_proto_arq_msg.$(OBJEXT) \
 	src/arim_proto_arq_auth.$(OBJEXT) src/arim_query.$(OBJEXT) \
 	src/bufq.$(OBJEXT) src/cmdproc.$(OBJEXT) \
-	src/cmdthread.$(OBJEXT) src/datathread.$(OBJEXT) \
-	src/ini.$(OBJEXT) src/log.$(OBJEXT) src/mbox.$(OBJEXT) \
-	src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
+	src/tnc_attach.$(OBJEXT) src/cmdthread.$(OBJEXT) \
+	src/datathread.$(OBJEXT) src/ini.$(OBJEXT) src/log.$(OBJEXT) \
+	src/mbox.$(OBJEXT) src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
 	src/ui_fec_menu.$(OBJEXT) src/ui_files.$(OBJEXT) \
 	src/ui_recents.$(OBJEXT) src/ui_ping_hist.$(OBJEXT) \
 	src/ui_conn_hist.$(OBJEXT) src/ui_heard_list.$(OBJEXT) \
@@ -397,6 +397,7 @@ arim_SOURCES = \
     src/arim_query.c src/arim_query.h \
     src/bufq.c src/bufq.h \
     src/cmdproc.c src/cmdproc.h \
+    src/tnc_attach.c src/tnc_attach.h \
     src/cmdthread.c src/cmdthread.h \
     src/datathread.c src/datathread.h \
     src/ini.c src/ini.h \
@@ -607,6 +608,8 @@ src/arim_query.$(OBJEXT): src/$(am__dirstamp) \
 src/bufq.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/cmdproc.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/tnc_attach.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/cmdthread.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/datathread.$(OBJEXT): src/$(am__dirstamp) \
@@ -688,6 +691,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/mbox.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/tnc_attach.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_cmd_prompt_win.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_conn_hist.Po@am__quote@

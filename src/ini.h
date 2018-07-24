@@ -24,6 +24,8 @@
 #ifndef _INI_H_INCLUDED_
 #define _INI_H_INCLUDED_
 
+#include "main.h"
+
 #define TNC_IPADDR_SIZE          256
 #define TNC_PORT_SIZE            8
 #define TNC_MYCALL_SIZE          12
@@ -51,6 +53,7 @@
 #define TNC_ARQ_TO_SIZE          8
 #define TNC_ARQ_SENDCR_SIZE      8
 #define TNC_RESET_BT_TX_SIZE     8
+#define TNC_NEGOTIATE_BW_SIZE    8
 #define TNC_INIT_CMDS_MAX_CNT    32
 #define TNC_INIT_CMD_SIZE        128
 
@@ -78,6 +81,7 @@
 #define DEFAULT_TNC_ARQ_TO       "120"
 #define DEFAULT_TNC_ARQ_SENDCR   "TRUE"
 #define DEFAULT_TNC_RESET_BT_TX  "FALSE"
+#define DEFAULT_TNC_NEGOTIATE_BW "TRUE"
 
 #define MAX_TNC_GRIDSQ_STRLEN    8
 #define MAX_TNC_NETCALL_STRLEN   10
@@ -118,13 +122,14 @@ typedef struct tnc_set {
     char arq_target_call[TNC_MYCALL_SIZE];
     char arq_remote_call[TNC_MYCALL_SIZE];
     char arq_remote_gridsq[TNC_GRIDSQ_SIZE];
+    char arq_bandwidth[TNC_ARQ_BW_SIZE];
+    char arq_bandwidth_hz[TNC_ARQ_BW_SIZE];
+    char arq_negotiate_bw[TNC_NEGOTIATE_BW_SIZE];
+    char arq_timeout[TNC_ARQ_TO_SIZE];
+    char arq_sendcr[TNC_ARQ_SENDCR_SIZE];
     char listen[TNC_LISTEN_SIZE];
     char tmp_listen[TNC_LISTEN_SIZE];
     char en_pingack[TNC_EN_PINGACK_SIZE];
-    char arq_bandwidth[TNC_ARQ_BW_SIZE];
-    char arq_bandwidth_hz[TNC_ARQ_BW_SIZE];
-    char arq_timeout[TNC_ARQ_TO_SIZE];
-    char arq_sendcr[TNC_ARQ_SENDCR_SIZE];
     char reset_btime_tx[TNC_RESET_BT_TX_SIZE];
     char tnc_init_cmds[TNC_INIT_CMDS_MAX_CNT][TNC_INIT_CMD_SIZE];
     int tnc_init_cmds_cnt;

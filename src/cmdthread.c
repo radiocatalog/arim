@@ -37,6 +37,7 @@
 #include "arim_beacon.h"
 #include "arim_ping.h"
 #include "arim_proto.h"
+#include "tnc_attach.h"
 #include "bufq.h"
 #include "ini.h"
 #include "log.h"
@@ -97,6 +98,7 @@ void cmdthread_next_cmd_out(int sock)
 
 size_t cmdthread_proc_response(char *response, size_t size, int sock)
 {
+    static int negbw_once = 0;
     static char buffer[MAX_CMD_SIZE*3];
     char inbuffer[MAX_CMD_SIZE];
     static size_t cnt = 0;
@@ -316,6 +318,16 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 snprintf(g_tnc_settings[g_cur_tnc].version,
                     sizeof(g_tnc_settings[g_cur_tnc].version), "%s", val);
                 pthread_mutex_unlock(&mutex_tnc_set);
+                tnc_get_version(val);
+                /* NEGOTIATEBW command supported only by the ARDOP_2Win TNC */
+                if (!negbw_once && g_tnc_version.vendor == 'W' &&
+                                      g_tnc_version.major >= 2 &&
+                                      g_tnc_version.minor >= 0 &&
+                                      g_tnc_version.revision >= 4) {
+                    negbw_once = 1;
+                    snprintf(buffer, sizeof(buffer), "NEGOTIATEBW %s", g_tnc_settings[g_cur_tnc].arq_negotiate_bw);
+                    cmdthread_queue_cmd_out(buffer);
+                }
             }
             cnt -= (end - buffer + 1);
             memmove(buffer, end + 1, cnt);

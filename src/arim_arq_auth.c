@@ -134,20 +134,23 @@ int arim_arq_auth_on_send_a1(const char *call, const char *method, const char *p
 int arim_arq_auth_on_send_a2()
 {
     char linebuf[MAX_LOG_LINE_SIZE], resp[AUTH_BUFFER_SIZE];
+    int numch;
 
     /* generate HA2 from method and path info */
-    snprintf(linebuf, sizeof(linebuf), "%s:%s", fmethod, fpath);
+    numch = snprintf(linebuf, sizeof(linebuf), "%s:%s", fmethod, fpath);
     auth_b64_digest(AUTH_HA2_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), ha2, sizeof(ha2));
-    snprintf(linebuf, sizeof(linebuf),
-                "AUTH: Caching HA2 string (%s:%s)", fmethod, fpath);
+    numch = snprintf(linebuf, sizeof(linebuf),
+                     "AUTH: Caching HA2 string (%s:%s)", fmethod, fpath);
     ui_queue_debug_log(linebuf);
     /* compute response */
-    snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
+    numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
     auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), resp, sizeof(resp));
-    snprintf(linebuf, sizeof(linebuf),
-                "AUTH: Sending response string H(%s:%s:%s)", ha1, snonce, ha2);
+    numch = snprintf(linebuf, sizeof(linebuf),
+                     "AUTH: Sending response string H(%s:%s:%s)", ha1, snonce, ha2);
+    if (numch >= sizeof(linebuf))
+        ui_truncate_line(linebuf, sizeof(linebuf));
     ui_queue_debug_log(linebuf);
     /* compute and cache client nonce */
     auth_b64_nonce(cnonce, sizeof(cnonce));
@@ -169,13 +172,16 @@ int arim_arq_auth_on_send_a2()
 int arim_arq_auth_on_send_a3()
 {
     char linebuf[MAX_LOG_LINE_SIZE], resp[AUTH_BUFFER_SIZE];
+    int numch;
 
     /* compute response */
-    snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
+    numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
     auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), resp, sizeof(resp));
-    snprintf(linebuf, sizeof(linebuf),
-                "AUTH: Sending response string H(%s:%s:%s)", ha1, cnonce, ha2);
+    numch = snprintf(linebuf, sizeof(linebuf),
+                     "AUTH: Sending response string H(%s:%s:%s)", ha1, cnonce, ha2);
+    if (numch >= sizeof(linebuf))
+        ui_truncate_line(linebuf, sizeof(linebuf));
     ui_queue_debug_log(linebuf);
     /* send the response */
     snprintf(linebuf, sizeof(linebuf), "/A3 %s", resp);
@@ -267,6 +273,7 @@ int arim_arq_auth_on_a2(char *cmd, size_t size, char *eol)
 {
     char *p_a1_resp, *p_nonce, *s, *e;
     char linebuf[MAX_LOG_LINE_SIZE], calc_resp[AUTH_BUFFER_SIZE];
+    int numch;
 
     ui_queue_debug_log("ARQ: processing /A2 command");
 
@@ -297,11 +304,13 @@ int arim_arq_auth_on_a2(char *cmd, size_t size, char *eol)
         if (strlen(p_nonce) == AUTH_NONCE_B64_SIZE &&
             strlen(p_a1_resp) == AUTH_RESP_B64_SIZE) {
             /* check response */
-            snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
+            numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, snonce, ha2);
             auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                                strlen(linebuf), calc_resp, sizeof(calc_resp));
-            snprintf(linebuf, sizeof(linebuf),
-                        "AUTH: HA1, snonce, HA2 are %s, %s, %s", ha1, snonce, ha2);
+            numch = snprintf(linebuf, sizeof(linebuf),
+                             "AUTH: HA1, snonce, HA2 are %s, %s, %s", ha1, snonce, ha2);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf),
                         "AUTH: Calc response, actual response are %s, %s",
@@ -338,6 +347,7 @@ int arim_arq_auth_on_a2(char *cmd, size_t size, char *eol)
         arim_on_event(EV_ARQ_AUTH_ERROR, 0);
         return 0;
     }
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 
@@ -345,10 +355,11 @@ int arim_arq_auth_on_a3(char *cmd, size_t size, char *eol)
 {
     char *p_a2_resp, *s, *e;
     char linebuf[MAX_LOG_LINE_SIZE], calc_resp[AUTH_BUFFER_SIZE];
+    int numch;
 
     ui_queue_debug_log("ARQ: processing /A3 command");
 
-    /* inbound file transfer, get parameters */
+    /* inbound auth response, get response token */
     p_a2_resp = NULL;
     s = cmd + 4;
     while (*s && *s == ' ')
@@ -363,11 +374,13 @@ int arim_arq_auth_on_a3(char *cmd, size_t size, char *eol)
         }
         if (strlen(p_a2_resp) == AUTH_RESP_B64_SIZE) {
             /* check response */
-            snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
+            numch = snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", ha1, cnonce, ha2);
             auth_b64_digest(AUTH_RESP_DIG_SIZE, (const unsigned char *)linebuf,
                                strlen(linebuf), calc_resp, sizeof(calc_resp));
-            snprintf(linebuf, sizeof(linebuf),
+            numch = snprintf(linebuf, sizeof(linebuf),
                          "AUTH: HA1, cnonce, HA2 are %s, %s, %s", ha1, cnonce, ha2);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
             ui_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf),
                          "AUTH: Calc response, actual response are %s, %s",

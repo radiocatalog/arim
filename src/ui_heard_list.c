@@ -105,12 +105,13 @@ void ui_get_heard_list(char *listbuf, size_t listbufsize)
 {
     char linebuf[MAX_HEARD_SIZE];
     size_t i, len, cnt = 0;
+    int numch;
 
     snprintf(listbuf, listbufsize, "Calls heard (%s):\n",
                 last_time_heard == LT_HEARD_ELAPSED ? "ET" : "LT");
     cnt += strlen(listbuf);
     for (i = 0; i < heard_list_cnt; i++) {
-        snprintf(linebuf, sizeof(linebuf), "  %s\n", &(heard_list[i].htext[1]));
+        numch = snprintf(linebuf, sizeof(linebuf), "  %s\n", &(heard_list[i].htext[1]));
         len = strlen(linebuf);
         if ((cnt + len) < listbufsize) {
             strncat(listbuf, linebuf, listbufsize - cnt - 1);
@@ -126,6 +127,7 @@ void ui_get_heard_list(char *listbuf, size_t listbufsize)
         cnt += len;
     }
     listbuf[cnt] = '\0';
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 void ui_update_heard_list()
@@ -133,7 +135,7 @@ void ui_update_heard_list()
     static time_t tprev;
     time_t tcur, telapsed;
     struct tm *heard_time;
-    int i, days, hours, minutes, reformat = 0;
+    int i, days, hours, minutes, numch, reformat = 0;
     char heard[MAX_HEARD_SIZE];
 
     if (last_time_heard != prev_last_time_heard)
@@ -152,8 +154,8 @@ void ui_update_heard_list()
                 telapsed = telapsed % (60*60);
                 minutes = telapsed / 60;
                 snprintf(heard, sizeof(heard), "%.16s", heard_list[i].htext);
-                snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
-                            "%s %02d:%02d:%02d", heard, days, hours, minutes);
+                numch = snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
+                                 "%s %02d:%02d:%02d", heard, days, hours, minutes);
             }
             if (reformat && show_titles)
                 ui_print_heard_list_title();
@@ -167,14 +169,15 @@ void ui_update_heard_list()
                 heard_time = localtime(&heard_list[i].htime);
             pthread_mutex_unlock(&mutex_time);
             snprintf(heard, sizeof(heard), "%.16s", heard_list[i].htext);
-            snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
-                        "%s %02d:%02d:%02d", heard, heard_time->tm_hour,
-                            heard_time->tm_min, heard_time->tm_sec);
+            numch = snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
+                             "%s %02d:%02d:%02d", heard, heard_time->tm_hour,
+                                 heard_time->tm_min, heard_time->tm_sec);
         }
         if (show_titles)
             ui_print_heard_list_title();
     }
     prev_last_time_heard = last_time_heard;
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 void ui_refresh_heard_list()
@@ -248,7 +251,7 @@ void ui_print_heard_list()
         snprintf(heard_list[0].htext, sizeof(heard_list[0].htext), "%s", p);
         ++heard_list_cnt;
         for (i = 1; i < heard_list_cnt; i++) {
-            if (!strncasecmp(&(heard_list[0].htext[3]), &(heard_list[i].htext[3]), 10)) {
+            if (!strncasecmp(&(heard_list[0].htext[5]), &(heard_list[i].htext[5]), 10)) {
                 memmove(&heard_list[i], &heard_list[i + 1], (MAX_HEARD_LIST_LEN - i) * sizeof(HL_ENTRY));
                 --heard_list_cnt;
                 break;

@@ -151,7 +151,7 @@ WINDOW *ui_set_active_win(WINDOW *win)
 
 void ui_print_status_ind()
 {
-    int start, state;
+    int start, state, numch;
     char idle_busy, tx_rx, ind[MAX_STATUS_IND_SIZE], fecmode[TNC_FECMODE_SIZE];
     char tnc_state[TNC_STATE_SIZE], remote_call[TNC_MYCALL_SIZE], bw_hz[TNC_ARQ_BW_SIZE];
 
@@ -187,9 +187,9 @@ void ui_print_status_ind()
             arim_copy_arq_bw_hz(bw_hz, sizeof(bw_hz));
             if (!strncasecmp(tnc_state, "IRStoISS", 8))
                 tnc_state[3] = '\0';
-             snprintf(ind, sizeof(ind),  " %c ARQ:%s%s %s S:%-4.4s",
-                 (state == ST_ARQ_CONNECTED ? ' ' : '!'), remote_call,
-                     (arim_arq_auth_get_status() ? "+" : ""), bw_hz, tnc_state);
+            numch = snprintf(ind, sizeof(ind),  " %c ARQ:%s%s %s S:%-4.4s",
+                             (state == ST_ARQ_CONNECTED ? ' ' : '!'), remote_call,
+                             (arim_arq_auth_get_status() ? "+" : ""), bw_hz, tnc_state);
             break;
         default:
             idle_busy = (state == ST_IDLE) ? 'I' : 'B';
@@ -216,11 +216,11 @@ void ui_print_status_ind()
             }
             arim_copy_fecmode(fecmode, sizeof(fecmode));
             if (!g_btime)
-                snprintf(ind, sizeof(ind), " %c:%c %s:%d B:OFF",
-                    idle_busy, tx_rx, fecmode, arim_get_fec_repeats());
+                numch = snprintf(ind, sizeof(ind), " %c:%c %s:%d B:OFF",
+                                 idle_busy, tx_rx, fecmode, arim_get_fec_repeats());
             else
-                snprintf(ind, sizeof(ind), " %c:%c %s:%d B:%03d",
-                    idle_busy, tx_rx, fecmode, arim_get_fec_repeats(), g_btime);
+                numch = snprintf(ind, sizeof(ind), " %c:%c %s:%d B:%03d",
+                                 idle_busy, tx_rx, fecmode, arim_get_fec_repeats(), g_btime);
             break;
         }
         start = COLS - strlen(ind) - 1;
@@ -239,6 +239,7 @@ void ui_print_status_ind()
         else
             wattroff(main_win, A_BOLD);
     }
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 void ui_check_channel_busy()

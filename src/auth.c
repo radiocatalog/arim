@@ -160,7 +160,7 @@ int auth_init()
 int auth_store_passwd(const char *remote_call, const char *local_call, const char *password)
 {
     FILE *arim_digest_fp, *tempfp;
-    int fd;
+    int fd, numch;
     char *p, linebuf[MAX_PASSWD_LINE_SIZE], entry[MAX_PASSWD_LINE_SIZE];
     char ha1[AUTH_BUFFER_SIZE], tempfn[MAX_PATH_SIZE];
     char lcall[TNC_MYCALL_SIZE], rcall[TNC_MYCALL_SIZE];
@@ -197,7 +197,7 @@ int auth_store_passwd(const char *remote_call, const char *local_call, const cha
     snprintf(linebuf, sizeof(linebuf), "%s:%s:%s", rcall, lcall, password);
     auth_b64_digest(AUTH_HA1_DIG_SIZE, (const unsigned char *)linebuf,
                        strlen(linebuf), ha1, sizeof(ha1));
-    snprintf(entry, sizeof(entry), "%s:%s:%s\n", rcall, lcall, ha1);
+    numch = snprintf(entry, sizeof(entry), "%s:%s:%s\n", rcall, lcall, ha1);
     len = strlen(rcall) + strlen(lcall) + 2;
     /* find matching entry in file */
     p = fgets(linebuf, sizeof(linebuf), arim_digest_fp);
@@ -224,6 +224,7 @@ int auth_store_passwd(const char *remote_call, const char *local_call, const cha
     unlink(g_arim_digest_fname);
     fclose(tempfp);
     rename(tempfn, g_arim_digest_fname);
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 

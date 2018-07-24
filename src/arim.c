@@ -148,7 +148,7 @@ int arim_test_frame(const char *data, size_t size)
 
 int arim_on_data(char *data, size_t size)
 {
-    int quit = 0, check_valid;
+    int quit = 0, check_valid, numch;
     size_t remaining;
     char inbuffer[MIN_MSG_BUF_SIZE], numbuf[MAX_CHECK_SIZE];
     char *s, *e;
@@ -525,13 +525,17 @@ sleep(1);
 
     if (state == ST_MSG_END) {
         check_valid = arim_recv_msg(fm_call, to_call, check, buffer + hdr_size);
-        snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'M' : '!', buffer);
+        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'M' : '!', buffer);
+        if (numch >= sizeof(inbuffer))
+            ui_truncate_line(inbuffer, sizeof(inbuffer));
         arim_queue_traffic_log(inbuffer);
         arim_queue_data_in(inbuffer);
         arim_queue_debug_log("Data thread: received ARIM [M] frame from TNC");
         arim_reset();
     } else if (state == ST_BEACON_END) {
-        snprintf(inbuffer, sizeof(inbuffer), ">> [B] %s", buffer);
+        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [B] %s", buffer);
+        if (numch >= sizeof(inbuffer))
+            ui_truncate_line(inbuffer, sizeof(inbuffer));
         arim_queue_data_in(inbuffer);
         arim_queue_traffic_log(inbuffer);
         arim_queue_debug_log("Data thread: received ARIM [B] frame from TNC");
@@ -539,14 +543,18 @@ sleep(1);
         arim_reset();
     } else if (state == ST_QUERY_END) {
         check_valid = arim_recv_query(fm_call, to_call, check, buffer + hdr_size);
-        snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'Q' : '!', buffer);
+        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'Q' : '!', buffer);
+        if (numch >= sizeof(inbuffer))
+            ui_truncate_line(inbuffer, sizeof(inbuffer));
         arim_queue_data_in(inbuffer);
         arim_queue_traffic_log(inbuffer);
         arim_queue_debug_log("Data thread: received ARIM [Q] frame from TNC");
         arim_reset();
     } else if (state == ST_RESPONSE_END) {
         check_valid = arim_recv_response(fm_call, to_call, check, buffer + hdr_size);
-        snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'R' : '!', buffer);
+        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'R' : '!', buffer);
+        if (numch >= sizeof(inbuffer))
+            ui_truncate_line(inbuffer, sizeof(inbuffer));
         arim_queue_data_in(inbuffer);
         arim_queue_traffic_log(inbuffer);
         arim_queue_debug_log("Data thread: received ARIM [R] frame from TNC");
@@ -554,7 +562,9 @@ sleep(1);
     } else if (state == ST_ACK_END) {
         msg_size = 7 + strlen(fm_call) + strlen(to_call);
         buffer[msg_size] = 0;
-        snprintf(inbuffer, sizeof(inbuffer), ">> [A] %s", buffer);
+        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [A] %s", buffer);
+        if (numch >= sizeof(inbuffer))
+            ui_truncate_line(inbuffer, sizeof(inbuffer));
         arim_queue_data_in(inbuffer);
         arim_queue_traffic_log(inbuffer);
         arim_queue_debug_log("Data thread: received ARIM [A] frame from TNC");
@@ -563,7 +573,9 @@ sleep(1);
     } else if (state == ST_NAK_END) {
         msg_size = 7 + strlen(fm_call) + strlen(to_call);
         buffer[msg_size] = 0;
-        snprintf(inbuffer, sizeof(inbuffer), ">> [N] %s", buffer);
+        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [N] %s", buffer);
+        if (numch >= sizeof(inbuffer))
+            ui_truncate_line(inbuffer, sizeof(inbuffer));
         arim_queue_data_in(inbuffer);
         arim_queue_traffic_log(inbuffer);
         arim_queue_debug_log("Data thread: received ARIM [N] frame from TNC");
@@ -571,7 +583,9 @@ sleep(1);
         arim_reset();
     } else if (state == ST_ERROR) {
         buffer[remaining] = '\0';
-        snprintf(inbuffer, sizeof(inbuffer), ">> [!] %s", buffer);
+        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [!] %s", buffer);
+        if (numch >= sizeof(inbuffer))
+            ui_truncate_line(inbuffer, sizeof(inbuffer));
         arim_queue_data_in(inbuffer);
         arim_queue_traffic_log(inbuffer);
         arim_queue_debug_log("Data thread: received ARIM [!] frame from TNC");

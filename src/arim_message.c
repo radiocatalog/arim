@@ -110,26 +110,26 @@ int arim_store_msg_prev_sent()
 int arim_send_msg_pp()
 {
     char mycall[TNC_MYCALL_SIZE], fecmode[TNC_FECMODE_SIZE];
-    unsigned int check;
+    unsigned int check, numch;
     size_t len = 0;
 
     arim_copy_mycall(mycall, sizeof(mycall));
     check = ccitt_crc16((unsigned char *)prev_msg, strlen(prev_msg));
-    snprintf(msg_buffer, sizeof(msg_buffer), "|M%02d|%s|%s|%04zX|%04X|%s",
-                    ARIM_PROTO_VERSION,
-                    mycall,
-                    prev_to_call,
-                    len,
-                    check,
-                    prev_msg);
+    numch = snprintf(msg_buffer, sizeof(msg_buffer), "|M%02d|%s|%s|%04zX|%04X|%s",
+                     ARIM_PROTO_VERSION,
+                     mycall,
+                     prev_to_call,
+                     len,
+                     check,
+                     prev_msg);
     len = strlen(msg_buffer);
-    snprintf(msg_buffer, sizeof(msg_buffer), "|M%02d|%s|%s|%04zX|%04X|%s",
-                    ARIM_PROTO_VERSION,
-                    mycall,
-                    prev_to_call,
-                    len,
-                    check,
-                    prev_msg);
+    numch = snprintf(msg_buffer, sizeof(msg_buffer), "|M%02d|%s|%s|%04zX|%04X|%s",
+                     ARIM_PROTO_VERSION,
+                     mycall,
+                     prev_to_call,
+                     len,
+                     check,
+                     prev_msg);
     ui_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
@@ -150,6 +150,7 @@ int arim_send_msg_pp()
     ack_timeout = atoi(g_arim_settings.ack_timeout);
     rcv_nak_cnt = 0;
     arim_on_event(EV_SEND_MSG, 0);
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 

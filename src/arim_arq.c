@@ -98,7 +98,7 @@ int arim_arq_send_conn_req(int repeats, const char *to_call, const char *arqbw)
     }
     /* print trace to Traffic Monitor view */
     arim_copy_mycall(mycall, sizeof(mycall));
-    snprintf(buffer, sizeof(buffer), "<< [@] %s>%s (Connecting... ARQBW=%s)", mycall, tcall, arqbw);
+    snprintf(buffer, sizeof(buffer), "<< [@] %s>%s (Connecting... ARQBW=%s)", mycall, tcall, arq_session_bw);
     ui_queue_traffic_log(buffer);
     if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
         snprintf(buffer, sizeof(buffer), "[%s] << [@] %s>%s (Connecting... ARQBW=%s)",
@@ -110,6 +110,7 @@ int arim_arq_send_conn_req(int repeats, const char *to_call, const char *arqbw)
     arim_on_event(EV_ARQ_CONNECT, 0);
     snprintf(buffer, sizeof(buffer), "ARQBW %s", arq_session_bw);
     ui_queue_cmd_out(buffer);
+    sleep(1); /* give TNC time to process arqbw change command */
     snprintf(buffer, sizeof(buffer), "ARQCALL %s %d", tcall, arq_rpts);
     ui_queue_cmd_out(buffer);
     return 1;
@@ -183,8 +184,8 @@ int arim_arq_on_target()
 int arim_arq_on_connected()
 {
     char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
-    char remote_call[TNC_MYCALL_SIZE], gridsq[TNC_GRIDSQ_SIZE];
-    char target_call[TNC_MYCALL_SIZE];
+    char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+    char arq_bw_hz[TNC_ARQ_BW_SIZE], gridsq[TNC_GRIDSQ_SIZE];
 
     /* we are connected to a remote station now so
        print to monitor view and traffic log */
@@ -209,8 +210,9 @@ int arim_arq_on_connected()
         arim_copy_gridsq(gridsq, sizeof(gridsq));
     else
         arim_copy_remote_gridsq(gridsq, sizeof(gridsq));
-    snprintf(buffer, sizeof(buffer), "C%c%-12s%-8s",
-             is_outbound ? 'O' : 'I', remote_call, gridsq);
+    arim_copy_arq_bw_hz(arq_bw_hz, sizeof(arq_bw_hz));
+    snprintf(buffer, sizeof(buffer), "C%c%-12s%-8s%s",
+             is_outbound ? 'O' : 'I', remote_call, gridsq, arq_bw_hz);
     ui_queue_ctable(buffer);
     /* close recents, ping or connection history view if open */
     show_recents = show_ptable = show_ctable = 0;
@@ -241,6 +243,7 @@ int arim_arq_on_disconnected()
 {
     char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
     char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+    char arq_bw_hz[TNC_ARQ_BW_SIZE], gridsq[TNC_GRIDSQ_SIZE];
 
     /* we are disconnected from the remote station now so
        print to monitor view and traffic log */
@@ -264,7 +267,10 @@ int arim_arq_on_disconnected()
         ui_queue_heard(buffer);
     }
     /* update connection history */
-    snprintf(buffer, sizeof(buffer), "D%c%-12s", is_outbound ? 'O' : 'I', remote_call);
+    arim_copy_gridsq(arq_bw_hz, sizeof(arq_bw_hz));
+    arim_copy_arq_bw_hz(arq_bw_hz, sizeof(arq_bw_hz));
+    snprintf(buffer, sizeof(buffer), "D%c%-12s%-8s%s",
+             is_outbound ? 'O' : 'I', remote_call, gridsq, arq_bw_hz);
     ui_queue_ctable(buffer);
     arim_arq_restore_arqbw(); /* restore default arq bw */
     is_outbound = 0; /* reset outbound connection flag */
@@ -277,6 +283,7 @@ int arim_arq_on_conn_timeout()
 {
     char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
     char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+    char arq_bw_hz[TNC_ARQ_BW_SIZE], gridsq[TNC_GRIDSQ_SIZE];
 
     /* connection to remote station has timed out,
        print to monitor view and traffic log */
@@ -295,7 +302,9 @@ int arim_arq_on_conn_timeout()
     }
     ui_queue_data_in(buffer);
     /* update connection history */
-    snprintf(buffer, sizeof(buffer), "D%c%-12s", is_outbound ? 'O' : 'I', remote_call);
+    arim_copy_arq_bw_hz(arq_bw_hz, sizeof(arq_bw_hz));
+    snprintf(buffer, sizeof(buffer), "D%c%-12s%-8s%s",
+             is_outbound ? 'O' : 'I', remote_call, gridsq, arq_bw_hz);
     ui_queue_ctable(buffer);
     arim_arq_restore_arqbw(); /* restore default arq bw */
     is_outbound = 0; /* reset outbound connection flag */
@@ -460,6 +469,7 @@ int arim_arq_on_conn_cancel()
 {
     char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
     char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+    char arq_bw_hz[TNC_ARQ_BW_SIZE], gridsq[TNC_GRIDSQ_SIZE];
 
     /* operator has canceled the connection by pressing ESC key,
        print to monitor view and traffic log */
@@ -478,7 +488,9 @@ int arim_arq_on_conn_cancel()
     }
     ui_queue_data_in(buffer);
     /* update connection history */
-    snprintf(buffer, sizeof(buffer), "D%c%-12s", is_outbound ? 'O' : 'I', remote_call);
+    arim_copy_arq_bw_hz(arq_bw_hz, sizeof(arq_bw_hz));
+    snprintf(buffer, sizeof(buffer), "D%c%-12s%-8s%s",
+             is_outbound ? 'O' : 'I', remote_call, gridsq, arq_bw_hz);
     ui_queue_ctable(buffer);
     arim_arq_restore_arqbw(); /* restore default arq bw */
     is_outbound = 0; /* reset outbound connection flag */
@@ -509,7 +521,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
     char *e, *eol, respbuf[MIN_MSG_BUF_SIZE], cmdbuf[MIN_MSG_BUF_SIZE];
     char sendcr[TNC_ARQ_SENDCR_SIZE], linebuf[MAX_LOG_LINE_SIZE];
     char timestamp[MAX_TIMESTAMP_SIZE];
-    int state, result, send_cr = 0;
+    int state, result, numch, send_cr = 0;
 
     state = arim_get_state();
     if (cmd && cmd[0] == '/') {
@@ -534,11 +546,15 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             eol = 0;
         }
         /* print command to traffic monitor */
-        snprintf(linebuf, sizeof(linebuf), ">> [@] %s", cmdbuf);
+        numch = snprintf(linebuf, sizeof(linebuf), ">> [@] %s", cmdbuf);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_traffic_log(linebuf);
         if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-            snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s",
-                util_timestamp(timestamp, sizeof(timestamp)), cmdbuf);
+            numch = snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s",
+                             util_timestamp(timestamp, sizeof(timestamp)), cmdbuf);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
         }
         ui_queue_data_in(linebuf);
         /* initialize response buffer for queries */
@@ -880,14 +896,15 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
                 ++e;
             }
             if (send_cr)
-                snprintf(respbuf, sizeof(respbuf), "%s\r\n", buffer);
+                numch = snprintf(respbuf, sizeof(respbuf), "%s\r\n", buffer);
             else
-                snprintf(respbuf, sizeof(respbuf), "%s\n", buffer);
+                numch = snprintf(respbuf, sizeof(respbuf), "%s\n", buffer);
             ui_queue_data_out(respbuf);
             cnt -= (e - buffer);
             memmove(buffer, e, cnt + 1);
         }
     }
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return cnt;
 }
 
@@ -897,6 +914,7 @@ size_t arim_arq_on_resp(const char *resp, size_t size)
     static size_t cnt = 0;
     char *e, linebuf[MIN_MSG_BUF_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
     size_t i, len;
+    int numch;
 
     if (resp) {
         /* append response to buffer */
@@ -924,11 +942,15 @@ size_t arim_arq_on_resp(const char *resp, size_t size)
             if (!isprint(buffer[i]))
                 buffer[i] = ' ';
         }
-        snprintf(linebuf, sizeof(linebuf), ">> [@] %s", buffer);
+        numch = snprintf(linebuf, sizeof(linebuf), ">> [@] %s", buffer);
+        if (numch >= sizeof(linebuf))
+            ui_truncate_line(linebuf, sizeof(linebuf));
         ui_queue_traffic_log(linebuf);
         if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-            snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s",
-                    util_timestamp(timestamp, sizeof(timestamp)), buffer);
+            numch = snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s",
+                             util_timestamp(timestamp, sizeof(timestamp)), buffer);
+            if (numch >= sizeof(linebuf))
+                ui_truncate_line(linebuf, sizeof(linebuf));
         }
         ui_queue_data_in(linebuf);
         cnt -= (e - buffer);
@@ -1001,19 +1023,25 @@ int arim_arq_on_data(char *data, size_t size)
 void arim_arq_run_cached_cmd()
 {
     char cmdbuffer[MAX_CMD_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    int numch;
 
     snprintf(cmdbuffer, sizeof(cmdbuffer), "%s", cached_cmd);
     cmdproc_cmd(cmdbuffer);
-    snprintf(linebuf, sizeof(linebuf), "ARQ: Running cached command '%s'", cached_cmd);
+    numch = snprintf(linebuf, sizeof(linebuf), "ARQ: Running cached command '%s'", cached_cmd);
+    if (numch >= sizeof(linebuf))
+        ui_truncate_line(linebuf, sizeof(linebuf));
     ui_queue_debug_log(linebuf);
 }
 
 void arim_arq_cache_cmd(const char *cmd)
 {
     char linebuf[MAX_LOG_LINE_SIZE];
+    int numch;
 
     snprintf(cached_cmd, sizeof(cached_cmd), "%s", cmd);
-    snprintf(linebuf, sizeof(linebuf), "ARQ: Caching command '%s'", cached_cmd);
+    numch = snprintf(linebuf, sizeof(linebuf), "ARQ: Caching command '%s'", cached_cmd);
+    if (numch >= sizeof(linebuf))
+        ui_truncate_line(linebuf, sizeof(linebuf));
     ui_queue_debug_log(linebuf);
 }
 

@@ -1,6 +1,33 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v2.1  23Jul2018
+---------------
+1. Adapt to changes in ARDOP 2 introduced in ARDOP_2Win version 2.0.4
+   including the ARQ bandwidth negotiation feature.
+2. Add new command 'arqnegbw'. Use this to change the NEGOTIATEBW
+   setting on the TNC from the ARIM command prompt. For example:
+      arqnegbw TRUE
+3. Add new parameter 'arq-negotiate-bw' to the [tnc] section of the
+   arim.ini configuration file:
+      arq-negotiate-bw = TRUE
+   The value must be TRUE or FALSE. Default: TRUE. ARIM detects the
+   TNC version and doesn't try to set this parameter on the ardop2 or
+   piardop2 TNCs from G8BPQ.
+4. Add ARQ bandwidth field to the Connection History view.
+5. Adjust to new gcc 8 string format truncation diagnostics. Change
+   'snprintf' destination buffer sizes where needed and explicitly
+   handle certain format truncation cases to satisfy the compiler and
+   prevent warnings.
+6. Copy 'test.txt' file from /usr/local/share/arim only when missing
+   from user's local shared files directory.
+7. Set LISTEN to FALSE when sending ARQ connection requests.
+8. Fix bug where ARQBW value in ARQ "Connecting... ARQBW=XXX" trace
+   was missing when no ARQBW was specified by 'conn' command.
+9. Fix bug causing occasional failure to prompt user to save message
+   to outbox when the message send operation is canceled with ESC.
+10. Update arim(5) man page, embedded Help and PDF Help doc.
+
 v2.0  13May2018
 ---------------
 1. Adapt ARIM to ARDOP TNC version 2.
