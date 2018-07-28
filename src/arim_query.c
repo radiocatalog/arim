@@ -31,6 +31,8 @@
 #include "ini.h"
 #include "mbox.h"
 #include "ui.h"
+#include "ui_heard_list.h"
+#include "ui_tnc_data_win.h"
 #include "util.h"
 #include "bufq.h"
 
@@ -80,26 +82,26 @@ int arim_send_query(const char *query, const char *to_call)
 int arim_send_query_pp()
 {
     char mycall[TNC_MYCALL_SIZE];
-    unsigned int check;
+    unsigned int check, numch;
     size_t len = 0;
 
     arim_copy_mycall(mycall, sizeof(mycall));
     check = ccitt_crc16((unsigned char *)prev_msg, strlen(prev_msg));
-    snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
-                    ARIM_PROTO_VERSION,
-                    mycall,
-                    prev_to_call,
-                    len,
-                    check,
-                    prev_msg);
+    numch = snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
+                     ARIM_PROTO_VERSION,
+                     mycall,
+                     prev_to_call,
+                     len,
+                     check,
+                     prev_msg);
     len = strlen(msg_buffer);
-    snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
-                    ARIM_PROTO_VERSION,
-                    mycall,
-                    prev_to_call,
-                    len,
-                    check,
-                    prev_msg);
+    numch = snprintf(msg_buffer, sizeof(msg_buffer), "|Q%02d|%s|%s|%04zX|%04X|%s",
+                     ARIM_PROTO_VERSION,
+                     mycall,
+                     prev_to_call,
+                     len,
+                     check,
+                     prev_msg);
     ui_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
@@ -108,6 +110,7 @@ int arim_send_query_pp()
     pthread_mutex_unlock(&mutex_tnc_set);
     ack_timeout = atoi(g_arim_settings.ack_timeout);
     arim_on_event(EV_SEND_QRY, 0);
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 
@@ -148,7 +151,7 @@ int arim_recv_query(const char *fm_call, const char *to_call,
 {
     char buffer[MAX_HEARD_SIZE], respbuf[MIN_MSG_BUF_SIZE];
     char mycall[TNC_MYCALL_SIZE];
-    int is_mycall, result = 1;
+    int is_mycall, numch, result = 1;
     size_t len = 0;
 
     /* is this message directed to mycall? */
@@ -160,21 +163,21 @@ int arim_recv_query(const char *fm_call, const char *to_call,
             arim_copy_mycall(mycall, sizeof(mycall));
             cmdproc_query(query, respbuf, sizeof(respbuf));
             check = ccitt_crc16((unsigned char *)respbuf, strlen(respbuf));
-            snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
-                            ARIM_PROTO_VERSION,
-                            mycall,
-                            fm_call,
-                            len,
-                            check,
-                            respbuf);
+            numch = snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
+                             ARIM_PROTO_VERSION,
+                             mycall,
+                             fm_call,
+                             len,
+                             check,
+                             respbuf);
             len = strlen(msg_buffer);
-            snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
-                            ARIM_PROTO_VERSION,
-                            mycall,
-                            fm_call,
-                            len,
-                            check,
-                            respbuf);
+            numch = snprintf(msg_buffer, sizeof(msg_buffer), "|R%02d|%s|%s|%04zX|%04X|%s",
+                             ARIM_PROTO_VERSION,
+                             mycall,
+                             fm_call,
+                             len,
+                             check,
+                             respbuf);
             arim_on_event(EV_RCV_QRY, 0);
             snprintf(buffer, sizeof(buffer), "3[Q] %-10s ", fm_call);
         } else {
@@ -184,6 +187,7 @@ int arim_recv_query(const char *fm_call, const char *to_call,
         snprintf(buffer, sizeof(buffer), "7[Q] %-10s ", fm_call);
     }
     ui_queue_heard(buffer);
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return result;
 }
 

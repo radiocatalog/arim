@@ -36,6 +36,7 @@ DATAQUEUE g_traffic_log_q;
 CMDQUEUE g_heard_q;
 CMDQUEUE g_recents_q;
 CMDQUEUE g_ptable_q;
+CMDQUEUE g_ctable_q;
 CMDQUEUE g_debug_log_q;
 FILEQUEUE g_file_out_q;
 MSGQUEUE g_msg_out_q;

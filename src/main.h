@@ -43,6 +43,8 @@
 #define MAX_RECENTS_LIST_LEN   32
 #define MAX_PTABLE_LIST_LEN    32
 #define MAX_PTABLE_ROW_SIZE    128
+#define MAX_CTABLE_LIST_LEN    64
+#define MAX_CTABLE_ROW_SIZE    128
 #define MAX_MBOX_HDR_SIZE      76
 #define MAX_MBOX_LIST_LEN      256
 #define MAX_CHECK_SIZE         8
@@ -60,11 +62,12 @@
 #define MAX_PING_SIZE          64
 #define MAX_METHOD_SIZE        32
 
-#define ALARM_INTERVAL_SEC      6
-#define ARDOP_PINGACK_TIMEOUT   5
-#define ARDOP_CONNREQ_TIMEOUT   90
-#define ARDOP_CONN_TIMEOUT      180
-#define ARDOP_CONN_SEND_TIMEOUT 120
+#define ALARM_INTERVAL_SEC         6
+#define ARDOP_PINGACK_TIMEOUT      5
+#define ARDOP_CONNREQ_TIMEOUT      90
+#define ARDOP_CONN_TIMEOUT         180
+#define ARDOP_CONN_SEND_TIMEOUT    120
+#define ARDOP_OUT_CONN_RPT_TIMEOUT 5
 
 #define MBOX_TYPE_IN           0
 #define MBOX_TYPE_OUT          1
@@ -103,11 +106,13 @@ extern pthread_mutex_t mutex_df_error_log;
 extern pthread_mutex_t mutex_traffic_log;
 extern pthread_mutex_t mutex_recents;
 extern pthread_mutex_t mutex_ptable;
+extern pthread_mutex_t mutex_ctable;
 extern pthread_mutex_t mutex_time;
 extern pthread_mutex_t mutex_tnc_set;
 extern pthread_mutex_t mutex_file_out;
 extern pthread_mutex_t mutex_msg_out;
 extern pthread_mutex_t mutex_tnc_busy;
+extern pthread_mutex_t mutex_num_bytes;
 
 #endif
 

@@ -35,6 +35,7 @@
 #include "arim_proto.h"
 #include "ui.h"
 #include "ui_files.h"
+#include "ui_tnc_data_win.h"
 #include "util.h"
 #include "ui_dialog.h"
 #include "log.h"
@@ -549,7 +550,7 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
     }
     max = atoi(g_arim_settings.max_file_size);
     pthread_mutex_lock(&mutex_df_error_log);
-    snprintf(cmd_line, sizeof(cmd_line), "%s 2>> %s", cmd, g_df_error_fn);
+    numch = snprintf(cmd_line, sizeof(cmd_line), "%s 2>> %s", cmd, g_df_error_fn);
     pthread_mutex_unlock(&mutex_df_error_log);
     fp = popen(cmd_line, "r");
     if (!fp) {
@@ -916,7 +917,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
 {
     FILE *fp;
     DIR *dirp;
-    char fpath[MAX_PATH_SIZE], dpath[MAX_PATH_SIZE], databuf[MIN_DATA_BUF_SIZE];
+    char fpath[MAX_PATH_SIZE*2], dpath[MAX_PATH_SIZE], databuf[MIN_DATA_BUF_SIZE];
     char timestamp[MAX_TIMESTAMP_SIZE], linebuf[MAX_LOG_LINE_SIZE];
     int numch;
     unsigned int check;

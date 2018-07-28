@@ -142,8 +142,10 @@ int ui_themes_validate_attr(const char *val)
         return A_BOLD;
     if (!strncasecmp(val, "DIM", 3))
         return A_DIM;
+#ifdef A_ITALIC
     if (!strncasecmp(val, "ITALIC", 6))
         return A_ITALIC;
+#endif
     if (!strncasecmp(val, "NORMAL", 6))
         return A_NORMAL;
     if (!strncasecmp(val, "REVERSE", 7))
@@ -235,11 +237,9 @@ int ui_themes_read_theme(FILE *themesfp, int which)
             }
             else if ((v = ui_themes_get_value("ui-status-indicator-color", p))) {
                 themes[which].ui_st_ind_color = ui_themes_validate_color(v);
-                //themes[which].ui_st_ind_color = COLOR_MAGENTA;
             }
             else if ((v = ui_themes_get_value("ui-status-indicator-attr", p))) {
                 themes[which].ui_st_ind_attr = ui_themes_validate_attr(v);
-                //themes[which].ui_st_ind_attr = A_BOLD;
             }
             else if ((v = ui_themes_get_value("ui-status-notify-color", p))) {
                 themes[which].ui_st_noti_color = ui_themes_validate_color(v);
@@ -249,15 +249,12 @@ int ui_themes_read_theme(FILE *themesfp, int which)
             }
             else if ((v = ui_themes_get_value("ui-dialog-color", p))) {
                 themes[which].ui_dlg_color = ui_themes_validate_color(v);
-                //themes[which].ui_dlg_color = COLOR_BLUE;
             }
             else if ((v = ui_themes_get_value("ui-dialog-attr", p))) {
                 themes[which].ui_dlg_attr = ui_themes_validate_attr(v);
-                //themes[which].ui_dlg_attr = A_BOLD;
             }
             else if ((v = ui_themes_get_value("ui-dialog-background-color", p))) {
                 themes[which].ui_dlg_bg_color = ui_themes_validate_color(v);
-                //themes[which].ui_dlg_bg_color = COLOR_YELLOW;
             }
             else if ((v = ui_themes_get_value("ui-clock-color", p))) {
                 themes[which].ui_clock_color = ui_themes_validate_color(v);

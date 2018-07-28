@@ -33,6 +33,7 @@
 #include "ini.h"
 #include "mbox.h"
 #include "ui.h"
+#include "ui_tnc_data_win.h"
 #include "util.h"
 #include "arim_proto_idle.h"
 #include "arim_proto_ping.h"
@@ -42,7 +43,7 @@
 #include "arim_proto_unproto.h"
 #include "arim_proto_frame.h"
 #include "arim_proto_arq_conn.h"
-#include "arim_proto_arq_file.h"
+#include "arim_proto_arq_files.h"
 #include "arim_proto_arq_msg.h"
 #include "arim_proto_arq_auth.h"
 
@@ -106,27 +107,28 @@ const char *states[] = {
     "ST_RCV_QRY_PING_ACK_WAIT",         /* 17 */
     "ST_ARQ_IN_CONNECT_WAIT",           /* 18 */
     "ST_ARQ_OUT_CONNECT_WAIT",          /* 19 */
-    "ST_RCV_ARQ_CONN_PING_ACK_WAIT",    /* 20 */
-    "ST_ARQ_CONNECTED",                 /* 21 */
-    "ST_ARQ_FILE_SEND_WAIT",            /* 22 */
-    "ST_ARQ_FILE_SEND_WAIT_OK",         /* 23 */
-    "ST_ARQ_FILE_SEND",                 /* 24 */
-    "ST_ARQ_FILE_RCV_WAIT_OK",          /* 25 */
-    "ST_ARQ_FILE_RCV_WAIT",             /* 26 */
-    "ST_ARQ_FILE_RCV",                  /* 27 */
-    "ST_ARQ_MSG_RCV",                   /* 28 */
-    "ST_ARQ_MSG_SEND_WAIT",             /* 29 */
-    "ST_ARQ_MSG_SEND",                  /* 30 */
-    "ST_ARQ_AUTH_RCV_A2_WAIT",          /* 31 */
-    "ST_ARQ_AUTH_RCV_A3_WAIT",          /* 32 */
-    "ST_ARQ_AUTH_RCV_A4_WAIT",          /* 33 */
-    "ST_ARQ_AUTH_SEND_A1",              /* 34 */
-    "ST_ARQ_AUTH_SEND_A2",              /* 35 */
-    "ST_ARQ_AUTH_SEND_A3",              /* 36 */
-    "ST_ARQ_FLIST_RCV_WAIT",            /* 37 */
-    "ST_ARQ_FLIST_RCV",                 /* 38 */
-    "ST_ARQ_FLIST_SEND_WAIT",           /* 39 */
-    "ST_ARQ_FLIST_SEND",                /* 40 */
+    "ST_ARQ_OUT_CONNECT_WAIT_RPT",      /* 20 */
+    "ST_RCV_ARQ_CONN_PING_ACK_WAIT",    /* 21 */
+    "ST_ARQ_CONNECTED",                 /* 22 */
+    "ST_ARQ_FILE_SEND_WAIT",            /* 23 */
+    "ST_ARQ_FILE_SEND_WAIT_OK",         /* 24 */
+    "ST_ARQ_FILE_SEND",                 /* 25 */
+    "ST_ARQ_FILE_RCV_WAIT_OK",          /* 26 */
+    "ST_ARQ_FILE_RCV_WAIT",             /* 27 */
+    "ST_ARQ_FILE_RCV",                  /* 28 */
+    "ST_ARQ_MSG_RCV",                   /* 29 */
+    "ST_ARQ_MSG_SEND_WAIT",             /* 30 */
+    "ST_ARQ_MSG_SEND",                  /* 31 */
+    "ST_ARQ_AUTH_RCV_A2_WAIT",          /* 32 */
+    "ST_ARQ_AUTH_RCV_A3_WAIT",          /* 33 */
+    "ST_ARQ_AUTH_RCV_A4_WAIT",          /* 34 */
+    "ST_ARQ_AUTH_SEND_A1",              /* 35 */
+    "ST_ARQ_AUTH_SEND_A2",              /* 36 */
+    "ST_ARQ_AUTH_SEND_A3",              /* 37 */
+    "ST_ARQ_FLIST_RCV_WAIT",            /* 38 */
+    "ST_ARQ_FLIST_RCV",                 /* 39 */
+    "ST_ARQ_FLIST_SEND_WAIT",           /* 40 */
+    "ST_ARQ_FLIST_SEND",                /* 41 */
 };
 
 const char *events[] = {
@@ -202,6 +204,13 @@ void arim_copy_mycall(char *call, size_t size)
     pthread_mutex_unlock(&mutex_tnc_set);
 }
 
+void arim_copy_gridsq(char *gridsq, size_t size)
+{
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(gridsq, size, "%s", g_tnc_settings[g_cur_tnc].gridsq);
+    pthread_mutex_unlock(&mutex_tnc_set);
+}
+
 int arim_get_netcall_cnt()
 {
     int cnt;
@@ -243,6 +252,13 @@ void arim_copy_arq_sendcr(char *val, size_t size)
 {
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(val, size, "%s", g_tnc_settings[g_cur_tnc].arq_sendcr);
+    pthread_mutex_unlock(&mutex_tnc_set);
+}
+
+void arim_copy_arq_bw(char *val, size_t size)
+{
+    pthread_mutex_lock(&mutex_tnc_set);
+    snprintf(val, size, "%s", g_tnc_settings[g_cur_tnc].arq_bandwidth);
     pthread_mutex_unlock(&mutex_tnc_set);
 }
 
@@ -592,6 +608,9 @@ void arim_on_event(int event, int param)
         break;
     case ST_ARQ_OUT_CONNECT_WAIT:
         arim_proto_arq_conn_out_wait(event, param);
+        break;
+    case ST_ARQ_OUT_CONNECT_WAIT_RPT:
+        arim_proto_arq_conn_out_wait_rpt(event, param);
         break;
     case ST_RCV_ARQ_CONN_PING_ACK_WAIT:
         arim_proto_arq_conn_pp_wait(event, param);

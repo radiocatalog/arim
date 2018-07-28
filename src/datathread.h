@@ -28,6 +28,9 @@
 #define TNC_DATA_BLOCK_SIZE 4096
 
 extern void *datathread_func(void *data);
+extern size_t datathread_get_num_bytes_in(void);
+extern size_t datathread_get_num_bytes_out(void);
+extern void datathread_reset_num_bytes(void);
 
 #endif
 

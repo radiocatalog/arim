@@ -35,6 +35,7 @@
 #include "mbox.h"
 #include "ui.h"
 #include "util.h"
+#include "ui_tnc_data_win.h"
 
 void arim_proto_msg_buf_wait(int event, int param)
 {
@@ -83,7 +84,7 @@ extern void arim_proto_msg_acknak_buf_wait(int event, int param)
         arim_cancel_trans();
         arim_set_state(ST_IDLE);
         arim_cancel_msg();
-        ui_set_status_dirty(STATUS_ACKNAK_SEND_CAN);
+        ui_set_status_dirty(STATUS_MSG_SEND_CAN);
         break;
     case EV_PERIODIC:
         /* wait until tx buffer is empty before announcing idle state */
@@ -103,7 +104,7 @@ extern void arim_proto_msg_acknak_pend(int event, int param)
     case EV_CANCEL:
         arim_set_state(ST_IDLE);
         arim_cancel_msg();
-        ui_set_status_dirty(STATUS_ACKNAK_SEND_CAN);
+        ui_set_status_dirty(STATUS_MSG_SEND_CAN);
         break;
     case EV_PERIODIC:
         /* 1 to 2 second delay for sending ack/nak */

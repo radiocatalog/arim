@@ -48,89 +48,31 @@
 #include "ui_help_menu.h"
 #include "ui_msg.h"
 #include "ui_themes.h"
+#include "ui_recents.h"
+#include "ui_ping_hist.h"
+#include "ui_conn_hist.h"
+#include "ui_heard_list.h"
+#include "ui_tnc_data_win.h"
+#include "ui_tnc_cmd_win.h"
+#include "ui_cmd_prompt_win.h"
 #include "util.h"
+#include "datathread.h"
 
-#define MAX_DATA_BUF_LEN        512
-#define MAX_DATA_ROW_SIZE       512
-#define DATA_BUF_SCROLLING_TIME 300
-#define DATA_WIN_SCROLL_LEGEND  "Scrolling: UP DOWN PAGEUP PAGEDOWN HOME END, 'c' to cancel. "
 #define CH_BUSY_IND             "[RF CHANNEL BUSY]    "
-#define MAX_CMD_HIST            15+1
 
 WINDOW *main_win;
-WINDOW *ui_list_win;
-WINDOW *ui_list_box;
-WINDOW *ui_recents_win;
-WINDOW *ui_ptable_win;
-WINDOW *tnc_data_win;
-WINDOW *tnc_data_box;
-WINDOW *tnc_cmd_win;
-WINDOW *tnc_cmd_box;
-WINDOW *prompt_box;
-WINDOW *prompt_win;
-
 int win_change_timer;
 int status_timer;
 int title_dirty;
 int status_dirty;
-int show_recents;
-int show_ptable;
 int show_titles;
 int show_cmds;
-int last_time_heard, prev_last_time_heard = -1;
 int mon_timestamp;
 int color_code;
-
-int ui_list_box_y, ui_list_box_x, ui_list_box_w, ui_list_box_h;
-int tnc_data_box_y, tnc_data_box_x, tnc_data_box_w, tnc_data_box_h;
-int tnc_cmd_box_y, tnc_cmd_box_x, tnc_cmd_box_w, tnc_cmd_box_h;
-int prompt_box_y, prompt_box_x, prompt_box_w, prompt_box_h;
-
-int prompt_row, prompt_col;
 int status_row, status_col;
-int cmd_row, cur_cmd_row, cmd_col;
-int data_row, cur_data_row, data_col;
-int list_row, cur_list_row, list_col;
-int recents_row, cur_recents_row, recents_col;
-int ptable_row, cur_ptable_row, ptable_col;
-int max_cmd_rows;
-int max_data_rows;
-int max_list_rows;
-int max_recents_rows;
-int max_ptable_rows;
 
 int num_new_msgs;
 int num_new_files;
-
-char data_buf[MAX_DATA_BUF_LEN+1][MAX_DATA_ROW_SIZE];
-int data_buf_start, data_buf_end, data_buf_top, data_buf_cnt;
-int data_buf_scroll_timer;
-
-char recents_list[MAX_RECENTS_LIST_LEN+1][MAX_MBOX_HDR_SIZE];
-int recents_list_cnt;
-int recents_start_line;
-int refresh_recents;
-
-typedef struct hl {
-    char htext[MAX_HEARD_SIZE];
-    time_t htime;
-} HL_ENTRY;
-HL_ENTRY heard_list[MAX_HEARD_LIST_LEN+1];
-int heard_list_cnt;
-
-typedef struct pt {
-    char call[16];
-    char in_sn[8];
-    char in_qual[8];
-    char out_sn[8];
-    char out_qual[8];
-    time_t in_time;
-    time_t out_time;
-} PT_ENTRY;
-PT_ENTRY ptable_list[MAX_PTABLE_LIST_LEN+1];
-int ptable_list_cnt;
-int ptable_start_line;
-int refresh_ptable;
 
 void ui_queue_traffic_log(const char *text)
 {
@@ -158,34 +100,6 @@ void ui_queue_debug_log(const char *text)
         cmdq_push(&g_debug_log_q, buffer);
         pthread_mutex_unlock(&mutex_debug_log);
     }
-}
-
-void ui_queue_heard(const char *text)
-{
-    pthread_mutex_lock(&mutex_heard);
-    cmdq_push(&g_heard_q, text);
-    pthread_mutex_unlock(&mutex_heard);
-}
-
-void ui_queue_ptable(const char *text)
-{
-    pthread_mutex_lock(&mutex_ptable);
-    cmdq_push(&g_ptable_q, text);
-    pthread_mutex_unlock(&mutex_ptable);
-}
-
-void ui_queue_data_in(const char *text)
-{
-    pthread_mutex_lock(&mutex_data_in);
-    dataq_push(&g_data_in_q, text);
-    pthread_mutex_unlock(&mutex_data_in);
-}
-
-void ui_queue_data_out(const char *text)
-{
-    pthread_mutex_lock(&mutex_data_out);
-    dataq_push(&g_data_out_q, text);
-    pthread_mutex_unlock(&mutex_data_out);
 }
 
 void ui_queue_cmd_out(const char *text)
@@ -235,485 +149,9 @@ WINDOW *ui_set_active_win(WINDOW *win)
     return prev;
 }
 
-void ui_print_data_title()
-{
-    int center, start = 1;
-
-    box(tnc_data_box, 0, 0);
-    center = (tnc_data_box_w / 2) - 1;
-    start = center - 9;
-    if (start < 1)
-        start = 1;
-    mvwprintw(tnc_data_box, tnc_data_box_h - 1, start, " TRAFFIC MONITOR ");
-}
-
-attr_t ui_calc_data_in_attr(char *linebuf)
-{
-    char *p, call[MAX_CALLSIGN_SIZE+4], mycall[TNC_MYCALL_SIZE];
-    size_t i, cnt, len;
-    int found_call, frame_type;
-    attr_t attr = A_NORMAL;
-
-    if (color_code) {
-        if ((linebuf[0] == '<') || (mon_timestamp && linebuf[11] == '<'))
-            attr = themes[theme].tm_tx_frame_attr;
-        /* extract frame type */
-        if (mon_timestamp)
-            frame_type = linebuf[15];
-        else
-            frame_type = linebuf[4];
-        /* check for net traffic first */
-        cnt = arim_get_netcall_cnt();
-        for (i = 0; i < cnt; i++) {
-            if (!arim_copy_netcall(mycall, sizeof(mycall), i))
-                continue;
-            snprintf(call, sizeof(call), "|%s|", mycall);
-            len = strlen(call);
-            found_call = 0;
-            p = linebuf;
-            while (*p) {
-                if (*p == '|') {
-                    if (!strncasecmp(p, call, len)) {
-                        found_call = 1;
-                        break;
-                    }
-                }
-                if ((p - linebuf) > MAX_ARIM_HDR_SIZE)
-                    break;
-                ++p;
-            }
-            if (found_call)
-                break;
-        }
-        if (found_call) {
-            switch (frame_type) {
-            case 'E':
-            case '!':
-            case 'X':
-                attr |= (COLOR_PAIR(1)|themes[theme].tm_err_attr);
-                break;
-            default:
-                attr |= (COLOR_PAIR(6)|themes[theme].tm_net_attr);
-                break;
-            }
-        } else {
-            /* check for TNC call */
-            arim_copy_mycall(mycall, sizeof(mycall));
-            snprintf(call, sizeof(call), "|%s|", mycall);
-            len = strlen(call);
-            found_call = 0;
-            p = linebuf;
-            while (*p) {
-                if (*p == '|') {
-                    if (!strncasecmp(p, call, len)) {
-                        found_call = 1;
-                        break;
-                    }
-                }
-                /* special check for ARDOP pings */
-                if ((*p == '>') && (p - linebuf) < (MAX_CALLSIGN_SIZE*2)+4) {
-                    if (!strncasecmp(p + 1, mycall, strlen(mycall))) {
-                        found_call = 1;
-                        break;
-                    }
-                    if (!strncasecmp(p - strlen(mycall), mycall, strlen(mycall))) {
-                        found_call = 1;
-                        break;
-                    }
-                }
-                if ((p - linebuf) > MAX_ARIM_HDR_SIZE)
-                    break;
-                ++p;
-            }
-            if (found_call) {
-                switch (frame_type) {
-                case 'M':
-                case 'A':
-                    attr |= (COLOR_PAIR(2)|themes[theme].tm_msg_attr);
-                    break;
-                case 'Q':
-                case 'R':
-                    attr |= (COLOR_PAIR(3)|themes[theme].tm_qry_attr);
-                    break;
-                case 'N':
-                case 'E':
-                case '!':
-                case 'X':
-                    attr |= (COLOR_PAIR(1)|themes[theme].tm_err_attr);
-                    break;
-                case 'B':
-                    attr |= (COLOR_PAIR(5)|themes[theme].tm_bcn_attr);
-                    break;
-                case '@':
-                    attr |= (COLOR_PAIR(9)|themes[theme].tm_arq_attr);
-                    break;
-                case 'P':
-                case 'p':
-                    attr |= (COLOR_PAIR(4)|themes[theme].tm_ping_attr);
-                    break;
-                default:
-                    attr |= (COLOR_PAIR(7)|themes[theme].ui_def_attr);
-                    break;
-                }
-            } else {
-                switch (frame_type) {
-                case 'I':
-                    attr |= (COLOR_PAIR(8)|themes[theme].tm_id_attr);
-                    break;
-                case 'X':
-                case 'E':
-                    attr |= (COLOR_PAIR(1)|themes[theme].tm_err_attr);
-                    break;
-                case 'B':
-                    attr |= (COLOR_PAIR(5)|themes[theme].tm_bcn_attr);
-                    break;
-                case '@':
-                    attr |= (COLOR_PAIR(9)|themes[theme].tm_arq_attr);
-                    break;
-                default:
-                    attr |= (COLOR_PAIR(7)|themes[theme].ui_def_attr);
-                    break;
-                }
-            }
-        }
-    } else {
-        if ((linebuf[0] == '<') || (mon_timestamp && linebuf[11] == '<'))
-            attr = A_BOLD;
-    }
-    return attr;
-}
-
-void ui_refresh_data_win()
-{
-    int i, max_cols, cur;
-    char linebuf[MAX_DATA_ROW_SIZE];
-
-    cur = data_buf_top;
-    max_cols = (tnc_data_box_w - 4) + 1;
-    if (max_cols > sizeof(linebuf))
-        max_cols = sizeof(linebuf);
-    wclear(tnc_data_win);
-    for (i = 0; i < max_data_rows; i++) {
-        if (cur == data_buf_end)
-            break;
-        snprintf(linebuf, max_cols, "%s", data_buf[cur]);
-        wattrset(tnc_data_win, ui_calc_data_in_attr(linebuf));
-        mvwprintw(tnc_data_win, i, data_col, " %s", linebuf);
-        if (color_code)
-            wattrset(tnc_data_win, COLOR_PAIR(7)|A_NORMAL);
-        else
-            wattrset(tnc_data_win, A_NORMAL);
-        if (++cur == MAX_DATA_BUF_LEN)
-            cur = 0;
-    }
-    if (show_titles) {
-        ui_print_data_title();
-    }
-    touchwin(tnc_data_box);
-    wrefresh(tnc_data_box);
-}
-
-void ui_clear_data_in()
-{
-    pthread_mutex_lock(&mutex_data_in);
-    memset(data_buf, 0, sizeof(data_buf));
-    data_buf_start = data_buf_end = data_buf_top = data_buf_cnt = 0;
-    data_buf_scroll_timer = 0;
-    pthread_mutex_unlock(&mutex_data_in);
-    wclear(tnc_data_win);
-    touchwin(tnc_data_box);
-    wrefresh(tnc_data_box);
-}
-
-void ui_print_data_in()
-{
-    char *p;
-
-    pthread_mutex_lock(&mutex_data_in);
-    p = dataq_pop(&g_data_in_q);
-    while (p) {
-        if (data_buf_cnt < MAX_DATA_BUF_LEN)
-            ++data_buf_cnt;
-        snprintf(data_buf[data_buf_end], sizeof(data_buf[0]), "%s", p);
-        p = data_buf[data_buf_end];
-        while (*p) {
-            if (*p < ' ')
-                *p = ' ';
-            ++p;
-        }
-        ++data_buf_end;
-        if (data_buf_end == MAX_DATA_BUF_LEN)
-            data_buf_end = 0;
-        if (data_buf_cnt == MAX_DATA_BUF_LEN) {
-            ++data_buf_start;
-            if (data_buf_start == MAX_DATA_BUF_LEN)
-                data_buf_start = 0;
-        }
-        p = dataq_pop(&g_data_in_q);
-    }
-    pthread_mutex_unlock(&mutex_data_in);
-    if (data_buf_cnt > max_data_rows) {
-        data_buf_top = data_buf_end - max_data_rows;
-        if (data_buf_top < 0)
-            data_buf_top += MAX_DATA_BUF_LEN;
-    } else {
-        data_buf_top = data_buf_end - data_buf_cnt;
-    }
-    ui_refresh_data_win();
-}
-
-void ui_print_cmd_title()
-{
-    int center, start = 1;
-
-    box(tnc_cmd_box, 0, 0);
-    center = (tnc_cmd_box_w / 2) - 1;
-    start = center - 7;
-    if (start < 1)
-        start = 1;
-    mvwprintw(tnc_cmd_box, tnc_cmd_box_h - 1, start, " TNC COMMANDS ");
-}
-
-void ui_print_cmd_in()
-{
-    char *p;
-
-    if (!show_cmds)
-        return;
-    pthread_mutex_lock(&mutex_cmd_in);
-    p = cmdq_pop(&g_cmd_in_q);
-    while (p) {
-        if (cur_cmd_row == max_cmd_rows) {
-            wscrl(tnc_cmd_win, 1);
-            cur_cmd_row--;
-        }
-        if (strlen(p) > (tnc_cmd_box_w - 4))
-            p[tnc_cmd_box_w - 4] = '\0';
-        if (color_code) {
-            if (!strncasecmp(p, "<<", 2)) {
-                wattrset(tnc_cmd_win, COLOR_PAIR(13)|themes[theme].tc_cmd_attr);
-            } else if (!strncasecmp(p, ">> PTT TRUE", 11)) {
-                wattrset(tnc_cmd_win, COLOR_PAIR(14)|themes[theme].tc_ptt_t_attr);
-            } else if (!strncasecmp(p, ">> PTT FALSE", 12)) {
-                wattrset(tnc_cmd_win, COLOR_PAIR(15)|themes[theme].tc_ptt_f_attr);
-            } else if (!strncasecmp(p, ">> BUFFER", 9)) {
-                wattrset(tnc_cmd_win, COLOR_PAIR(16)|themes[theme].tc_buf_attr);
-            } else if (!strncasecmp(p, ">> PING", 7)) {
-                wattrset(tnc_cmd_win, COLOR_PAIR(17)|themes[theme].tc_ping_attr);
-            } else if (!strncasecmp(p, ">> BUSY", 7)) {
-                wattrset(tnc_cmd_win, COLOR_PAIR(18)|themes[theme].tc_busy_attr);
-            } else if (!strncasecmp(p, ">> NEWSTATE", 11)) {
-                wattrset(tnc_cmd_win, COLOR_PAIR(19)|themes[theme].tc_newst_attr);
-            }
-        } else if (!strncasecmp(p, "<<", 2)) {
-            wattrset(tnc_cmd_win, A_BOLD);
-        } else {
-            wattrset(tnc_cmd_win, A_NORMAL);
-        }
-        mvwprintw(tnc_cmd_win, cur_cmd_row, cmd_col, " %s", p);
-        if (color_code)
-            wattrset(tnc_cmd_win, COLOR_PAIR(7)|A_NORMAL);
-        else
-            wattrset(tnc_cmd_win, A_NORMAL);
-        if (cur_cmd_row < max_cmd_rows)
-            cur_cmd_row++;
-        p = cmdq_pop(&g_cmd_in_q);
-    }
-    pthread_mutex_unlock(&mutex_cmd_in);
-    if (!show_recents && !show_ptable) {
-        touchwin(tnc_cmd_box);
-        wrefresh(tnc_cmd_box);
-    }
-}
-
-void ui_clear_calls_heard()
-{
-    memset(heard_list, 0, sizeof(heard_list));
-    heard_list_cnt = 0;
-    wclear(ui_list_win);
-    touchwin(ui_list_box);
-    wrefresh(ui_list_box);
-}
-
-void ui_get_heard_list(char *listbuf, size_t listbufsize)
-{
-    char linebuf[MAX_HEARD_SIZE];
-    size_t i, len, cnt = 0;
-
-    snprintf(listbuf, listbufsize, "Calls heard (%s):\n",
-                last_time_heard == LT_HEARD_ELAPSED ? "ET" : "LT");
-    cnt += strlen(listbuf);
-    for (i = 0; i < heard_list_cnt; i++) {
-        snprintf(linebuf, sizeof(linebuf), "  %s\n", &(heard_list[i].htext[1]));
-        len = strlen(linebuf);
-        if ((cnt + len) < listbufsize) {
-            strncat(listbuf, linebuf, listbufsize - cnt - 1);
-            cnt += len;
-        } else {
-            break;
-        }
-    }
-    snprintf(linebuf, sizeof(linebuf), "End\n");
-    len = strlen(linebuf);
-    if ((cnt + len) < listbufsize) {
-        strncat(listbuf, linebuf, listbufsize - cnt - 1);
-        cnt += len;
-    }
-    listbuf[cnt] = '\0';
-}
-
-void ui_print_heard_list_title()
-{
-    box(ui_list_box, 0, 0);
-    if (last_time_heard == LT_HEARD_ELAPSED)
-        mvwprintw(ui_list_box, 0, 4, " CALLS HEARD (ET) ");
-    else
-        mvwprintw(ui_list_box, 0, 4, " CALLS HEARD (LT) ");
-}
-
-void ui_update_heard_list()
-{
-    static time_t tprev;
-    time_t tcur, telapsed;
-    struct tm *heard_time;
-    int i, days, hours, minutes, reformat = 0;
-    char heard[MAX_HEARD_SIZE];
-
-    if (last_time_heard != prev_last_time_heard)
-        reformat = 1;
-    if (last_time_heard == LT_HEARD_ELAPSED) {
-        tcur = time(NULL);
-        if (reformat || (tcur - tprev) > 15) {
-            tprev = tcur;
-            for (i = 0; i < heard_list_cnt; i++) {
-                telapsed = tcur - heard_list[i].htime;
-                days = telapsed / (24*60*60);
-                if (days > 99)
-                    continue;
-                telapsed = telapsed % (24*60*60);
-                hours = telapsed / (60*60);
-                telapsed = telapsed % (60*60);
-                minutes = telapsed / 60;
-                snprintf(heard, sizeof(heard), "%.16s", heard_list[i].htext);
-                snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
-                            "%s %02d:%02d:%02d", heard, days, hours, minutes);
-            }
-            if (reformat && show_titles)
-                ui_print_heard_list_title();
-        }
-    } else if (reformat) {
-        for (i = 0; i < heard_list_cnt; i++) {
-            pthread_mutex_lock(&mutex_time);
-            if (!strncasecmp(g_ui_settings.utc_time, "TRUE", 4))
-                heard_time = gmtime(&heard_list[i].htime);
-            else
-                heard_time = localtime(&heard_list[i].htime);
-            pthread_mutex_unlock(&mutex_time);
-            snprintf(heard, sizeof(heard), "%.16s", heard_list[i].htext);
-            snprintf(heard_list[i].htext, sizeof(heard_list[0].htext),
-                        "%s %02d:%02d:%02d", heard, heard_time->tm_hour,
-                            heard_time->tm_min, heard_time->tm_sec);
-        }
-        if (show_titles)
-            ui_print_heard_list_title();
-    }
-    prev_last_time_heard = last_time_heard;
-}
-
-void ui_refresh_heard_list()
-{
-    int i;
-
-    ui_update_heard_list();
-    cur_list_row = 0;
-    wclear(ui_list_win);
-    for (i = 0; i < heard_list_cnt && i < max_list_rows; i++) {
-        if (color_code) {
-            switch (heard_list[i].htext[0]) {
-            case '1':
-                wattrset(ui_list_win, COLOR_PAIR(1)|themes[theme].tm_err_attr);
-                break;
-            case '2':
-                wattrset(ui_list_win, COLOR_PAIR(2)|themes[theme].tm_msg_attr);
-                break;
-            case '3':
-                wattrset(ui_list_win, COLOR_PAIR(3)|themes[theme].tm_qry_attr);
-                break;
-            case '4':
-                wattrset(ui_list_win, COLOR_PAIR(4)|themes[theme].tm_ping_attr);
-                break;
-            case '5':
-                wattrset(ui_list_win, COLOR_PAIR(5)|themes[theme].tm_bcn_attr);
-                break;
-            case '6':
-                wattrset(ui_list_win, COLOR_PAIR(6)|themes[theme].tm_net_attr);
-                break;
-            case '7':
-                wattrset(ui_list_win, COLOR_PAIR(7)|themes[theme].ui_def_attr);
-                break;
-            case '8':
-                wattrset(ui_list_win, COLOR_PAIR(8)|themes[theme].tm_id_attr);
-                break;
-            case '9':
-                wattrset(ui_list_win, COLOR_PAIR(9)|themes[theme].tm_arq_attr);
-                break;
-            }
-        }
-        mvwprintw(ui_list_win, cur_list_row, list_col, "%s", &(heard_list[i].htext[1]));
-        if (color_code)
-            wattrset(ui_list_win, COLOR_PAIR(7)|A_NORMAL);
-        else
-            wattrset(ui_list_win, A_NORMAL);
-        cur_list_row++;
-    }
-    touchwin(ui_list_box);
-    wrefresh(ui_list_box);
-}
-
-void ui_print_heard_list()
-{
-    static int once = 0;
-    char *p;
-    int i;
-
-    if (!once) {
-        once = 1;
-        memset(&heard_list, 0, sizeof(heard_list));
-    }
-
-    pthread_mutex_lock(&mutex_heard);
-    p = cmdq_pop(&g_heard_q);
-    pthread_mutex_unlock(&mutex_heard);
-
-    if (p) {
-        memmove(&heard_list[1], &heard_list[0], MAX_HEARD_LIST_LEN * sizeof(HL_ENTRY));
-        heard_list[0].htime = time(NULL);
-        snprintf(heard_list[0].htext, sizeof(heard_list[0].htext), "%s", p);
-        ++heard_list_cnt;
-        for (i = 1; i < heard_list_cnt; i++) {
-            if (!strncasecmp(&(heard_list[0].htext[3]), &(heard_list[i].htext[3]), 10)) {
-                memmove(&heard_list[i], &heard_list[i + 1], (MAX_HEARD_LIST_LEN - i) * sizeof(HL_ENTRY));
-                --heard_list_cnt;
-                break;
-            }
-        }
-        if (heard_list_cnt > MAX_HEARD_LIST_LEN)
-            --heard_list_cnt;
-        /* force reformatting of heard list */
-        prev_last_time_heard = -1;
-        ui_refresh_heard_list();
-    } else if (last_time_heard == LT_HEARD_ELAPSED) {
-        /* periodic check, results in update every 15 seconds */
-        ui_refresh_heard_list();
-    } else {
-        touchwin(ui_list_box);
-        wrefresh(ui_list_box);
-    }
-}
-
 void ui_print_status_ind()
 {
-    int start, state;
+    int start, state, numch;
     char idle_busy, tx_rx, ind[MAX_STATUS_IND_SIZE], fecmode[TNC_FECMODE_SIZE];
     char tnc_state[TNC_STATE_SIZE], remote_call[TNC_MYCALL_SIZE], bw_hz[TNC_ARQ_BW_SIZE];
 
@@ -721,9 +159,10 @@ void ui_print_status_ind()
     if (g_tnc_attached) {
         state = arim_get_state();
         switch (state) {
-        case ST_ARQ_IN_CONNECT_WAIT:
-        case ST_ARQ_OUT_CONNECT_WAIT:
         case ST_ARQ_CONNECTED:
+        case ST_ARQ_IN_CONNECT_WAIT:
+        case ST_ARQ_OUT_CONNECT_WAIT_RPT:
+        case ST_ARQ_OUT_CONNECT_WAIT:
         case ST_ARQ_MSG_RCV:
         case ST_ARQ_MSG_SEND_WAIT:
         case ST_ARQ_MSG_SEND:
@@ -748,9 +187,9 @@ void ui_print_status_ind()
             arim_copy_arq_bw_hz(bw_hz, sizeof(bw_hz));
             if (!strncasecmp(tnc_state, "IRStoISS", 8))
                 tnc_state[3] = '\0';
-             snprintf(ind, sizeof(ind),  " %c ARQ:%s%s %s S:%-4.4s",
-                 (state == ST_ARQ_CONNECTED ? ' ' : '!'), remote_call,
-                     (arim_arq_auth_get_status() ? "+" : ""), bw_hz, tnc_state);
+            numch = snprintf(ind, sizeof(ind),  " %c ARQ:%s%s %s S:%-4.4s",
+                             (state == ST_ARQ_CONNECTED ? ' ' : '!'), remote_call,
+                             (arim_arq_auth_get_status() ? "+" : ""), bw_hz, tnc_state);
             break;
         default:
             idle_busy = (state == ST_IDLE) ? 'I' : 'B';
@@ -777,11 +216,11 @@ void ui_print_status_ind()
             }
             arim_copy_fecmode(fecmode, sizeof(fecmode));
             if (!g_btime)
-                snprintf(ind, sizeof(ind), " %c:%c %s:%d B:OFF",
-                    idle_busy, tx_rx, fecmode, arim_get_fec_repeats());
+                numch = snprintf(ind, sizeof(ind), " %c:%c %s:%d B:OFF",
+                                 idle_busy, tx_rx, fecmode, arim_get_fec_repeats());
             else
-                snprintf(ind, sizeof(ind), " %c:%c %s:%d B:%03d",
-                    idle_busy, tx_rx, fecmode, arim_get_fec_repeats(), g_btime);
+                numch = snprintf(ind, sizeof(ind), " %c:%c %s:%d B:%03d",
+                                 idle_busy, tx_rx, fecmode, arim_get_fec_repeats(), g_btime);
             break;
         }
         start = COLS - strlen(ind) - 1;
@@ -800,6 +239,7 @@ void ui_print_status_ind()
         else
             wattroff(main_win, A_BOLD);
     }
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 void ui_check_channel_busy()
@@ -1142,6 +582,10 @@ void ui_check_status_dirty()
     case STATUS_ARQ_CONN_REQ_FAIL:
         ui_print_status("ARIM Idle: ARQ connection request failed", 1);
         break;
+    case STATUS_ARQ_CONN_REQ_REPEAT:
+        ui_print_status("ARIM Busy: Repeating connection request", 1);
+        arim_arq_on_conn_req_repeat();
+        break;
     case STATUS_ARQ_CONN_PP_SEND:
         ui_print_status("ARIM Busy: ping ACK quality >= threshold, connecting...", 1);
         sleep(2); /* don't rush the ardopc TNC */
@@ -1292,590 +736,6 @@ void ui_print_title(const char *new_status)
     ui_print_new_ctrs();
 }
 
-int ui_cmd_prompt()
-{
-    char cmd_line[MAX_CMD_SIZE+1];
-    static char cmd_hist[MAX_CMD_HIST][MAX_CMD_SIZE+1];
-    static int prev_cmd = 0, next_cmd = 0, cnt_hist = 0;
-    size_t len = 0, cur = 0;
-    int ch, temp, hist_cmd, max_len, quit = 0;
-
-    max_len = tnc_cmd_box_w - 4;
-    if (max_len > MAX_CMD_SIZE-1)
-        max_len = MAX_CMD_SIZE-1;
-
-    wmove(prompt_win, prompt_row, prompt_col);
-    wclrtoeol(prompt_win);
-    wrefresh(prompt_win);
-
-    curs_set(1);
-    keypad(prompt_win, TRUE);
-    memset(cmd_line, 0, sizeof(cmd_line));
-    hist_cmd = prev_cmd;
-    while (!quit) {
-        if ((status_timer && --status_timer == 0) ||
-            (data_buf_scroll_timer && --data_buf_scroll_timer == 0)) {
-            if (arim_is_arq_state())
-                ui_print_status(ARQ_PROMPT_STR, 0);
-            else
-                ui_print_status(MENU_PROMPT_STR, 0);
-        }
-        ch = wgetch(prompt_win);
-        switch (ch) {
-        case ERR:
-            curs_set(0);
-            ui_print_cmd_in();
-            ui_print_recents();
-            ui_print_ptable();
-            if (!data_buf_scroll_timer)
-                ui_print_data_in();
-            ui_print_heard_list();
-            ui_check_status_dirty();
-            wmove(prompt_win, prompt_row, prompt_col + cur);
-            curs_set(1);
-            break;
-        case '\n':
-            if (strlen(cmd_line) && strcmp(cmd_line, "!!") &&
-                                    strcmp(cmd_hist[prev_cmd], cmd_line)) {
-                snprintf(cmd_hist[next_cmd], sizeof(cmd_hist[next_cmd]), "%s", cmd_line);
-                if (cnt_hist < MAX_CMD_HIST)
-                    ++cnt_hist;
-                prev_cmd = hist_cmd = next_cmd;
-                ++next_cmd;
-                if (next_cmd == MAX_CMD_HIST)
-                    next_cmd = 0;
-            }
-            quit = 1;
-            break;
-        case 27:
-            ui_on_cancel();
-            break;
-        case 127: /* DEL */
-        case KEY_BACKSPACE:
-            if (len && cur) {
-                memmove(cmd_line + cur - 1, cmd_line + cur, MAX_CMD_SIZE - cur);
-                --len;
-                --cur;
-                mvwdelch(prompt_win, prompt_row, prompt_col + cur);
-            }
-            break;
-        case 4: /* CTRL-D */
-        case KEY_DC:
-            if (len && cur < len) {
-                memmove(cmd_line + cur, cmd_line + cur + 1, MAX_CMD_SIZE - cur);
-                mvwdelch(prompt_win, prompt_row, prompt_col + cur);
-                --len;
-            }
-            break;
-        case 11: /* CTRL-K */
-            if (len && cur < len) {
-                len -= (len - cur);
-                cmd_line[cur] = '\0';
-                wmove(prompt_win, prompt_row, prompt_col);
-                wclrtoeol(prompt_win);
-                waddstr(prompt_win, cmd_line);
-            }
-            break;
-        case 21: /* CTRL-U */
-            if (len && cur && cur <= len) {
-                len -= cur;
-                memmove(cmd_line, cmd_line + cur, MAX_CMD_SIZE - cur);
-                cur = 0;
-                wmove(prompt_win, prompt_row, prompt_col);
-                wclrtoeol(prompt_win);
-                waddstr(prompt_win, cmd_line);
-            }
-            break;
-        case 1: /* CTRL-A */
-        case KEY_HOME:
-            if (cur) {
-                cur = 0;
-                wmove(prompt_win, prompt_row, prompt_col + cur);
-            }
-            break;
-        case 5: /* CTRL-E */
-        case KEY_END:
-            if (cur < len) {
-                cur = len;
-                wmove(prompt_win, prompt_row, prompt_col + cur);
-            }
-            break;
-        case 2: /* CTRL-B */
-        case KEY_LEFT:
-            if (cur) {
-                --cur;
-                wmove(prompt_win, prompt_row, prompt_col + cur);
-            }
-            break;
-        case 6: /* CTRL-F */
-        case KEY_RIGHT:
-            if (cur < len) {
-                ++cur;
-                wmove(prompt_win, prompt_row, prompt_col + cur);
-            }
-            break;
-        case 14: /* CTRL-N */
-        case KEY_DOWN:
-            if (hist_cmd != next_cmd) {
-                temp = hist_cmd;
-                ++hist_cmd;
-                if (hist_cmd >= MAX_CMD_HIST)
-                    hist_cmd = 0;
-                if (hist_cmd != next_cmd) {
-                    snprintf(cmd_line, sizeof(cmd_line), "%s", cmd_hist[hist_cmd]);
-                } else {
-                    cmd_line[0] = '\0';
-                }
-                if (hist_cmd == next_cmd)
-                    hist_cmd = temp;
-                cur = len = strlen(cmd_line);
-                wmove(prompt_win, prompt_row, prompt_col);
-                wclrtoeol(prompt_win);
-                waddstr(prompt_win, cmd_line);
-                wrefresh(prompt_win);
-            }
-            break;
-        case 16: /* CTRL-P */
-        case KEY_UP:
-            if (hist_cmd != next_cmd) {
-                temp = hist_cmd;
-                snprintf(cmd_line, sizeof(cmd_line), "%s", cmd_hist[hist_cmd]);
-                --hist_cmd;
-                if (hist_cmd < 0) {
-                    if (cnt_hist == MAX_CMD_HIST)
-                        hist_cmd = MAX_CMD_HIST-1;
-                    else
-                        hist_cmd = 0;
-                }
-                if (hist_cmd == next_cmd)
-                    hist_cmd = temp;
-                cur = len = strlen(cmd_line);
-                wmove(prompt_win, prompt_row, prompt_col);
-                wclrtoeol(prompt_win);
-                waddstr(prompt_win, cmd_line);
-                wrefresh(prompt_win);
-            }
-            break;
-        case 24: /* CTRL-X */
-            if (arim_is_arq_state()) {
-                temp = ui_show_dialog("\tAre you sure\n\tyou want to disconnect?\n \n\t[Y]es   [N]o", "yYnN");
-                if (temp == 'y' || temp == 'Y')
-                    arim_arq_send_disconn_req();
-                quit = 1;
-            }
-            break;
-        default:
-            if (isprint(ch) && len < max_len) {
-                if (cur == len) {
-                    cmd_line[len++] = ch;
-                    cmd_line[len] = '\0';
-                    waddch(prompt_win, ch);
-                } else {
-                    memmove(cmd_line + cur + 1, cmd_line + cur, MAX_CMD_SIZE - cur);
-                    cmd_line[cur] = ch;
-                    ++len;
-                    mvwinsch(prompt_win, prompt_row, prompt_col + cur, ch);
-                }
-                ++cur;
-            }
-        }
-        if (g_win_changed)
-            quit = 1;
-    }
-    keypad(prompt_win, FALSE);
-    curs_set(0);
-    wmove(prompt_win, prompt_row, prompt_col);
-    wclrtoeol(prompt_win);
-    wrefresh(prompt_win);
-    cmdproc_cmd(cmd_line); /* process the command */
-    return 1;
-}
-
-void ui_clear_recents()
-{
-    pthread_mutex_lock(&mutex_recents);
-    memset(&recents_list, 0, sizeof(recents_list));
-    recents_list_cnt = 0;
-    pthread_mutex_unlock(&mutex_recents);
-    if (show_recents && ui_recents_win) {
-        delwin(ui_recents_win);
-        ui_recents_win = NULL;
-        ui_recents_win = newwin(tnc_cmd_box_h - 2, tnc_cmd_box_w - 2,
-                                     tnc_cmd_box_y + 1, tnc_cmd_box_x + 1);
-        if (!ui_recents_win) {
-            ui_print_status("Recents: failed to create window", 1);
-            return;
-        }
-        if (color_code)
-            wbkgd(ui_recents_win, COLOR_PAIR(7));
-        touchwin(ui_recents_win);
-        wrefresh(ui_recents_win);
-    }
-    refresh_recents = recents_start_line = 0;
-}
-
-void ui_print_recents_title()
-{
-    int center, start;
-
-    center = (tnc_cmd_box_w / 2) - 1;
-    start = center - 9;
-    if (start < 1)
-        start = 1;
-    mvwprintw(tnc_cmd_box, tnc_cmd_box_h - 1, start, " RECENT MESSAGES ");
-    wrefresh(tnc_cmd_box);
-}
-
-void ui_print_recents()
-{
-    static int once = 0;
-    char *p, recent[MAX_MBOX_HDR_SIZE+8];
-    int i, max_cols, max_recents_rows, cur_recents_row = 0;
-
-    if (!once) {
-        once = 1;
-        memset(&recents_list, 0, sizeof(recents_list));
-    }
-
-    if (show_recents && !ui_recents_win) {
-        ui_recents_win = newwin(tnc_cmd_box_h - 2, tnc_cmd_box_w - 2,
-                                     tnc_cmd_box_y + 1, tnc_cmd_box_x + 1);
-        if (!ui_recents_win) {
-            ui_print_status("Recents: failed to create window", 1);
-            return;
-        }
-        if (color_code)
-            wbkgd(ui_recents_win, COLOR_PAIR(7));
-        max_recents_rows = tnc_cmd_box_h - 2;
-        if (show_titles)
-            ui_print_recents_title();
-        refresh_recents = 1;
-    }
-
-    pthread_mutex_lock(&mutex_recents);
-    p = cmdq_pop(&g_recents_q);
-    pthread_mutex_unlock(&mutex_recents);
-
-    if (p) {
-        snprintf(recent, sizeof(recent), "%s", p);
-        memmove(&recents_list[1], &recents_list[0], MAX_RECENTS_LIST_LEN*MAX_MBOX_HDR_SIZE);
-        snprintf(recents_list[0], sizeof(recents_list[0]), "%s ---", recent);
-        ++recents_list_cnt;
-        if (recents_list_cnt > MAX_RECENTS_LIST_LEN)
-            --recents_list_cnt;
-        refresh_recents = 1;
-    }
-    if (show_recents && ui_recents_win && refresh_recents) {
-        delwin(ui_recents_win);
-        ui_recents_win = NULL;
-        ui_recents_win = newwin(tnc_cmd_box_h - 2, tnc_cmd_box_w - 2,
-                                     tnc_cmd_box_y + 1, tnc_cmd_box_x + 1);
-        if (!ui_recents_win) {
-            ui_print_status("Recents: failed to create window", 1);
-            return;
-        }
-        if (color_code)
-            wbkgd(ui_recents_win, COLOR_PAIR(7));
-        max_recents_rows = tnc_cmd_box_h - 2;
-        if (show_titles)
-            ui_print_cmd_title();
-        refresh_recents = 0;
-        max_cols = (tnc_cmd_box_w - 4) + 1;
-        if (max_cols > sizeof(recent))
-            max_cols = sizeof(recent);
-        cur_recents_row = 0;
-        for (i = recents_start_line; i < recents_list_cnt &&
-             i < (max_recents_rows + recents_start_line); i++) {
-            snprintf(recent, max_cols, "[%3d] %s", i + 1, recents_list[i]);
-            mvwprintw(ui_recents_win, cur_recents_row, recents_col, "%s", recent);
-            cur_recents_row++;
-        }
-        touchwin(ui_recents_win);
-        wrefresh(ui_recents_win);
-    } else if ((!show_recents && ui_recents_win)) {
-        delwin(ui_recents_win);
-        ui_recents_win = NULL;
-        if (show_titles)
-            ui_print_cmd_title();
-        touchwin(tnc_cmd_box);
-        wrefresh(tnc_cmd_box);
-        refresh_recents = recents_start_line = 0;
-    }
-}
-
-void ui_refresh_recents()
-{
-    if (show_titles)
-        ui_print_recents_title();
-    refresh_recents = 1;
-    ui_print_recents();
-}
-
-int ui_get_recent(int index, char *header, size_t size)
-{
-    if (index < MAX_RECENTS_LIST_LEN && recents_list[index][0]) {
-        snprintf(header, size, "%s\n", recents_list[index]);
-        return 1;
-    }
-    return 0;
-}
-
-int ui_set_recent_flag(const char *header, char flag)
-{
-    char *p;
-    size_t i, len;
-
-    for (i = 0; i < recents_list_cnt; i++) {
-        len = strlen(recents_list[i]);
-        if (len > 4 && !strncmp(header, recents_list[i], len)) {
-            p = recents_list[i] + len;
-            if (*(p - 4) == ' ') {
-                switch(flag) {
-                case 'R':
-                    *(p - 3) = flag;
-                    break;
-                case 'F':
-                    *(p - 2) = flag;
-                    break;
-                case 'S':
-                    *(p - 1) = flag;
-                    break;
-                }
-            }
-            return 1;
-        }
-    }
-    return 0;
-}
-
-void ui_clear_ptable()
-{
-    pthread_mutex_lock(&mutex_ptable);
-    memset(&ptable_list, 0, sizeof(ptable_list));
-    pthread_mutex_unlock(&mutex_ptable);
-    if (show_ptable && ui_ptable_win) {
-        delwin(ui_ptable_win);
-        ui_ptable_win = NULL;
-        ui_ptable_win = newwin(tnc_cmd_box_h - 2, tnc_cmd_box_w - 2,
-                                     tnc_cmd_box_y + 1, tnc_cmd_box_x + 1);
-        if (!ui_ptable_win) {
-            ui_print_status("Ping History: failed to create window", 1);
-            return;
-        }
-        if (color_code)
-            wbkgd(ui_ptable_win, COLOR_PAIR(7));
-        touchwin(ui_ptable_win);
-        wrefresh(ui_ptable_win);
-    }
-    refresh_ptable = ptable_list_cnt = ptable_start_line = 0;
-}
-
-void ui_print_ptable_title()
-{
-    int center, start;
-
-    center = (tnc_cmd_box_w / 2) - 1;
-    start = center - 10;
-    if (start < 1)
-        start = 1;
-    if (last_time_heard == LT_HEARD_CLOCK)
-        mvwprintw(tnc_cmd_box, tnc_cmd_box_h - 1, start, " PING HISTORY (LT) ");
-    else
-        mvwprintw(tnc_cmd_box, tnc_cmd_box_h - 1, start, " PING HISTORY (ET) ");
-    wrefresh(tnc_cmd_box);
-}
-
-void ui_print_ptable()
-{
-    static int once = 0;
-    static time_t tprev = 0;
-    struct tm *ping_time;
-    char *p, ping_data[MAX_PTABLE_ROW_SIZE];
-    char in_time[16], out_time[16];
-    int max_cols, max_ptable_rows, cur_ptable_row = 0;
-    int i, days, hours, minutes;
-    time_t tcur, telapsed;
-
-    if (!once) {
-        once = 1;
-        memset(&ptable_list, 0, sizeof(ptable_list));
-    }
-
-    if (show_ptable && !ui_ptable_win) {
-        ui_ptable_win = newwin(tnc_cmd_box_h - 2, tnc_cmd_box_w - 2,
-                                     tnc_cmd_box_y + 1, tnc_cmd_box_x + 1);
-        if (!ui_ptable_win) {
-            ui_print_status("Ping History: failed to create window", 1);
-            return;
-        }
-        if (color_code)
-            wbkgd(ui_ptable_win, COLOR_PAIR(7));
-        max_ptable_rows = tnc_cmd_box_h - 2;
-        if (show_titles)
-            ui_print_ptable_title();
-        refresh_ptable = 1;
-    }
-
-    pthread_mutex_lock(&mutex_ptable);
-    p = cmdq_pop(&g_ptable_q);
-    pthread_mutex_unlock(&mutex_ptable);
-
-    /*
-      layout of record taken from queue:
-         byte 0:     in/out indicator
-         byte 1-12:  callsign
-         byte 13-15: inbound s/n ratio
-         byte 16-18: inbound quality
-         byte 19-21: outbound s/n ratio
-         byte 22-24: outbound quality
-    */
-
-    if (p) {
-        memmove(&ptable_list[1], &ptable_list[0], MAX_PTABLE_LIST_LEN * sizeof(PT_ENTRY));
-        memset(&ptable_list[0], 0, sizeof(PT_ENTRY));
-        snprintf(ptable_list[0].call, sizeof(ptable_list[0].call), "%.11s", &p[1]);
-        if (p[0] == 'R')
-            ptable_list[0].in_time = time(NULL);
-        else
-            ptable_list[0].out_time = time(NULL);
-        snprintf(ptable_list[0].in_sn, sizeof(ptable_list[0].in_sn), "%.3s", &p[13]);
-        snprintf(ptable_list[0].in_qual, sizeof(ptable_list[0].in_qual), "%.3s", &p[16]);
-        snprintf(ptable_list[0].out_sn, sizeof(ptable_list[0].out_sn), "%.3s", &p[19]);
-        snprintf(ptable_list[0].out_qual, sizeof(ptable_list[0].out_qual), "%.3s", &p[22]);
-        ++ptable_list_cnt;
-        for (i = 1; i < ptable_list_cnt; i++) {
-            if (!strncasecmp(ptable_list[0].call, ptable_list[i].call, TNC_MYCALL_SIZE)) {
-                /* copy existing complementary data before overwriting the record */
-                if (p[0] == 'R') {
-                    ptable_list[0].out_time = ptable_list[i].out_time;
-                    snprintf(ptable_list[0].out_sn, sizeof(ptable_list[0].out_sn),
-                                                            "%s", ptable_list[i].out_sn);
-                    snprintf(ptable_list[0].out_qual, sizeof(ptable_list[0].out_qual),
-                                                            "%s", ptable_list[i].out_qual);
-                } else {
-                    ptable_list[0].in_time = ptable_list[i].in_time;
-                    snprintf(ptable_list[0].in_sn, sizeof(ptable_list[0].in_sn),
-                                                            "%s", ptable_list[i].in_sn);
-                    snprintf(ptable_list[0].in_qual, sizeof(ptable_list[0].in_qual),
-                                                            "%s", ptable_list[i].in_qual);
-                }
-                memmove(&ptable_list[i], &ptable_list[i + 1],
-                            (MAX_PTABLE_LIST_LEN - i) * sizeof(PT_ENTRY));
-                --ptable_list_cnt;
-                break;
-            }
-        }
-        if (ptable_list_cnt > MAX_PTABLE_LIST_LEN)
-            --ptable_list_cnt;
-        refresh_ptable = 1;
-    }
-    tcur = time(NULL);
-    if ((tcur - tprev) > 15) {
-        tprev = tcur;
-        refresh_ptable = 1;
-    }
-    if (show_ptable && ui_ptable_win && refresh_ptable) {
-        delwin(ui_ptable_win);
-        ui_ptable_win = NULL;
-        ui_ptable_win = newwin(tnc_cmd_box_h - 2, tnc_cmd_box_w - 2,
-                                     tnc_cmd_box_y + 1, tnc_cmd_box_x + 1);
-        if (!ui_ptable_win) {
-            ui_print_status("Ping History: failed to create window", 1);
-            return;
-        }
-        if (color_code)
-            wbkgd(ui_ptable_win, COLOR_PAIR(7));
-        max_ptable_rows = tnc_cmd_box_h - 2;
-        if (show_titles)
-            ui_print_ptable_title();
-        refresh_ptable = 0;
-        max_cols = (tnc_cmd_box_w - 4) + 1;
-        if (max_cols > sizeof(ping_data))
-            max_cols = sizeof(ping_data);
-        cur_ptable_row = 0;
-        for (i = ptable_start_line; i < ptable_list_cnt &&
-             i < (max_ptable_rows + ptable_start_line); i++) {
-            if (ptable_list[i].in_time) {
-                if (last_time_heard == LT_HEARD_CLOCK) {
-                    pthread_mutex_lock(&mutex_time);
-                    if (!strncasecmp(g_ui_settings.utc_time, "TRUE", 4))
-                        ping_time = gmtime(&ptable_list[i].in_time);
-                    else
-                        ping_time = localtime(&ptable_list[i].in_time);
-                    pthread_mutex_unlock(&mutex_time);
-                    snprintf(in_time, sizeof(in_time),
-                        "%02d:%02d:%02d", ping_time->tm_hour,
-                            ping_time->tm_min, ping_time->tm_sec);
-                } else {
-                    telapsed = tcur - ptable_list[i].in_time;
-                    days = telapsed / (24*60*60);
-                    if (days > 99)
-                        days = 99;
-                    telapsed = telapsed % (24*60*60);
-                    hours = telapsed / (60*60);
-                    telapsed = telapsed % (60*60);
-                    minutes = telapsed / 60;
-                    snprintf(in_time, sizeof(in_time),
-                                "%02d:%02d:%02d", days, hours, minutes);
-                }
-            } else {
-                snprintf(in_time, sizeof(in_time), "--:--:--");
-            }
-            if (ptable_list[i].out_time) {
-                if (last_time_heard == LT_HEARD_CLOCK) {
-                    pthread_mutex_lock(&mutex_time);
-                    if (!strncasecmp(g_ui_settings.utc_time, "TRUE", 4))
-                        ping_time = gmtime(&ptable_list[i].out_time);
-                    else
-                        ping_time = localtime(&ptable_list[i].out_time);
-                    pthread_mutex_unlock(&mutex_time);
-                    snprintf(out_time, sizeof(out_time),
-                        "%02d:%02d:%02d", ping_time->tm_hour,
-                            ping_time->tm_min, ping_time->tm_sec);
-                } else {
-                    telapsed = tcur - ptable_list[i].out_time;
-                    days = telapsed / (24*60*60);
-                    if (days > 99)
-                        days = 99;
-                    telapsed = telapsed % (24*60*60);
-                    hours = telapsed / (60*60);
-                    telapsed = telapsed % (60*60);
-                    minutes = telapsed / 60;
-                    snprintf(out_time, sizeof(out_time),
-                                "%02d:%02d:%02d", days, hours, minutes);
-                }
-            } else {
-                snprintf(out_time, sizeof(out_time), "--:--:--");
-            }
-            snprintf(ping_data, max_cols,
-                "[%2d]%.11s [%s]>>S/N:%3sdB,Q:%3s  [%s]<<S/N:%3sdB,Q:%3s",
-                    i + 1, ptable_list[i].call, in_time, ptable_list[i].in_sn,
-                        ptable_list[i].in_qual, out_time, ptable_list[i].out_sn,
-                                ptable_list[i].out_qual);
-            mvwprintw(ui_ptable_win, cur_ptable_row, ptable_col, "%s", ping_data);
-            cur_ptable_row++;
-        }
-        touchwin(ui_ptable_win);
-        wrefresh(ui_ptable_win);
-    } else if ((!show_ptable && ui_ptable_win)) {
-        delwin(ui_ptable_win);
-        ui_ptable_win = NULL;
-        if (show_titles)
-            ui_print_cmd_title();
-        touchwin(tnc_cmd_box);
-        wrefresh(tnc_cmd_box);
-        refresh_ptable = ptable_start_line = 0;
-    }
-}
-
-void ui_refresh_ptable()
-{
-    if (show_titles)
-        ui_print_ptable_title();
-    refresh_ptable = 1;
-    ui_print_ptable();
-}
-
 void ui_apply_theme()
 {
     init_pair(1, themes[theme].tm_err_color, themes[theme].ui_bg_color);
@@ -1933,8 +793,10 @@ void ui_end()
 int ui_init()
 {
     static int once = 0;
+    int temp;
 
     if (!once) {
+        /* one-time initialization of screen and key parameters */
         once = 1;
         main_win = initscr();
         if (!strncasecmp(g_ui_settings.last_time_heard, "ELAPSED", 7))
@@ -1954,118 +816,47 @@ int ui_init()
         else
             color_code = 0;
     }
+    /* everything from this point on repeated if terminal resized */
     ui_apply_theme();
     if (color_code)
         bkgd(COLOR_PAIR(7));
-    prompt_row = 0, prompt_col = 1;
     status_row = LINES - 2;
     status_col = 1;
-    cmd_row = 0, cmd_col = 0, cur_cmd_row = 0;
-    data_row = 0, data_col = 0;
-    cur_data_row = data_row;
-    recents_row = 0, recents_col = 1;
-    cur_recents_row = recents_row;
-    ptable_row = 0, ptable_col = 1;
-    cur_ptable_row = ptable_row;
-
-    ui_list_box_h = LINES - 4;
-    ui_list_box_w = LIST_BOX_WIDTH;
-    ui_list_box_y = 2;
-    ui_list_box_x = COLS - LIST_BOX_WIDTH - 1;
-    ui_list_box = newwin(ui_list_box_h, ui_list_box_w, ui_list_box_y, ui_list_box_x);
-    if (!ui_list_box) {
+    /* create calls heard list box and text window */
+    if (!ui_heard_list_init(2, COLS - LIST_BOX_WIDTH - 1,
+            LIST_BOX_WIDTH, LINES - 4)) {
         ui_end();
         return 0;
     }
-    if (color_code)
-        wbkgd(ui_list_box, COLOR_PAIR(7));
-    box(ui_list_box, 0, 0);
-    ui_list_win = derwin(ui_list_box, ui_list_box_h - 2, ui_list_box_w - 2, 1, 1);
-    if (!ui_list_win) {
+    /* create command prompt box and text input window */
+    if (!ui_cmd_prompt_init(LINES - 5, 1,
+            COLS - ui_heard_list_get_width() - 3, 3)) {
         ui_end();
         return 0;
     }
-    if (color_code)
-        wbkgd(ui_list_win, COLOR_PAIR(7));
-    max_list_rows = ui_list_box_h - 2;
-    if (show_titles)
-        ui_print_heard_list_title();
-
-    prompt_box_h = 3;
-    prompt_box_w = COLS - ui_list_box_w - 3;
-    prompt_box_y = LINES - 5;
-    prompt_box_x = 1;
-    prompt_box = subwin(main_win, prompt_box_h, prompt_box_w, prompt_box_y, prompt_box_x);
-    if (!prompt_box) {
+    /* create TNC command box and text window */
+    temp = (LINES / 3) - 1;
+    if (show_titles && temp < 5)
+        temp = 5;
+    else if (temp < 4)
+        temp = 4;
+    if (!ui_cmd_win_init(prompt_box_y - temp, 1,
+            COLS - ui_heard_list_get_width() - 3, temp)) {
         ui_end();
         return 0;
-    }
-    if (color_code)
-        wbkgd(prompt_box, COLOR_PAIR(7));
-    box(prompt_box, 0, 0);
-    prompt_win = derwin(prompt_box, 1, prompt_box_w - 2, 1, 1);
-    if (!prompt_win) {
-        ui_end();
-        return 0;
-    }
-    if (color_code)
-        wbkgd(prompt_win, COLOR_PAIR(7));
-    wtimeout(prompt_win, 100);
-
-    tnc_cmd_box_h = (LINES / 3) - 1;
-    if (show_titles && tnc_cmd_box_h < 5)
-        tnc_cmd_box_h = 5;
-    else if (tnc_cmd_box_h < 4)
-        tnc_cmd_box_h = 4;
-    tnc_cmd_box_w = COLS - ui_list_box_w - 3;
-    tnc_cmd_box_y = prompt_box_y - tnc_cmd_box_h;
-    tnc_cmd_box_x = 1;
-    tnc_cmd_box = newwin(tnc_cmd_box_h, tnc_cmd_box_w, tnc_cmd_box_y, tnc_cmd_box_x);
-    if (!tnc_cmd_box) {
-        ui_end();
-        return 0;
-    }
-    if (color_code)
-        wbkgd(tnc_cmd_box, COLOR_PAIR(7));
-    box(tnc_cmd_box, 0, 0);
-    tnc_cmd_win = derwin(tnc_cmd_box, tnc_cmd_box_h - 2, tnc_cmd_box_w - 2, 1, 1);
-    if (!tnc_cmd_win) {
-        ui_end();
-        return 0;
-    }
-    if (color_code)
-        wbkgd(tnc_cmd_win, COLOR_PAIR(7));
-    max_cmd_rows = tnc_cmd_box_h - 2;
-    scrollok(tnc_cmd_win, TRUE);
-    if (show_titles) {
-        ui_print_cmd_title();
     }
     show_cmds = 1;
-
-    tnc_data_box_h = LINES - tnc_cmd_box_h - prompt_box_h - 4;
-    tnc_data_box_w = COLS - ui_list_box_w - 3;
-    tnc_data_box_y = 2;
-    tnc_data_box_x = 1;
-    tnc_data_box = newwin(tnc_data_box_h, tnc_data_box_w, tnc_data_box_y, tnc_data_box_x);
-    if (!tnc_data_box) {
+    /* intialize TNC command/response box sub-views */
+    ui_recents_init();
+    ui_ptable_init();
+    ui_ctable_init();
+    /* create traffic monitor box and text window */
+    if (!ui_data_win_init(2, 1, COLS - ui_heard_list_get_width() - 3,
+            LINES - tnc_cmd_box_h - prompt_box_h - 4)) {
         ui_end();
         return 0;
     }
-    if (color_code)
-        wbkgd(tnc_data_box, COLOR_PAIR(7));
-    box(tnc_data_box, 0, 0);
-    tnc_data_win = derwin(tnc_data_box, tnc_data_box_h - 2, tnc_data_box_w - 2, 1, 1);
-    if (!tnc_data_win) {
-        ui_end();
-        return 0;
-    }
-    if (color_code)
-        wbkgd(tnc_data_win, COLOR_PAIR(7));
-    max_data_rows = tnc_data_box_h - 2;
-    scrollok(tnc_data_win, TRUE);
-    if (show_titles) {
-        ui_print_data_title();
-    }
+    /* hide cursor and draw the views */
     curs_set(0);
     wrefresh(main_win);
     wrefresh(ui_list_box);
@@ -2136,7 +927,7 @@ int ui_run()
             break;
         case 'r':
         case 'R':
-            if (show_ptable)
+            if (show_ptable || show_ctable)
                 break;
             if (show_recents) {
                 show_recents = 0;
@@ -2154,7 +945,7 @@ int ui_run()
             break;
         case 'p':
         case 'P':
-            if (show_recents)
+            if (show_recents || show_ctable)
                 break;
             if (show_ptable) {
                 show_ptable = 0;
@@ -2170,31 +961,49 @@ int ui_run()
                 ui_print_status("Ping History view not available in ARQ session", 1);
             }
             break;
+        case 'c':
+        case 'C':
+            if (show_recents || show_ptable)
+                break;
+            if (show_ctable) {
+                show_ctable = 0;
+                ui_print_status("Showing TNC cmds, press 'c' to toggle", 1);
+                break;
+            }
+            if (!arim_is_arq_state()) {
+                if (!show_ctable) {
+                    show_ctable = 1;
+                    ui_print_status("Showing Connections, <SP> 'u' or 'd' to scroll, 'c' to toggle", 1);
+                }
+            } else {
+                ui_print_status("Connection History view not available in ARQ session", 1);
+            }
+            break;
         case 'd':
             if (show_ptable && ptable_list_cnt) {
-                ptable_start_line++;
-                if (ptable_start_line >= ptable_list_cnt)
-                    ptable_start_line = ptable_list_cnt - 1;
+                ui_ptable_inc_start_line();
                 ui_refresh_ptable();
             }
+            else if (show_ctable && ctable_list_cnt) {
+                ui_ctable_inc_start_line();
+                ui_refresh_ctable();
+            }
             else if (show_recents && recents_list_cnt) {
-                recents_start_line++;
-                if (recents_start_line >= recents_list_cnt)
-                    recents_start_line = recents_list_cnt - 1;
+                ui_recents_inc_start_line();
                 ui_refresh_recents();
             }
             break;
         case 'u':
             if (show_ptable && ptable_list_cnt) {
-                ptable_start_line--;
-                if (ptable_start_line < 0)
-                    ptable_start_line = 0;
+                ui_ptable_dec_start_line();
                 ui_refresh_ptable();
             }
+            else if (show_ctable && ctable_list_cnt) {
+                ui_ctable_dec_start_line();
+                ui_refresh_ctable();
+            }
             else if (show_recents && recents_list_cnt) {
-                recents_start_line--;
-                if (recents_start_line < 0)
-                    recents_start_line = 0;
+                ui_recents_dec_start_line();
                 ui_refresh_recents();
             }
             break;
@@ -2251,88 +1060,26 @@ int ui_run()
             ui_cmd_prompt();
             break;
         case KEY_HOME:
-            if (!data_buf_scroll_timer)
-                ui_print_status(DATA_WIN_SCROLL_LEGEND, 0);
-            data_buf_scroll_timer = DATA_BUF_SCROLLING_TIME;
-            data_buf_top = data_buf_start;
-            ui_refresh_data_win();
+            ui_data_win_on_key_home();
             break;
         case KEY_END:
-            if (!data_buf_scroll_timer)
-                ui_print_status(DATA_WIN_SCROLL_LEGEND, 0);
-            data_buf_scroll_timer = DATA_BUF_SCROLLING_TIME;
-            if (data_buf_cnt < max_data_rows)
-                break;
-            data_buf_top = data_buf_end - max_data_rows;
-            if (data_buf_top < 0)
-                data_buf_top += MAX_DATA_BUF_LEN;
-            ui_refresh_data_win();
+            ui_data_win_on_key_end();
             break;
         case KEY_PPAGE:
-            if (!data_buf_scroll_timer)
-                ui_print_status(DATA_WIN_SCROLL_LEGEND, 0);
-            data_buf_scroll_timer = DATA_BUF_SCROLLING_TIME;
-            if (data_buf_top == data_buf_start)
-                break;
-            /* calculate distance from start */
-            temp = data_buf_top - data_buf_start;
-            if (temp < 0)
-                temp += MAX_DATA_BUF_LEN;
-            if (temp <= max_data_rows) {
-                data_buf_top = data_buf_start;
-            } else {
-                data_buf_top -= max_data_rows;
-                if (data_buf_top < 0)
-                    data_buf_top += MAX_DATA_BUF_LEN;
-            }
-            ui_refresh_data_win();
+            ui_data_win_on_key_pg_up();
             break;
         case KEY_UP:
-            if (!data_buf_scroll_timer)
-                ui_print_status(DATA_WIN_SCROLL_LEGEND, 0);
-            data_buf_scroll_timer = DATA_BUF_SCROLLING_TIME;
-            if (data_buf_top == data_buf_start)
-                break;
-            data_buf_top -= 1;
-            if (data_buf_top < 0)
-                data_buf_top += MAX_DATA_BUF_LEN;
-            ui_refresh_data_win();
+            ui_data_win_on_key_up();
             break;
         case KEY_NPAGE:
-            if (!data_buf_scroll_timer)
-                ui_print_status(DATA_WIN_SCROLL_LEGEND, 0);
-            data_buf_scroll_timer = DATA_BUF_SCROLLING_TIME;
-            if (data_buf_top == data_buf_end || data_buf_cnt < max_data_rows)
-                break;
-            /* calculate distance from end */
-            temp = data_buf_end - data_buf_top;
-            if (temp < 0)
-                temp += MAX_DATA_BUF_LEN;
-            if (temp <= max_data_rows)
-                break;
-            data_buf_top += max_data_rows;
-            if (data_buf_top >= MAX_DATA_BUF_LEN)
-                data_buf_top -= MAX_DATA_BUF_LEN;
-            if (data_buf_top == data_buf_end)
-                break;
-            ui_refresh_data_win();
+            ui_data_win_on_key_pg_dwn();
             break;
         case KEY_DOWN:
-            if (!data_buf_scroll_timer)
-                ui_print_status(DATA_WIN_SCROLL_LEGEND, 0);
-            data_buf_scroll_timer = DATA_BUF_SCROLLING_TIME;
-            if (data_buf_top == data_buf_end)
-                break;
-            data_buf_top += 1;
-            if (data_buf_top >= MAX_DATA_BUF_LEN)
-                data_buf_top -= MAX_DATA_BUF_LEN;
-            if (data_buf_top == data_buf_end)
-                break;
-            ui_refresh_data_win();
+            ui_data_win_on_key_dwn();
             break;
-        case 'C':
-        case 'c':
-            data_buf_scroll_timer = 1;
+        case 'E':
+        case 'e':
+            ui_data_win_on_end_scroll();
             break;
         case 24: /* CTRL-X */
             if (arim_is_arq_state()) {
@@ -2345,6 +1092,7 @@ int ui_run()
             ui_print_cmd_in();
             ui_print_recents();
             ui_print_ptable();
+            ui_print_ctable();
             if (!data_buf_scroll_timer)
                 ui_print_data_in();
             ui_print_heard_list();
@@ -2357,13 +1105,13 @@ int ui_run()
             g_new_install = 0;
             ui_show_dialog("\tThis is a new installation!\n"
                            "\tYou should edit the " DEFAULT_INI_FNAME " file\n"
-                           "\tto set your callsign and configure ARIM.\n \n\t[O]k", "oO \n");
+                           "\tto set your call sign and configure ARIM.\n \n\t[O]k", "oO \n");
         }
         if (g_win_changed) {
             /* terminal size changed, prepare to redraw ui */
             g_win_changed = 0;
             win_change_timer = WIN_CHANGE_TIMER_COUNT;
-            show_recents = show_ptable = 0;
+            show_recents = show_ptable = show_ctable = 0;
         } else if (win_change_timer && --win_change_timer == 0) {
                 /* wipe screen and redraw ui */
                 ui_end();

@@ -31,6 +31,9 @@
 #include "cmdproc.h"
 #include "ini.h"
 #include "ui.h"
+#include "ui_ping_hist.h"
+#include "ui_heard_list.h"
+#include "ui_tnc_data_win.h"
 #include "util.h"
 
 static char ping_tcall[TNC_MYCALL_SIZE], ping_scall[TNC_MYCALL_SIZE];

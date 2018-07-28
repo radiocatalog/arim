@@ -125,16 +125,20 @@ am_arim_OBJECTS = src/main.$(OBJEXT) src/arim.$(OBJEXT) \
 	src/arim_proto_unproto.$(OBJEXT) \
 	src/arim_proto_frame.$(OBJEXT) \
 	src/arim_proto_arq_conn.$(OBJEXT) \
-	src/arim_proto_arq_file.$(OBJEXT) \
+	src/arim_proto_arq_files.$(OBJEXT) \
 	src/arim_proto_arq_msg.$(OBJEXT) \
 	src/arim_proto_arq_auth.$(OBJEXT) src/arim_query.$(OBJEXT) \
 	src/bufq.$(OBJEXT) src/cmdproc.$(OBJEXT) \
-	src/cmdthread.$(OBJEXT) src/datathread.$(OBJEXT) \
-	src/ini.$(OBJEXT) src/log.$(OBJEXT) src/mbox.$(OBJEXT) \
-	src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
+	src/tnc_attach.$(OBJEXT) src/cmdthread.$(OBJEXT) \
+	src/datathread.$(OBJEXT) src/ini.$(OBJEXT) src/log.$(OBJEXT) \
+	src/mbox.$(OBJEXT) src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
 	src/ui_fec_menu.$(OBJEXT) src/ui_files.$(OBJEXT) \
-	src/ui_help_menu.$(OBJEXT) src/ui_msg.$(OBJEXT) \
-	src/ui_themes.$(OBJEXT) src/util.$(OBJEXT) src/auth.$(OBJEXT) \
+	src/ui_recents.$(OBJEXT) src/ui_ping_hist.$(OBJEXT) \
+	src/ui_conn_hist.$(OBJEXT) src/ui_heard_list.$(OBJEXT) \
+	src/ui_tnc_data_win.$(OBJEXT) src/ui_tnc_cmd_win.$(OBJEXT) \
+	src/ui_cmd_prompt_win.$(OBJEXT) src/ui_help_menu.$(OBJEXT) \
+	src/ui_msg.$(OBJEXT) src/ui_themes.$(OBJEXT) \
+	src/util.$(OBJEXT) src/auth.$(OBJEXT) \
 	src/blake2s-ref.$(OBJEXT)
 arim_OBJECTS = $(am_arim_OBJECTS)
 arim_LDADD = $(LDADD)
@@ -387,12 +391,13 @@ arim_SOURCES = \
     src/arim_proto_unproto.c src/arim_proto_unproto.h \
     src/arim_proto_frame.c src/arim_proto_frame.h \
     src/arim_proto_arq_conn.c src/arim_proto_arq_conn.h \
-    src/arim_proto_arq_file.c src/arim_proto_arq_file.h \
+    src/arim_proto_arq_files.c src/arim_proto_arq_files.h \
     src/arim_proto_arq_msg.c src/arim_proto_arq_msg.h \
     src/arim_proto_arq_auth.c src/arim_proto_arq_auth.h \
     src/arim_query.c src/arim_query.h \
     src/bufq.c src/bufq.h \
     src/cmdproc.c src/cmdproc.h \
+    src/tnc_attach.c src/tnc_attach.h \
     src/cmdthread.c src/cmdthread.h \
     src/datathread.c src/datathread.h \
     src/ini.c src/ini.h \
@@ -402,6 +407,13 @@ arim_SOURCES = \
     src/ui_dialog.c src/ui_dialog.h \
     src/ui_fec_menu.c src/ui_fec_menu.h \
     src/ui_files.c src/ui_files.h \
+    src/ui_recents.c src/ui_recents.h \
+    src/ui_ping_hist.c src/ui_ping_hist.h \
+    src/ui_conn_hist.c src/ui_conn_hist.h \
+    src/ui_heard_list.c src/ui_heard_list.h \
+    src/ui_tnc_data_win.c src/ui_tnc_data_win.h \
+    src/ui_tnc_cmd_win.c src/ui_tnc_cmd_win.h \
+    src/ui_cmd_prompt_win.c src/ui_cmd_prompt_win.h \
     src/ui_help_menu.c src/ui_help_menu.h \
     src/ui_msg.c src/ui_msg.h \
     src/ui_themes.c src/ui_themes.h \
@@ -585,7 +597,7 @@ src/arim_proto_frame.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/arim_proto_arq_conn.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
-src/arim_proto_arq_file.$(OBJEXT): src/$(am__dirstamp) \
+src/arim_proto_arq_files.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/arim_proto_arq_msg.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
@@ -595,6 +607,8 @@ src/arim_query.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/bufq.$(OBJEXT): src/$(am__dirstamp) src/$(DEPDIR)/$(am__dirstamp)
 src/cmdproc.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/tnc_attach.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/cmdthread.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
@@ -609,6 +623,20 @@ src/ui_dialog.$(OBJEXT): src/$(am__dirstamp) \
 src/ui_fec_menu.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/ui_files.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_recents.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_ping_hist.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_conn_hist.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_heard_list.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_tnc_data_win.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_tnc_cmd_win.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_cmd_prompt_win.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/ui_help_menu.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
@@ -643,7 +671,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_auth.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_conn.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_file.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_files.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_arq_msg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_beacon.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/arim_proto_frame.Po@am__quote@
@@ -663,13 +691,21 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/log.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/main.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/mbox.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/tnc_attach.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_cmd_prompt_win.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_conn_hist.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_dialog.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_fec_menu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_files.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_heard_list.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_help_menu.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_msg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_ping_hist.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_recents.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_themes.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_tnc_cmd_win.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_tnc_data_win.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/util.Po@am__quote@
 
 .c.o:

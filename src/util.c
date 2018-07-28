@@ -30,7 +30,6 @@
 #include "main.h"
 #include "ini.h"
 #include "util.h"
-#include "blake2.h"
 
 const char *days[] = {
     "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
@@ -164,6 +163,21 @@ char *util_clock(char *buffer, size_t maxsize)
         cur_time = localtime(&t);
     snprintf(buffer, maxsize, "%s %02d %02d:%02d", months[cur_time->tm_mon],
                 cur_time->tm_mday, cur_time->tm_hour, cur_time->tm_min);
+    pthread_mutex_unlock(&mutex_time);
+    return buffer;
+}
+
+char *util_clock_tm(time_t t, char *buffer, size_t maxsize)
+{
+    struct tm *cur_time;
+
+    pthread_mutex_lock(&mutex_time);
+    if (!strncasecmp(g_ui_settings.utc_time, "TRUE", 4))
+        cur_time = gmtime(&t);
+    else
+        cur_time = localtime(&t);
+    snprintf(buffer, maxsize, "%s %02d %02d:%02d:%02d", months[cur_time->tm_mon],
+                cur_time->tm_mday, cur_time->tm_hour, cur_time->tm_min, cur_time->tm_sec);
     pthread_mutex_unlock(&mutex_time);
     return buffer;
 }

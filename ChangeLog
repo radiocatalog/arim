@@ -1,6 +1,34 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v1.10 28Jul2018
+---------------
+1. Add new "CONNECTION HISTORY" view, which displays a list of ARQ
+   connections made, both inbound and outbound. Press 'c' to open the
+   view. Connection info shown is:
+      Direction of connection request, in or out.
+      Call sign of remote station.
+      Connection start time, format: Mon DD HH:MM:SS.
+      Connection duration time, format: HH:MM:SS.
+      Number of bytes received.
+      Number of bytes transmitted.
+   Press 'u' and 'd' to scroll. Press 'c' again to close the view.
+   To clear the view, type 'clrconn' at the command prompt.
+2. Copy 'test.txt' file from /usr/local/share/arim only when missing
+   from user's local shared files directory.
+3. Set LISTEN to FALSE when sending ARQ connection requests.
+4. Fix bug causing occasional failure to prompt user to save message
+   to outbox when the message send operation is canceled with ESC.
+5. Fix bug preventing clean compile of ARIM from source code on older
+   Linux operating systems with ncurses library versions < 5.10. On
+   these systems the ITALIC text attribute won't work in UI theme
+   definitions in the arim-themes file; it will default to NORMAL.
+6. Adjust to new gcc 8 string format truncation diagnostics. Change
+   'snprintf' destination buffer sizes where needed and explicitly
+   handle certain format truncation cases to satisfy the compiler and
+   prevent warnings.
+7. Update embedded Help, PDF Help doc and man files as needed.
+
 v1.9  01May2018
 ---------------
 1. Add "remote file listing" feature in ARQ mode. Use new commmand

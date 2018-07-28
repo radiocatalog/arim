@@ -37,6 +37,7 @@
 #include "arim_beacon.h"
 #include "arim_ping.h"
 #include "arim_proto.h"
+#include "tnc_attach.h"
 #include "bufq.h"
 #include "ini.h"
 #include "log.h"
@@ -153,10 +154,10 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 while (*end && *end != ' ')
                     ++end;
                 *end = '\0';
-                    ++end;
                 pthread_mutex_lock(&mutex_tnc_set);
                 snprintf(g_tnc_settings[g_cur_tnc].arq_remote_call,
                     sizeof(g_tnc_settings[g_cur_tnc].arq_remote_call), "%s", val);
+                ++end;
                 if (*end) {
                     while (*end && *end == ' ')
                         ++end;
@@ -166,7 +167,7 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 pthread_mutex_unlock(&mutex_tnc_set);
                 arim_on_event(EV_ARQ_CONNECTED, 0);
             } else if (!strncasecmp(start, "TARGET", 6)) {
-                /* parse target callsign */
+                /* parse target call sign */
                 pthread_mutex_lock(&mutex_tnc_set);
                 snprintf(g_tnc_settings[g_cur_tnc].arq_target_call,
                     sizeof(g_tnc_settings[g_cur_tnc].arq_target_call), "%s", val);
@@ -287,6 +288,7 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                 snprintf(g_tnc_settings[g_cur_tnc].version,
                     sizeof(g_tnc_settings[g_cur_tnc].version), "%s", val);
                 pthread_mutex_unlock(&mutex_tnc_set);
+                tnc_get_version(val);
             }
             cnt -= (end - buffer + 1);
             memmove(buffer, end + 1, cnt);

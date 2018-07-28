@@ -33,6 +33,7 @@
 #include "ui.h"
 #include "util.h"
 #include "ui_dialog.h"
+#include "ui_tnc_data_win.h"
 #include "log.h"
 #include "mbox.h"
 #include "zlib.h"
@@ -427,7 +428,7 @@ int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
         while (*e && *e != ' ') {
             ++e;
         }
-        /* at end of callsign */
+        /* at end of call sign */
         if (*e) {
             *e = '\0';
             ++e;
@@ -466,9 +467,9 @@ int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
         }
     } else {
         snprintf(linebuf, sizeof(linebuf),
-                    "ARQ: Message download failed, bad /MPUT callsign");
+                    "ARQ: Message download failed, bad /MPUT call sign");
         ui_queue_debug_log(linebuf);
-        snprintf(linebuf, sizeof(linebuf), "/ERROR Bad callsign");
+        snprintf(linebuf, sizeof(linebuf), "/ERROR Bad call sign");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_MSG_ERROR, 0);
     }

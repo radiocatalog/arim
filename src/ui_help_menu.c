@@ -29,6 +29,12 @@
 #include "main.h"
 #include "arim_proto.h"
 #include "ui.h"
+#include "ui_recents.h"
+#include "ui_ping_hist.h"
+#include "ui_conn_hist.h"
+#include "ui_heard_list.h"
+#include "ui_tnc_data_win.h"
+#include "ui_tnc_cmd_win.h"
 
 #define MAX_HELP_ROW_SIZE  256
 #define HELP_WIN_SCROLL_LEGEND  "Scrolling: UP DOWN PAGEUP PAGEDOWN HOME END, 'q' to quit. "
@@ -44,6 +50,7 @@ const char *help[] = {
     "FEC mode hot keys:",
     "  Press 'r' to open the Recent Messages view.",
     "  Press 'p' to open the Ping History view.",
+    "  Press 'c' to open the Connection History view.",
     "  Press 'f' to open the FEC Control menu.",
     "  Press 't' to toggle timestamp format (Clock/Elapsed Time).",
     "  Press 'n' to clear the new message and file counters.",
@@ -160,7 +167,7 @@ const char *help[] = {
     "  'conn c n' to connect where c is call sign of remote station",
     "    and n is number of connection request repeats.",
     "  When connected, text entered at the command prompt will be",
-    "    sent to the remote station and also printed to the local.",
+    "    sent to the remote station and also printed to the local",
     "    traffic monitor view and traffic log.",
     "  If connected to an ARIM station, the following query commands,",
     "    prefixed by the '/' character, may be entered at the prompt",
@@ -266,28 +273,29 @@ const char *help[] = {
     "",
     "Authentication password commands:",
     "  'passwd client_call server_call password' to add or change",
-    "  a password, where client_call is the call sign of the 'client',",
-    "  station, and server_call is the the call sign of the 'server'",
-    "  station and password is the password, limited to 32 characters",
-    "  in length. See the ARIM Help file for details.",
+    "    a password, where client_call is the call sign of the 'client',",
+    "    station, and server_call is the the call sign of the 'server'",
+    "    station and password is the password, limited to 32 characters",
+    "    in length. See the ARIM Help file for details.",
     "  'delpass client_call server_call' to delete a password, where",
-    "  client_call is the 'client' station and server_call is the",
-    "  'server' station. See the ARIM Help file for details.",
+    "    client_call is the 'client' station and server_call is the",
+    "    'server' station. See the ARIM Help file for details.",
     "",
     "Traffic Monitor scrolling:",
     "  Press UP, DOWN, PAGEUP, PAGEDOWN, HOME or END key to start",
     "  scrolling through the monitor history buffer. The status",
     "  bar will be updated to indicate that scrolling is active.",
-    "  Press 'c' to cancel scrolling. Scrolling will automatically",
+    "  Press 'e' to end scrolling. Scrolling will automatically",
     "  time out after 15 seconds if no movement keys are pressed.",
     "",
-    "Recent Messages and Ping History scrolling:",
+    "Recent Messages, Connection History and Ping History scrolling:",
     "  Press 'd' to scroll down, 'u' to scroll up.",
     "",
     "Clear screen commands:",
     "  'clrmon' to clear the Traffic Monitor view.",
     "  'clrheard' to clear the Calls Heard view.",
     "  'clrping' to clear the Ping History view.",
+    "  'clrconn' to clear the Connection History view.",
     "  'clrrec' to clear the Recent Messages view.",
     "",
     "UI theme control:",
@@ -297,7 +305,7 @@ const char *help[] = {
     "  available; others may be defined in the arim-themes file.",
     "",
     "ARIM status bar indicator key (ARQ Mode):",
-    "------------------------------",
+    "-----------------------------------------",
     "  ! ARQ:CALL+ BW S:STATE",
     "",
     "  !       = Input lockout indicator, displayed when busy",
@@ -311,7 +319,7 @@ const char *help[] = {
     "  ! ARQ:NW8L-1 1000 S:IRS         ARQ:NW8L-1+ 500 S:IDLE",
     "",
     "ARIM status bar indicator key (FEC Mode):",
-    "------------------------------",
+    "-----------------------------------------",
     "  I/B:T/R FECMODE:REPEATS B:MINUTES",
     "",
     "  I/B     = ARIM state, Idle or Busy",
@@ -326,7 +334,7 @@ const char *help[] = {
     "  B:T 4FSK.500.100:0 B:030        I:R 8PSK.1000.100:0 B:OFF",
     "",
     "ARIM/ARDOP frame type key:",
-    "--------------------",
+    "--------------------------",
     "  [B] ARIM beacon          [M] ARIM message",
     "  [Q] ARIM query           [R] ARIM response",
     "  [A] ARIM ack             [N] ARIM nak",
@@ -542,29 +550,29 @@ void ui_show_help()
             break;
         case 'd':
             if (show_ptable && ptable_list_cnt) {
-                ptable_start_line++;
-                if (ptable_start_line >= ptable_list_cnt)
-                    ptable_start_line = ptable_list_cnt - 1;
+                ui_ptable_inc_start_line();
                 ui_refresh_ptable();
             }
+            else if (show_ctable && ctable_list_cnt) {
+                ui_ctable_inc_start_line();
+                ui_refresh_ctable();
+            }
             else if (show_recents && recents_list_cnt) {
-                recents_start_line++;
-                if (recents_start_line >= recents_list_cnt)
-                    recents_start_line = recents_list_cnt - 1;
+                ui_recents_inc_start_line();
                 ui_refresh_recents();
             }
             break;
         case 'u':
             if (show_ptable && ptable_list_cnt) {
-                ptable_start_line--;
-                if (ptable_start_line < 0)
-                    ptable_start_line = 0;
+                ui_ptable_dec_start_line();
                 ui_refresh_ptable();
             }
+            else if (show_ctable && ctable_list_cnt) {
+                ui_ctable_dec_start_line();
+                ui_refresh_ctable();
+            }
             else if (show_recents && recents_list_cnt) {
-                recents_start_line--;
-                if (recents_start_line < 0)
-                    recents_start_line = 0;
+                ui_recents_dec_start_line();
                 ui_refresh_recents();
             }
             break;
@@ -582,6 +590,7 @@ void ui_show_help()
             ui_print_cmd_in();
             ui_print_recents();
             ui_print_ptable();
+            ui_print_ctable();
             ui_print_heard_list();
             ui_check_status_dirty();
             break;
@@ -592,7 +601,7 @@ void ui_show_help()
     }
     ui_set_active_win(prev_win);
     if (show_titles)
-        ui_print_data_title();
+        ui_print_data_win_title();
 }
 
 

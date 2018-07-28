@@ -57,12 +57,13 @@ arim_SOURCES = \
     src/arim_proto_unproto.c src/arim_proto_unproto.h \
     src/arim_proto_frame.c src/arim_proto_frame.h \
     src/arim_proto_arq_conn.c src/arim_proto_arq_conn.h \
-    src/arim_proto_arq_file.c src/arim_proto_arq_file.h \
+    src/arim_proto_arq_files.c src/arim_proto_arq_files.h \
     src/arim_proto_arq_msg.c src/arim_proto_arq_msg.h \
     src/arim_proto_arq_auth.c src/arim_proto_arq_auth.h \
     src/arim_query.c src/arim_query.h \
     src/bufq.c src/bufq.h \
     src/cmdproc.c src/cmdproc.h \
+    src/tnc_attach.c src/tnc_attach.h \
     src/cmdthread.c src/cmdthread.h \
     src/datathread.c src/datathread.h \
     src/ini.c src/ini.h \
@@ -72,6 +73,13 @@ arim_SOURCES = \
     src/ui_dialog.c src/ui_dialog.h \
     src/ui_fec_menu.c src/ui_fec_menu.h \
     src/ui_files.c src/ui_files.h \
+    src/ui_recents.c src/ui_recents.h \
+    src/ui_ping_hist.c src/ui_ping_hist.h \
+    src/ui_conn_hist.c src/ui_conn_hist.h \
+    src/ui_heard_list.c src/ui_heard_list.h \
+    src/ui_tnc_data_win.c src/ui_tnc_data_win.h \
+    src/ui_tnc_cmd_win.c src/ui_tnc_cmd_win.h \
+    src/ui_cmd_prompt_win.c src/ui_cmd_prompt_win.h \
     src/ui_help_menu.c src/ui_help_menu.h \
     src/ui_msg.c src/ui_msg.h \
     src/ui_themes.c src/ui_themes.h \

@@ -32,6 +32,7 @@ extern char *util_datestamp(char *buffer, size_t maxsize);
 extern char *util_date_timestamp(char *buffer, size_t maxsize);
 extern char *util_file_timestamp(time_t t, char *buffer, size_t maxsize);
 extern char *util_clock(char *buffer, size_t maxsize);
+extern char *util_clock_tm(time_t t, char *buffer, size_t maxsize);
 extern unsigned int ccitt_crc16(const unsigned char *data, size_t size);
 
 #endif

@@ -30,6 +30,8 @@
 #include "arim_beacon.h"
 #include "ini.h"
 #include "ui.h"
+#include "ui_heard_list.h"
+#include "ui_tnc_data_win.h"
 #include "util.h"
 
 int g_btime;

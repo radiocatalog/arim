@@ -47,27 +47,28 @@
 #define ST_RCV_QRY_PING_ACK_WAIT        17
 #define ST_ARQ_IN_CONNECT_WAIT          18
 #define ST_ARQ_OUT_CONNECT_WAIT         19
-#define ST_RCV_ARQ_CONN_PING_ACK_WAIT   20
-#define ST_ARQ_CONNECTED                21
-#define ST_ARQ_FILE_SEND_WAIT           22
-#define ST_ARQ_FILE_SEND_WAIT_OK        23
-#define ST_ARQ_FILE_SEND                24
-#define ST_ARQ_FILE_RCV_WAIT_OK         25
-#define ST_ARQ_FILE_RCV_WAIT            26
-#define ST_ARQ_FILE_RCV                 27
-#define ST_ARQ_MSG_RCV                  28
-#define ST_ARQ_MSG_SEND_WAIT            29
-#define ST_ARQ_MSG_SEND                 30
-#define ST_ARQ_AUTH_RCV_A2_WAIT         31
-#define ST_ARQ_AUTH_RCV_A3_WAIT         32
-#define ST_ARQ_AUTH_RCV_A4_WAIT         33
-#define ST_ARQ_AUTH_SEND_A1             34
-#define ST_ARQ_AUTH_SEND_A2             35
-#define ST_ARQ_AUTH_SEND_A3             36
-#define ST_ARQ_FLIST_RCV_WAIT           37
-#define ST_ARQ_FLIST_RCV                38
-#define ST_ARQ_FLIST_SEND_WAIT          39
-#define ST_ARQ_FLIST_SEND               40
+#define ST_ARQ_OUT_CONNECT_WAIT_RPT     20
+#define ST_RCV_ARQ_CONN_PING_ACK_WAIT   21
+#define ST_ARQ_CONNECTED                22
+#define ST_ARQ_FILE_SEND_WAIT           23
+#define ST_ARQ_FILE_SEND_WAIT_OK        24
+#define ST_ARQ_FILE_SEND                25
+#define ST_ARQ_FILE_RCV_WAIT_OK         26
+#define ST_ARQ_FILE_RCV_WAIT            27
+#define ST_ARQ_FILE_RCV                 28
+#define ST_ARQ_MSG_RCV                  29
+#define ST_ARQ_MSG_SEND_WAIT            30
+#define ST_ARQ_MSG_SEND                 31
+#define ST_ARQ_AUTH_RCV_A2_WAIT         32
+#define ST_ARQ_AUTH_RCV_A3_WAIT         33
+#define ST_ARQ_AUTH_RCV_A4_WAIT         34
+#define ST_ARQ_AUTH_SEND_A1             35
+#define ST_ARQ_AUTH_SEND_A2             36
+#define ST_ARQ_AUTH_SEND_A3             37
+#define ST_ARQ_FLIST_RCV_WAIT           38
+#define ST_ARQ_FLIST_RCV                39
+#define ST_ARQ_FLIST_SEND_WAIT          40
+#define ST_ARQ_FLIST_SEND               41
 
 #define EV_NULL                         0
 #define EV_PERIODIC                     1
@@ -151,9 +152,11 @@ extern int arim_copy_netcall(char *call, size_t size, int which);
 extern int arim_get_netcall_cnt(void);
 extern int arim_test_mycall(const char *call);
 extern int arim_test_netcall(const char *call);
+extern void arim_copy_gridsq(char *gridsq, size_t size);
 extern void arim_copy_remote_call(char *call, size_t size);
 extern void arim_copy_target_call(char *call, size_t size);
 extern void arim_copy_arq_sendcr(char *val, size_t size);
+extern void arim_copy_arq_bw(char *val, size_t size);
 extern void arim_copy_arq_bw_hz(char *val, size_t size);
 extern void arim_copy_tnc_state(char *state, size_t size);
 extern int arim_check(const char *msg, unsigned int cs_rcvd);

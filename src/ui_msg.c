@@ -34,6 +34,13 @@
 #include "arim_arq_msg.h"
 #include "ui.h"
 #include "ui_dialog.h"
+#include "ui_recents.h"
+#include "ui_ping_hist.h"
+#include "ui_conn_hist.h"
+#include "ui_heard_list.h"
+#include "ui_tnc_data_win.h"
+#include "ui_tnc_cmd_win.h"
+#include "ui_cmd_prompt_win.h"
 #include "mbox.h"
 
 #define MAX_CMD_HIST            10+1
@@ -228,7 +235,7 @@ int ui_read_msg(const char *fn, const char *hdr, int msgnbr, int is_recent)
         usleep(100000);
     }
     if (show_titles)
-        ui_print_cmd_title();
+        ui_print_cmd_win_title();
     return 1;
 }
 
@@ -237,10 +244,7 @@ int ui_create_get_line(char *msg_line, size_t max_len)
     size_t len = 0, cur = 0;
     int ch, quit = 0;
 
-    wmove(prompt_win, prompt_row, prompt_col);
-    wclrtoeol(prompt_win);
-    wrefresh(prompt_win);
-
+    ui_cmd_prompt_clear();
     curs_set(1);
     keypad(prompt_win, TRUE);
     while (!quit) {
@@ -350,9 +354,7 @@ int ui_create_get_line(char *msg_line, size_t max_len)
     }
     keypad(prompt_win, FALSE);
     curs_set(0);
-    wmove(prompt_win, prompt_row, prompt_col);
-    wclrtoeol(prompt_win);
-    wrefresh(prompt_box);
+    ui_cmd_prompt_clear();
     return (len != 0);
 }
 
@@ -429,7 +431,7 @@ int ui_create_msg(char *buffer, size_t bufsize, const char *to)
         }
     }
     if (show_titles)
-        ui_print_cmd_title();
+        ui_print_cmd_win_title();
     show_cmds = 1;
     return cancel ? 0 : 1;
 }
@@ -463,10 +465,7 @@ int ui_list_get_line(char *cmd_line, size_t max_len)
     size_t len = 0, cur = 0;
     int ch, temp, hist_cmd, quit = 0;
 
-    wmove(prompt_win, prompt_row, prompt_col);
-    wclrtoeol(prompt_win);
-    wrefresh(prompt_win);
-
+    ui_cmd_prompt_clear();
     curs_set(1);
     keypad(prompt_win, TRUE);
     memset(cmd_line, 0, max_len);
@@ -486,6 +485,7 @@ int ui_list_get_line(char *cmd_line, size_t max_len)
             ui_print_cmd_in();
             ui_print_recents();
             ui_print_ptable();
+            ui_print_ctable();
             ui_print_heard_list();
             ui_check_status_dirty();
             wmove(prompt_win, prompt_row, prompt_col + cur);
@@ -628,9 +628,7 @@ int ui_list_get_line(char *cmd_line, size_t max_len)
     }
     keypad(prompt_win, FALSE);
     curs_set(0);
-    wmove(prompt_win, prompt_row, prompt_col);
-    wclrtoeol(prompt_win);
-    wrefresh(prompt_win);
+    ui_cmd_prompt_clear();
     return (len != 0);
 }
 
@@ -892,7 +890,7 @@ restart:
                             arim_copy_remote_call(to_call, sizeof(to_call));
                         } else {
                             if (!p || (!ini_validate_mycall(p) && !ini_validate_netcall(p))) {
-                                ui_print_status("Fwd message: invalid callsign", 1);
+                                ui_print_status("Fwd message: invalid call sign", 1);
                                 break;
                             }
                             snprintf(to_call, sizeof(to_call), "%s", p);
@@ -948,7 +946,7 @@ restart:
             break;
         case 'r':
         case 'R':
-            if (show_ptable)
+            if (show_ptable || show_ctable)
                 break;
             if (!show_recents) {
                 show_recents = 1;
@@ -960,41 +958,53 @@ restart:
             break;
         case 'p':
         case 'P':
-            if (show_recents)
+            if (show_recents || show_ctable)
                 break;
             if (!show_ptable) {
                 show_ptable = 1;
-                ui_print_status("Showing Pings, <SP> 'pi n' to ping, press 'p' to toggle", 1);
+                ui_print_status("Showing Pings, <SP> 'u' or 'd' to scroll, 'p' to toggle", 1);
             } else {
                 show_ptable = 0;
                 ui_print_status("Showing TNC cmds, press 'p' to toggle", 1);
             }
             break;
+        case 'c':
+        case 'C':
+            if (show_recents || show_ptable)
+                break;
+            if (!show_ctable) {
+                show_ctable = 1;
+                ui_print_status("Showing Connections, <SP> 'u' or 'd' to scroll, 'c' to toggle", 1);
+            } else {
+                show_ctable = 0;
+                ui_print_status("Showing TNC cmds, press 'c' to toggle", 1);
+            }
+            break;
         case 'd':
             if (show_ptable && ptable_list_cnt) {
-                ptable_start_line++;
-                if (ptable_start_line >= ptable_list_cnt)
-                    ptable_start_line = ptable_list_cnt - 1;
+                ui_ptable_inc_start_line();
                 ui_refresh_ptable();
             }
+            else if (show_ctable && ctable_list_cnt) {
+                ui_ctable_inc_start_line();
+                ui_refresh_ctable();
+            }
             else if (show_recents && recents_list_cnt) {
-                recents_start_line++;
-                if (recents_start_line >= recents_list_cnt)
-                    recents_start_line = recents_list_cnt - 1;
+                ui_recents_inc_start_line();
                 ui_refresh_recents();
             }
             break;
         case 'u':
             if (show_ptable && ptable_list_cnt) {
-                ptable_start_line--;
-                if (ptable_start_line < 0)
-                    ptable_start_line = 0;
+                ui_ptable_dec_start_line();
                 ui_refresh_ptable();
             }
+            else if (show_ctable && ctable_list_cnt) {
+                ui_ctable_dec_start_line();
+                ui_refresh_ctable();
+            }
             else if (show_recents && recents_list_cnt) {
-                recents_start_line--;
-                if (recents_start_line < 0)
-                    recents_start_line = 0;
+                ui_recents_dec_start_line();
                 ui_refresh_recents();
             }
             break;
@@ -1098,6 +1108,7 @@ restart:
             ui_print_cmd_in();
             ui_print_recents();
             ui_print_ptable();
+            ui_print_ctable();
             ui_print_heard_list();
             ui_check_status_dirty();
             break;
@@ -1113,7 +1124,7 @@ restart:
     touchwin(tnc_data_box);
     wrefresh(tnc_data_box);
     if (show_titles)
-        ui_print_data_title();
+        ui_print_data_win_title();
     status_timer = 1;
 }
 

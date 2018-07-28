@@ -124,39 +124,17 @@
 #define STATUS_ARQ_FLIST_SEND       84
 #define STATUS_ARQ_FLIST_SEND_DONE  85
 #define STATUS_ARQ_FLIST_SEND_ACK   86
+#define STATUS_ARQ_CONN_REQ_REPEAT  87
 
 extern WINDOW *main_win;
-extern WINDOW *tnc_data_win;
-extern WINDOW *tnc_data_box;
-extern WINDOW *tnc_cmd_win;
-
-extern WINDOW *main_win;
-extern WINDOW *tnc_data_win;
-extern WINDOW *tnc_data_box;
-extern WINDOW *tnc_cmd_win;
-extern WINDOW *tnc_cmd_box;
-extern WINDOW *prompt_box;
-extern WINDOW *prompt_win;
-
 extern int color_code;
+extern int mon_timestamp;
 extern int data_buf_scroll_timer;
 extern int status_timer;
 extern int status_dirty;
-extern int show_recents;
-extern int show_ptable;
 extern int show_titles;
 extern int show_cmds;
 extern int last_time_heard;
-extern int recents_list_cnt;
-extern int recents_start_line;
-extern int ptable_list_cnt;
-extern int ptable_start_line;
-
-extern int ui_list_box_y, ui_list_box_x, ui_list_box_w, ui_list_box_h;
-extern int tnc_data_box_y, tnc_data_box_x, tnc_data_box_w, tnc_data_box_h;
-extern int tnc_cmd_box_y, tnc_cmd_box_x, tnc_cmd_box_w, tnc_cmd_box_h;
-extern int prompt_box_y, prompt_box_x, prompt_box_w, prompt_box_h;
-extern int prompt_row, prompt_col;
 
 extern int num_new_msgs;
 extern int num_new_files;
@@ -165,36 +143,16 @@ extern int ui_init(void);
 extern int ui_run(void);
 extern void ui_end(void);
 extern void ui_print_status(const char *text, int temporary);
-extern void ui_print_data_in(void);
-extern void ui_print_data_title(void);
 extern void ui_print_title(const char *status);
-extern void ui_print_recents(void);
-extern void ui_refresh_recents(void);
-extern void ui_print_ptable(void);
-extern void ui_refresh_ptable(void);
-extern int ui_get_recent(int index, char *header, size_t size);
-extern int ui_set_recent_flag(const char *header, char flag);
-extern void ui_print_heard_list(void);
-extern void ui_refresh_heard_list(void);
-extern void ui_queue_data_in(const char *text);
-extern void ui_queue_data_out(const char *text);
-extern void ui_print_cmd_in(void);
-extern void ui_print_cmd_title(void);
 extern void ui_queue_cmd_out(const char *text);
 extern void ui_queue_debug_log(const char *text);
 extern void ui_queue_traffic_log(const char *text);
-extern void ui_queue_heard(const char *text);
-extern void ui_queue_ptable(const char *text);
-extern void ui_get_heard_list(char *listbuf, size_t listbufsize);
 extern void ui_on_cancel(void);
 extern void ui_set_title_dirty(int val);
 extern void ui_set_status_dirty(int val);
 extern void ui_check_status_dirty(void);
 extern WINDOW *ui_set_active_win(WINDOW *win);
-extern void ui_clear_data_in(void);
 extern void ui_clear_calls_heard(void);
-extern void ui_clear_ptable(void);
-extern void ui_clear_recents(void);
 extern void ui_clear_new_ctrs(void);
 extern void ui_truncate_line(char *line, size_t size);
 

@@ -45,15 +45,21 @@
 #include "ui_files.h"
 #include "ui_msg.h"
 #include "ui_themes.h"
+#include "ui_recents.h"
+#include "ui_ping_hist.h"
+#include "ui_conn_hist.h"
+#include "ui_heard_list.h"
+#include "ui_tnc_data_win.h"
 #include "util.h"
 #include "auth.h"
 #include "cmdproc.h"
+#include "tnc_attach.h"
 
 #define MSG_SEND_FAIL_PROMPT_SAVE   1
 
 int cmdproc_cmd(const char *cmd)
 {
-    int state, result1, result2, zoption = 0;
+    int state, result1, result2, numch, zoption = 0;
     static char prevbuf[MAX_CMD_SIZE];
     char *t, *fn, *destdir, buffer[MAX_CMD_SIZE], sendcr[TNC_ARQ_SENDCR_SIZE];
     char msgbuffer[MIN_MSG_BUF_SIZE], status[MAX_STATUS_BAR_SIZE];
@@ -224,7 +230,7 @@ int cmdproc_cmd(const char *cmd)
                     /* -z option not found, back up to start */
                     p = cmd + 3;
                 }
-                snprintf(buffer, sizeof(buffer), "%s", p + 1);
+                snprintf(buffer, sizeof(buffer), "%s", p);
                 /* check for message text on command line */
                 t = strtok(buffer, "\0");
                 if (!t) {
@@ -298,7 +304,7 @@ int cmdproc_cmd(const char *cmd)
             t = strtok(NULL, "\n\0");
             if (t) {
                 if (auth_base64_encode((unsigned char *)t, strlen(t), msgbuffer, sizeof(msgbuffer))) {
-                    snprintf(status, sizeof(status), "b64: %s", msgbuffer);
+                    numch = snprintf(status, sizeof(status), "b64: %s", msgbuffer);
                     ui_print_status(status, 1);
                 } else {
                     ui_print_status("Failed to encode input", 1);
@@ -329,7 +335,7 @@ int cmdproc_cmd(const char *cmd)
                 break;
             }
             if (!t || (!ini_validate_mycall(t) && !ini_validate_netcall(t))) {
-                ui_print_status("Send msg: cannot send, invalid callsign", 1);
+                ui_print_status("Send msg: cannot send, invalid call sign", 1);
                 break;
             }
             snprintf(call1, sizeof(call1), "%s", t);
@@ -408,7 +414,7 @@ int cmdproc_cmd(const char *cmd)
             }
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
-                ui_print_status("Send query: invalid callsign", 1);
+                ui_print_status("Send query: invalid call sign", 1);
                 break;
             }
             snprintf(call1, sizeof(call1), "%s", t);
@@ -427,7 +433,7 @@ int cmdproc_cmd(const char *cmd)
             }
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
-                ui_print_status("Send ping: invalid callsign", 1);
+                ui_print_status("Send ping: invalid call sign", 1);
                 break;
             }
             snprintf(call1, sizeof(call1), "%s", t);
@@ -446,26 +452,33 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("ARQ Connect: cannot connect, no TNC attached", 1);
                 break;
             }
+            /* parse call sign */
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
-                ui_print_status("ARQ Connect: invalid callsign", 1);
+                ui_print_status("ARQ Connect: invalid call sign", 1);
                 break;
             }
             snprintf(call1, sizeof(call1), "%s", t);
-            /* now get everything up to end of line */
-            t = strtok(NULL, "\0");
+            /* parse number of repeats */
+            t = strtok(NULL, " \t");
             if (!t || (result1 = atoi(t)) < 3 || result1 > 15) {
                 ui_print_status("ARQ Connect: invalid repeat count", 1);
                 break;
             }
-            if (!arim_arq_send_conn_req(t, call1))
+            /* now get optional ARQBW parameter */
+            t = strtok(NULL, " \0");
+            if (t && !ini_validate_arq_bw(t) && strncasecmp(t, "any", 3)) {
+                ui_print_status("ARQ Connect: invalid ARQBW parameter", 1);
+                break;
+            }
+            if (!arim_arq_send_conn_req(result1, call1, t))
                 ui_print_status("ARQ Connect: cannot send connection request, TNC busy", 1);
             else
                 ui_print_status("ARIM Busy: sending connection request", 1);
         } else if (!strncasecmp(t, "cm", 2)) {
             t = strtok(NULL, " \t");
             if (!t || (!ini_validate_mycall(t) && !ini_validate_netcall(t))) {
-                ui_print_status("Compose msg: cannot open, invalid callsign", 1);
+                ui_print_status("Compose msg: cannot open, invalid call sign", 1);
                 break;
             }
             if (ui_create_msg(msgbuffer, sizeof(msgbuffer), t)) {
@@ -488,20 +501,20 @@ int cmdproc_cmd(const char *cmd)
         } else if (!strncasecmp(t, "passwd", 4)) {
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
-                ui_print_status("Passwd: invalid remote station callsign", 1);
+                ui_print_status("Passwd: invalid remote station call sign", 1);
                 break;
             }
             snprintf(call1, sizeof(call1), "%s", t);
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
-                ui_print_status("Passwd: invalid local station callsign", 1);
+                ui_print_status("Passwd: invalid local station call sign", 1);
                 break;
             }
             snprintf(call2, sizeof(call2), "%s", t);
             /* now get everything up to end of line */
             t = strtok(NULL, "\0");
             if (!t) {
-                ui_print_status("Password: no password found", 1);
+                ui_print_status("Passwd: no password found", 1);
                 break;
             } else {
                 snprintf(buffer, sizeof(buffer), "%s", t);
@@ -516,11 +529,11 @@ int cmdproc_cmd(const char *cmd)
                 if (result1 == 'y' || result1 == 'Y') {
                     if (auth_store_passwd(call1, call2, buffer)) {
                         snprintf(buffer, sizeof(buffer),
-                            "stored password for remote station: %s and local port: %s",
+                            "Stored password for client stn: %s and server stn: %s",
                                 call1, call2);
                         ui_print_status(buffer, 1);
                     } else {
-                        ui_print_status("Password: failed to store password in file", 1);
+                        ui_print_status("Passwd: failed to store password in file", 1);
                         break;
                     }
                 }
@@ -528,13 +541,13 @@ int cmdproc_cmd(const char *cmd)
         } else if (!strncasecmp(t, "delpass", 4)) {
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
-                ui_print_status("Passwd: invalid remote station callsign", 1);
+                ui_print_status("Delpass: invalid remote station call sign", 1);
                 break;
             }
             snprintf(call1, sizeof(call1), "%s", t);
             t = strtok(NULL, " \t");
             if (!t || !ini_validate_mycall(t)) {
-                ui_print_status("Passwd: invalid local station callsign", 1);
+                ui_print_status("Delpass: invalid local station call sign", 1);
                 break;
             }
             snprintf(call2, sizeof(call2), "%s", t);
@@ -548,11 +561,11 @@ int cmdproc_cmd(const char *cmd)
             if (result1 == 'y' || result1 == 'Y') {
                 if (auth_delete_passwd(call1, call2)) {
                     snprintf(buffer, sizeof(buffer),
-                        "deleted password for remote station: %s and local port: %s",
+                        "Deleted password for client stn: %s and server stn: %s",
                             call1, call2);
                     ui_print_status(buffer, 1);
                 } else {
-                    ui_print_status("Password: failed to delete password in file", 1);
+                    ui_print_status("Delpass: failed to delete password in file", 1);
                     break;
                 }
             }
@@ -563,80 +576,14 @@ int cmdproc_cmd(const char *cmd)
             result1 = atoi(t);
             if (result1 > 0 && result1 <= g_num_tnc) {
                 result1--;
-                g_cur_tnc = result1;
-                g_cmdthread_ready = g_datathread_ready = 0;
-                g_cmdthread_stop = g_datathread_stop = 0;
-                result1 = pthread_create(&g_cmdthread, NULL, cmdthread_func, NULL);
-                if (!result1) {
-                    result2 = pthread_create(&g_datathread, NULL, datathread_func, NULL);
-                    if (result2) {
-                        g_cmdthread_stop = 1;
-                        pthread_join(g_cmdthread, NULL);
-                        g_cmdthread = 0;
-                    }
-                }
-                if (!result1 && !result2) {
-                    /* while waiting for threads to signal ready status,
-                       check stop flags and terminate if one or the other is set,
-                       because thread encountered an error when attempting to connect */
-                    do {
-                        if (g_cmdthread_stop) {
-                            pthread_join(g_cmdthread, NULL);
-                            g_cmdthread = 0;
-                            if (!g_datathread_stop) {
-                                /* shut down the other thread */
-                                g_datathread_stop = 1;
-                                pthread_join(g_datathread, NULL);
-                                g_datathread = 0;
-                                g_datathread_ready = 0;
-                            }
-                        }
-                        if (g_datathread_stop) {
-                            pthread_join(g_datathread, NULL);
-                            g_datathread = 0;
-                            if (!g_cmdthread_stop) {
-                                /* shut down the other thread */
-                                g_cmdthread_stop = 1;
-                                pthread_join(g_cmdthread, NULL);
-                                g_cmdthread = 0;
-                                g_cmdthread_ready = 0;
-                            }
-                        }
-                        /* are they both terminated? if so break */
-                        if (!g_cmdthread && !g_datathread)
-                            break;
-                    } while (!g_cmdthread_ready || !g_datathread_ready);
-                    if (g_cmdthread_ready && g_datathread_ready) {
-                        g_tnc_attached = 1;
-                        ui_set_title_dirty(TITLE_TNC_ATTACHED);
-                        arim_beacon_set(atoi(g_tnc_settings[g_cur_tnc].btime));
-                        ui_print_status("TNC connection successful", 1);
-                    } else {
-                        ui_print_status("Failed to connect to TNC", 1);
-                    }
-                } else {
-                    g_cmdthread = 0;
-                    g_datathread = 0;
-                    ui_print_status("Failed to start TNC service threads", 1);
-                }
+                tnc_attach(result1);
             } else {
                 ui_print_status("Invalid TNC number", 1);
             }
         } else if (!strncasecmp(t, "det", 3) && g_tnc_attached) {
             ui_print_status("Detaching from TNC...", 1);
-            if (g_cmdthread) {
-                g_cmdthread_stop = 1;
-                pthread_join(g_cmdthread, NULL);
-                g_cmdthread = 0;
-            }
-            if (g_datathread) {
-                g_datathread_stop = 1;
-                pthread_join(g_datathread, NULL);
-                g_datathread = 0;
-            }
-            g_tnc_attached = 0;
+            tnc_detach();
             ui_set_title_dirty(TITLE_TNC_DETACHED);
-            g_cur_tnc = 0;
         } else if (!strncasecmp(t, "listen", 4)) {
             if (g_tnc_attached) {
                 t = strtok(NULL, " \t");
@@ -712,12 +659,12 @@ int cmdproc_cmd(const char *cmd)
                     buffer[result2] = toupper(buffer[result2]);
                 if (ini_validate_arq_bw(buffer)) {
                     pthread_mutex_lock(&mutex_tnc_set);
-                    snprintf(g_tnc_settings[g_cur_tnc].arq_bandwidth,
-                                sizeof(g_tnc_settings[g_cur_tnc].arq_bandwidth), "%s", buffer);
+                    numch = snprintf(g_tnc_settings[g_cur_tnc].arq_bandwidth,
+                                     sizeof(g_tnc_settings[g_cur_tnc].arq_bandwidth), "%s", buffer);
                     pthread_mutex_unlock(&mutex_tnc_set);
-                    snprintf(status, sizeof(status), "ARQBW %s", buffer);
+                    numch = snprintf(status, sizeof(status), "ARQBW %s", buffer);
                     ui_queue_cmd_out(status);
-                    snprintf(status, sizeof(status), "ARQ connection bandwidth: %s", buffer);
+                    numch = snprintf(status, sizeof(status), "ARQ connection bandwidth: %s", buffer);
                     ui_print_status(status, 1);
                 } else {
                     ui_print_status("Invalid ARQ bandwidth value", 1);
@@ -746,7 +693,7 @@ int cmdproc_cmd(const char *cmd)
                 pthread_mutex_lock(&mutex_tnc_set);
                 snprintf(msgbuffer, sizeof(msgbuffer),
                 "\tARDOP TNC SETTINGS\n \n"
-                "   ip addr: %-10.30s       port: %.5s\n"
+                "   ip addr: %-10.30s      port: %.5s\n"
                 "    mycall: %-10.10s     gridsq: %.10s\n"
                 "     fecid: %-10.8s fecrepeats: %.5s\n"
                 "   squelch: %-10.2s    busydet: %.2s\n"
@@ -879,7 +826,7 @@ int cmdproc_cmd(const char *cmd)
                 snprintf(status, sizeof(status), "mycall changed to: %s", call1);
                 ui_print_status(status, 1);
             } else {
-                ui_print_status("Invalid callsign, mycall not changed", 1);
+                ui_print_status("Invalid call sign, mycall not changed", 1);
             }
         } else if (!strncasecmp(t, "gridsq", 4)) {
             if (!g_tnc_attached) {
@@ -892,9 +839,9 @@ int cmdproc_cmd(const char *cmd)
             snprintf(buffer, sizeof(buffer), "%s", t);
             result1 = ini_validate_gridsq(buffer);
             if (result1) {
-                snprintf(status, sizeof(status), "GRIDSQUARE %s", buffer);
+                numch = snprintf(status, sizeof(status), "GRIDSQUARE %s", buffer);
                 ui_queue_cmd_out(status);
-                snprintf(status, sizeof(status), "gridsq changed to: %s", buffer);
+                numch = snprintf(status, sizeof(status), "gridsq changed to: %s", buffer);
                 ui_print_status(status, 1);
             } else {
                 ui_print_status("Invalid grid square, gridsq not changed", 1);
@@ -969,10 +916,10 @@ int cmdproc_cmd(const char *cmd)
             result1 = ini_validate_name(buffer);
             if (result1) {
                 pthread_mutex_lock(&mutex_tnc_set);
-                snprintf(g_tnc_settings[g_cur_tnc].name, sizeof(g_tnc_settings[g_cur_tnc].name), "%s", buffer);
+                numch = snprintf(g_tnc_settings[g_cur_tnc].name, sizeof(g_tnc_settings[g_cur_tnc].name), "%s", buffer);
                 pthread_mutex_unlock(&mutex_tnc_set);
                 arim_beacon_set(-1);
-                snprintf(status, sizeof(status), "pname changed to: %s", buffer);
+                numch = snprintf(status, sizeof(status), "pname changed to: %s", buffer);
                 ui_print_status(status, 1);
                 ui_set_title_dirty(TITLE_TNC_ATTACHED);
             } else {
@@ -986,7 +933,7 @@ int cmdproc_cmd(const char *cmd)
             result1 = ui_themes_validate_theme(buffer);
             if (result1 != -1) {
                 theme = result1;
-                snprintf(status, sizeof(status), "UI theme changed to: %s", buffer);
+                numch = snprintf(status, sizeof(status), "UI theme changed to: %s", buffer);
                 ui_print_status(status, 1);
                 g_win_changed = 1;
             } else {
@@ -1024,12 +971,16 @@ int cmdproc_cmd(const char *cmd)
         } else if (!strncasecmp(t, "clrping", 7)) {
             ui_clear_ptable();
             ui_print_status("Ping History list cleared", 1);
+        } else if (!strncasecmp(t, "clrconn", 7)) {
+            ui_clear_ctable();
+            ui_print_status("Connection History list cleared", 1);
         } else if (!strncasecmp(t, "clrrec", 6)) {
             ui_clear_recents();
             ui_print_status("Recent Messages list cleared", 1);
         }
         break;
     }
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
 }
 

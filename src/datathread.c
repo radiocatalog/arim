@@ -51,6 +51,48 @@
 static int arim_data_waiting = 0;
 static time_t arim_start_time = 0;
 static int mon_timestamp_en;
+static size_t num_bytes_in, num_bytes_out;
+
+void datathread_inc_num_bytes_in(size_t num)
+{
+    pthread_mutex_lock(&mutex_num_bytes);
+    num_bytes_in += num;
+    pthread_mutex_unlock(&mutex_num_bytes);
+}
+
+void datathread_inc_num_bytes_out(size_t num)
+{
+    pthread_mutex_lock(&mutex_num_bytes);
+    num_bytes_out += num;
+    pthread_mutex_unlock(&mutex_num_bytes);
+}
+
+size_t datathread_get_num_bytes_in()
+{
+    size_t num;
+
+    pthread_mutex_lock(&mutex_num_bytes);
+    num = num_bytes_in;
+    pthread_mutex_unlock(&mutex_num_bytes);
+    return num;
+}
+
+size_t datathread_get_num_bytes_out()
+{
+    size_t num;
+
+    pthread_mutex_lock(&mutex_num_bytes);
+    num = num_bytes_out;
+    pthread_mutex_unlock(&mutex_num_bytes);
+    return num;
+}
+
+void datathread_reset_num_bytes()
+{
+    pthread_mutex_lock(&mutex_num_bytes);
+    num_bytes_out = num_bytes_in = 0;
+    pthread_mutex_unlock(&mutex_num_bytes);
+}
 
 void datathread_queue_heard(const char *text)
 {
@@ -133,6 +175,7 @@ void datathread_send_file_out(int sock)
         }
         s += TNC_DATA_BLOCK_SIZE;
         p = buffer;
+        datathread_inc_num_bytes_out(TNC_DATA_BLOCK_SIZE);
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
     if (nrem) {
@@ -145,6 +188,7 @@ void datathread_send_file_out(int sock)
             datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
+        datathread_inc_num_bytes_out(nrem + 2);
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
 }
@@ -178,6 +222,7 @@ void datathread_send_msg_out(int sock)
         }
         s += TNC_DATA_BLOCK_SIZE;
         p = buffer;
+        datathread_inc_num_bytes_out(TNC_DATA_BLOCK_SIZE);
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
     if (nrem) {
@@ -190,6 +235,7 @@ void datathread_send_msg_out(int sock)
             datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
+        datathread_inc_num_bytes_out(nrem + 2);
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
 }
@@ -224,6 +270,7 @@ void datathread_send_data_out(int sock)
         }
         s += TNC_DATA_BLOCK_SIZE;
         p = buffer;
+        datathread_inc_num_bytes_out(TNC_DATA_BLOCK_SIZE);
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
     if (nrem) {
@@ -236,6 +283,7 @@ void datathread_send_data_out(int sock)
             datathread_queue_debug_log("Data thread: write to socket failed");
             return;
         }
+        datathread_inc_num_bytes_out(nrem + 2);
         usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
     }
     state = arim_get_state();
@@ -428,6 +476,7 @@ char buf[MIN_MSG_BUF_SIZE];
         cnt = 0;
         return cnt;
     }
+    datathread_inc_num_bytes_in(size);
     memcpy(buffer + cnt, data, size);
     cnt += size;
     /* extract data size */

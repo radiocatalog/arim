@@ -26,6 +26,7 @@
 
 extern void arim_proto_arq_conn_pend_wait(int event, int param);
 extern void arim_proto_arq_conn_out_wait(int event, int param);
+extern void arim_proto_arq_conn_out_wait_rpt(int event, int param);
 extern void arim_proto_arq_conn_pp_wait(int event, int param);
 extern void arim_proto_arq_conn_in_wait(int event, int param);
 extern void arim_proto_arq_conn_connected(int event, int param);

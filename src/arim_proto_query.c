@@ -35,6 +35,7 @@
 #include "mbox.h"
 #include "ui.h"
 #include "util.h"
+#include "ui_tnc_data_win.h"
 
 void arim_proto_query_buf_wait(int event, int param)
 {
@@ -106,7 +107,7 @@ void arim_proto_query_pingack_wait(int event, int param)
         ui_queue_cmd_out("ABORT"); /* unconditionally abort */
         arim_set_state(ST_IDLE);
         arim_cancel_query();
-        ui_set_status_dirty(STATUS_PING_SEND_CAN);
+        ui_set_status_dirty(STATUS_QRY_SEND_CAN);
         break;
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */

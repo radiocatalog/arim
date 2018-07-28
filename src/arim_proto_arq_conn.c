@@ -151,9 +151,15 @@ void arim_proto_arq_conn_out_wait(int event, int param)
         break;
     case EV_ARQ_REJ_BW:
         /* a REJECTEDBW asynch response was received from the TNC */
-        arim_set_state(ST_IDLE);
-        arim_arq_on_conn_rej_bw();
-        ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
+        if (arim_arq_on_conn_rej_bw()) {
+            arim_set_state(ST_ARQ_OUT_CONNECT_WAIT_RPT);
+            /* trying again, so reload timer */
+            ack_timeout = ARDOP_OUT_CONN_RPT_TIMEOUT;
+            prev_time = time(NULL);
+        } else {
+            arim_set_state(ST_IDLE);
+            ui_set_status_dirty(STATUS_ARQ_CONN_REQ_FAIL);
+        }
         break;
     case EV_PERIODIC:
         t = time(NULL);
@@ -166,7 +172,31 @@ void arim_proto_arq_conn_out_wait(int event, int param)
         }
         break;
     }
- }
+}
+
+void arim_proto_arq_conn_out_wait_rpt(int event, int param)
+{
+    time_t t;
+
+    /* delay for ARDOP_OUT_CONN_RPT_TIMEOUT seconds before
+       repeating a connection request with a new ARQBW */
+    switch (event) {
+    case EV_CANCEL:
+        ui_queue_cmd_out("ABORT");
+        arim_set_state(ST_IDLE);
+        arim_arq_on_conn_cancel();
+        ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
+        break;
+    case EV_PERIODIC:
+        t = time(NULL);
+        /* see if it's time to repeat connection request */
+        if (t > prev_time + ack_timeout) {
+            arim_set_state(ST_IDLE);
+            ui_set_status_dirty(STATUS_ARQ_CONN_REQ_REPEAT);
+        }
+        break;
+    }
+}
 
 void arim_proto_arq_conn_pp_wait(int event, int param)
 {

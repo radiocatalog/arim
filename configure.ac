@@ -4,7 +4,7 @@
 AC_COPYRIGHT([Copyright (C) 2016, 2017, 2018 Robert Cunnings, NW8L])
 
 AC_PREREQ([2.69])
-AC_INIT([arim], [1.9], [nw8l@whitemesa.com])
+AC_INIT([arim], [1.10], [nw8l@whitemesa.com])
 AC_CONFIG_SRCDIR([src/ui.c])
 AC_CONFIG_HEADERS([src/config.h])
 AC_CANONICAL_TARGET
@@ -16,8 +16,17 @@ AC_PROG_CC
 
 # Checks for libraries.
 AC_SEARCH_LIBS([pthread_create], [pthread], [have_pthread=true], [have_pthread=false])
-AC_SEARCH_LIBS([initscr], [ncurses], [have_ncurses=true], [have_ncurses=false])
+if test "x$have_pthread" != xtrue; then
+    AC_MSG_ERROR(pthread library not found; ARIM cannot be built!)
+fi
 AC_SEARCH_LIBS([inflate], [z], [have_zlib=true], [have_zlib=false])
+if test "x$have_zlib" != xtrue; then
+    AC_MSG_ERROR(z compression library not found; ARIM cannot be built!)
+fi
+AC_SEARCH_LIBS([initscr], [ncurses], [have_ncurses=true], [have_ncurses=false])
+if test "x$have_ncurses" != xtrue; then
+    AC_MSG_ERROR(ncurses library not found; ARIM cannot be built!)
+fi
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h unistd.h])

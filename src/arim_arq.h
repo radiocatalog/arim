@@ -27,7 +27,7 @@
 #define ARQ_CLIENT_STN  0
 #define ARQ_SERVER_STN  1
 
-extern int arim_arq_send_conn_req(const char *repeats, const char *to_call);
+extern int arim_arq_send_conn_req(int repeats, const char *to_call, const char *arqbw);
 extern int arim_arq_send_conn_req_pp(void);
 extern int arim_arq_on_target(void);
 extern int arim_arq_on_connected(void);
@@ -37,6 +37,7 @@ extern int arim_arq_on_conn_timeout(void);
 extern int arim_arq_on_conn_fail(void);
 extern int arim_arq_on_conn_rej_busy(void);
 extern int arim_arq_on_conn_rej_bw(void);
+extern int arim_arq_on_conn_req_repeat(void);
 extern int arim_arq_on_conn_cancel(void);
 extern int arim_arq_on_data(char *data, size_t size);
 extern size_t arim_arq_on_cmd(const char *cmd, size_t size);
