@@ -35,6 +35,7 @@
 #include "mbox.h"
 #include "ui.h"
 #include "util.h"
+#include "bufq.h"
 #include "ui_tnc_data_win.h"
 
 void arim_proto_msg_buf_wait(int event, int param)
@@ -49,10 +50,10 @@ void arim_proto_msg_buf_wait(int event, int param)
         break;
     case EV_PERIODIC:
         /* wait until tx buffer is empty before starting ack timer */
-        if (!arim_get_buffer_cnt()) {
+        if (!arim_msg_on_send_buffer(arim_get_buffer_cnt())) {
             prev_time = time(NULL);
             arim_set_state(ST_RCV_ACKNAK_WAIT);
-            ui_set_status_dirty(STATUS_WAIT_ACK);
+            ui_set_status_dirty(STATUS_MSG_WAIT_ACK);
         }
         break;
     }
@@ -69,7 +70,7 @@ void arim_proto_msg_net_buf_wait(int event, int param)
         break;
     case EV_PERIODIC:
         /* wait until tx buffer is empty before starting ack timer */
-        if (!arim_get_buffer_cnt()) {
+        if (!arim_msg_on_send_buffer(arim_get_buffer_cnt())) {
             arim_set_state(ST_IDLE);
             ui_set_status_dirty(STATUS_NET_MSG_SENT);
         }
@@ -110,7 +111,7 @@ extern void arim_proto_msg_acknak_pend(int event, int param)
         /* 1 to 2 second delay for sending ack/nak */
         t = time(NULL);
         if (t > prev_time + 2) {
-            ui_queue_data_out(msg_acknak_buffer);
+            bufq_queue_data_out(msg_acknak_buffer);
             arim_set_state(ST_SEND_ACKNAK_BUF_WAIT);
             ui_set_status_dirty(STATUS_ACKNAK_SEND);
         }
@@ -152,11 +153,11 @@ extern void arim_proto_msg_acknak_wait(int event, int param)
                 /* timeout, all done */
                 arim_reset_msg_rpt_state();
                 arim_set_state(ST_IDLE);
-                ui_set_status_dirty(STATUS_ACK_TIMEOUT);
+                ui_set_status_dirty(STATUS_MSG_ACK_TIMEOUT);
             } else {
                 if (fecmode_downshift)
                     arim_fecmode_downshift();
-                ui_queue_data_out(msg_buffer);
+                bufq_queue_data_out(msg_buffer);
                 prev_time = t;
                 /* prime buffer count because update from TNC not immediate */
                 pthread_mutex_lock(&mutex_tnc_set);
@@ -164,6 +165,8 @@ extern void arim_proto_msg_acknak_wait(int event, int param)
                     sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", strlen(msg_buffer));
                 pthread_mutex_unlock(&mutex_tnc_set);
                 arim_set_state(ST_SEND_MSG_BUF_WAIT);
+                /* start progress meter */
+                ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);
                 ui_set_status_dirty(STATUS_MSG_REPEAT);
             }
         }
@@ -177,7 +180,7 @@ void arim_proto_msg_pingack_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT"); /* unconditionally abort */
+        bufq_queue_cmd_out("ABORT"); /* unconditionally abort */
         arim_set_state(ST_IDLE);
         arim_cancel_msg();
         ui_set_status_dirty(STATUS_MSG_SEND_CAN);

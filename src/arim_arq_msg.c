@@ -76,7 +76,7 @@ int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
                                "\tcompression failed.\n \n\t[O]k", "oO \n");
                 snprintf(linebuf, sizeof(linebuf),
                                 "ARQ: Message upload failed, compression error");
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 return 0;
             }
             memcpy(msg_out.data, zbuffer, zs.total_out);
@@ -86,7 +86,7 @@ int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
                            "\tcompression failed.\n \n\t[O]k", "oO \n");
             snprintf(linebuf, sizeof(linebuf),
                             "ARQ: Message upload failed, compression init error");
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             return 0;
         }
     } else {
@@ -105,6 +105,8 @@ int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
         sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
     pthread_mutex_unlock(&mutex_tnc_set);
+    /* start progress meter */
+    ui_status_xfer_start(0, msg_out.size, STATUS_XFER_DIR_UP);
     arim_on_event(EV_ARQ_MSG_SEND_CMD, 0);
     return 1;
 }
@@ -124,13 +126,13 @@ int arim_arq_msg_on_send_msg()
     /* initialize cnt to prevent '0 of size' notification in monitor */
     msg_out_cnt = msg_out.size;
     snprintf(linebuf, sizeof(linebuf), "ARQ: Message upload buffered for sending");
-    ui_queue_debug_log(linebuf);
+    bufq_queue_debug_log(linebuf);
     return 1;
 }
 
 size_t arim_arq_msg_on_send_buffer(size_t size)
 {
-    char linebuf[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE];
 
     /* ignore preliminary BUFFER response if TNC isn't done buffering data */
     if (msg_out.size > TNC_DATA_BLOCK_SIZE && size == TNC_DATA_BLOCK_SIZE)
@@ -140,17 +142,13 @@ size_t arim_arq_msg_on_send_buffer(size_t size)
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Message to %s sending %zu of %zu bytes",
                 msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "<< [@] Message to %s %zu of %zu bytes",
                     msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
-        ui_queue_traffic_log(linebuf);
-        if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-            snprintf(linebuf, sizeof(linebuf),
-                "[%s] << [@] Message to %s %zu of %zu bytes",
-                     util_timestamp(timestamp, sizeof(timestamp)),
-                         msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
-        }
-        ui_queue_data_in(linebuf);
+        bufq_queue_traffic_log(linebuf);
+        bufq_queue_data_in(linebuf);
+        /* update progress meter */
+        ui_status_xfer_update(msg_out.size - msg_out_cnt);
     }
     return size;
 }
@@ -170,7 +168,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Message download failed, buffer overflow %zu",
                 msg_in_cnt + size);
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR Message buffer overflow");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_MSG_ERROR, 0);
@@ -181,19 +179,15 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
     msg_in.data[msg_in_cnt] = '\0';
     snprintf(linebuf, sizeof(linebuf),
         "ARQ: Message download reading %zu of %zu bytes", msg_in_cnt, msg_in.size);
-    ui_queue_debug_log(linebuf);
+    bufq_queue_debug_log(linebuf);
     arim_copy_remote_call(remote_call, sizeof(remote_call));
     snprintf(linebuf, sizeof(linebuf),
         ">> [@] Message from %s %zu of %zu bytes",
             remote_call, msg_in_cnt, msg_in.size);
-    ui_queue_traffic_log(linebuf);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(linebuf, sizeof(linebuf),
-             "[%s] >> [@] Message from %s %zu of %zu bytes",
-                 util_timestamp(timestamp, sizeof(timestamp)),
-                      remote_call, msg_in_cnt, msg_in.size);
-    }
-    ui_queue_data_in(linebuf);
+    bufq_queue_traffic_log(linebuf);
+    bufq_queue_data_in(linebuf);
+    /* update progress meter */
+    ui_status_xfer_update(msg_in_cnt);
     arim_on_event(EV_ARQ_MSG_RCV_FRAME, 0);
     if (msg_in_cnt >= msg_in.size) {
         /* if excess data, take most recent msg_in_size bytes */
@@ -207,7 +201,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
         if (msg_in.check != check) {
             snprintf(linebuf, sizeof(linebuf),
                "ARQ: Message download failed, bad checksum %04X",  check);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad checksum");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_MSG_ERROR, 0);
@@ -228,7 +222,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
                 if (zret != Z_STREAM_END) {
                     snprintf(linebuf, sizeof(linebuf),
                         "ARQ: Message download failed, decompression error");
-                    ui_queue_debug_log(linebuf);
+                    bufq_queue_debug_log(linebuf);
                     snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                     arim_arq_send_remote(linebuf);
                     arim_on_event(EV_ARQ_MSG_ERROR, 0);
@@ -237,7 +231,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
             } else {
                 snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Message download failed, decompression initialization error");
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                 arim_arq_send_remote(linebuf);
                 arim_on_event(EV_ARQ_MSG_ERROR, 0);
@@ -260,7 +254,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
                  remote_call, target_call, msg_in.check, msg_in.data)) {
             snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Message download failed, could not open inbox");
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Unable to save message");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_MSG_ERROR, 0);
@@ -269,7 +263,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Saved %s message %zu bytes, checksum %04X",
                zoption ? "compressed" : "uncompressed",  msg_in_cnt, check);
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf),
             "/OK Message %zu %04X saved", msg_in_cnt, check);
         arim_arq_send_remote(linebuf);
@@ -295,7 +289,7 @@ int arim_arq_msg_on_send_first(const char *remote_call, int max_msgs)
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Sending message %d of %d, [%s]",
                 next_msg + 1, num_msgs, headers[next_msg]);
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         arim_arq_msg_on_send_cmd(msgbuffer, zoption);
         return 1;
     } else {
@@ -304,7 +298,7 @@ int arim_arq_msg_on_send_first(const char *remote_call, int max_msgs)
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Failed to read message %d of %d, %s",
                 next_msg, num_msgs, headers[next_msg]);
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
     }
     /* failed, reset counters */
     num_msgs = next_msg = 0;
@@ -322,7 +316,7 @@ int arim_arq_msg_on_send_next()
             /* log, but don't stop if deletion fails */
             snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Failed to delete message %d of %d, %s", next_msg, num_msgs, headers[next_msg]);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
         }
         ++next_msg;
         if (next_msg < num_msgs) {
@@ -330,7 +324,7 @@ int arim_arq_msg_on_send_next()
                         MBOX_OUTBOX_FNAME, headers[next_msg])) {
                 snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Sending message %d of %d, [%s]", next_msg + 1, num_msgs, headers[next_msg]);
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 arim_arq_msg_on_send_cmd(msgbuffer, zoption);
                 return 1;
             } else {
@@ -339,7 +333,7 @@ int arim_arq_msg_on_send_next()
                 arim_arq_send_remote(linebuf);
                 snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Failed to read message %d of %d, %s", next_msg, num_msgs, headers[next_msg]);
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
             }
         } else {
             /* all done */
@@ -452,7 +446,9 @@ int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
             snprintf(linebuf, sizeof(linebuf),
                         "ARQ: Message download %s %zu %04X started",
                            msg_in.call , msg_in.size, msg_in.check);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
+            /* start progress meter */
+            ui_status_xfer_start(0, msg_in.size, STATUS_XFER_DIR_DOWN);
             /* cache any data remaining */
             if ((cmd + size) > eol) {
                 arim_arq_msg_on_rcv_frame(eol, size - (eol - cmd));
@@ -460,7 +456,7 @@ int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
         } else {
             snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Message download %s failed, bad size/checksum parameter", p_name);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad parameters");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_MSG_ERROR, 0);
@@ -468,7 +464,7 @@ int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
     } else {
         snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Message download failed, bad /MPUT call sign");
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR Bad call sign");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_MSG_ERROR, 0);
@@ -498,7 +494,7 @@ int arim_arq_msg_on_ok()
             if (zret != Z_STREAM_END) {
                 snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Unable to save sent message, decompression failed");
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
             } else {
                 memcpy(msg_out.data, zbuffer, zs.total_out);
                 msg_out.size = zs.total_out;
@@ -512,7 +508,7 @@ int arim_arq_msg_on_ok()
         } else {
             snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Unable to save sent message, decompression init error");
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
         }
     }
     return 1;
@@ -535,14 +531,14 @@ int arim_arq_msg_on_mlist(char *cmdbuf, size_t cmdbufsize, char *eol,
             arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
             snprintf(linebuf, sizeof(linebuf),
                         "ARQ: Listing of msgs for %s requires authentication", remote_call);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
         } else {
             /* no access for remote call, send /EAUTH response */
             snprintf(linebuf, sizeof(linebuf), "/EAUTH");
             arim_arq_send_remote(linebuf);
             snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Listing of msgs no password for: %s", remote_call);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
         }
     } else {
         if (mbox_get_msg_list(respbuf, respbufsize, MBOX_OUTBOX_FNAME, remote_call)) {
@@ -553,7 +549,7 @@ int arim_arq_msg_on_mlist(char *cmdbuf, size_t cmdbufsize, char *eol,
             arim_arq_send_remote(linebuf);
             snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Listing of msgs failed for: %s", remote_call);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
         }
     }
     return 0;
@@ -572,7 +568,7 @@ int arim_arq_msg_on_client_mlist(const char *cmd)
     if (!auth_check_passwd(mycall, remote_call, ha1, sizeof(ha1))) {
         snprintf(linebuf, sizeof(linebuf),
             "AUTH: No entry for call %s in arim-digest file)", remote_call);
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         ui_set_status_dirty(STATUS_ARQ_EAUTH_REMOTE);
         return 0;
     }

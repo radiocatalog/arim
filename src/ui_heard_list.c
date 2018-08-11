@@ -85,13 +85,6 @@ int ui_heard_list_get_width()
     return ui_list_box_w;
 }
 
-void ui_queue_heard(const char *text)
-{
-    pthread_mutex_lock(&mutex_heard);
-    cmdq_push(&g_heard_q, text);
-    pthread_mutex_unlock(&mutex_heard);
-}
-
 void ui_clear_calls_heard()
 {
     memset(heard_list, 0, sizeof(heard_list));

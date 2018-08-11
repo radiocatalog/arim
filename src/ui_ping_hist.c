@@ -31,6 +31,7 @@
 #include "ui_tnc_cmd_win.h"
 #include "ini.h"
 #include "util.h"
+#include "bufq.h"
 #include "datathread.h"
 
 WINDOW *ui_ptable_win;
@@ -57,13 +58,6 @@ void ui_ptable_init()
 {
     ptable_row = 0, ptable_col = 1;
     cur_ptable_row = ptable_row;
-}
-
-void ui_queue_ptable(const char *text)
-{
-    pthread_mutex_lock(&mutex_ptable);
-    cmdq_push(&g_ptable_q, text);
-    pthread_mutex_unlock(&mutex_ptable);
 }
 
 void ui_ptable_inc_start_line()

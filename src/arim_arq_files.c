@@ -66,7 +66,7 @@ int arim_arq_files_send_flist(const char *dir)
                          "ARQ: File listing upload failed, file sharing disabled");
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     if (dir) {
@@ -78,7 +78,7 @@ int arim_arq_files_send_flist(const char *dir)
                              "ARQ: File listing upload for %s failed, bad directory path", dir);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             return 0;
         }
     }
@@ -93,7 +93,7 @@ int arim_arq_files_send_flist(const char *dir)
                              dir ? dir : "(root)");
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     file_out.size = strlen((char *)file_out.data);
@@ -118,7 +118,7 @@ int arim_arq_files_send_flist(const char *dir)
                                      dir ? dir : "(root)");
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 return 0;
             }
             deflateEnd(&zs);
@@ -132,7 +132,7 @@ int arim_arq_files_send_flist(const char *dir)
                                  dir ? dir : "(root)");
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             return 0;
         }
     }
@@ -151,6 +151,8 @@ int arim_arq_files_send_flist(const char *dir)
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
              sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
     pthread_mutex_unlock(&mutex_tnc_set);
+    /* start progress meter */
+    ui_status_xfer_start(0, file_out.size, STATUS_XFER_DIR_UP);
     return 1;
 }
 
@@ -174,13 +176,13 @@ int arim_arq_files_flist_on_send_cmd()
                          *file_out.path ? file_out.path : "(root)");
     if (numch >= sizeof(linebuf))
         ui_truncate_line(linebuf, sizeof(linebuf));
-    ui_queue_debug_log(linebuf);
+    bufq_queue_debug_log(linebuf);
     return 1;
 }
 
 size_t arim_arq_files_flist_on_send_buffer(size_t size)
 {
-    char linebuf[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE];
     int numch;
 
     /* ignore preliminary BUFFER response if TNC isn't done buffering data */
@@ -194,7 +196,7 @@ size_t arim_arq_files_flist_on_send_buffer(size_t size)
                                 file_out.size - file_out_cnt, file_out.size);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         if (*file_out.path)
             numch = snprintf(linebuf, sizeof(linebuf), "<< [@] %s %zu of %zu bytes",
                              file_out.path, file_out.size - file_out_cnt, file_out.size);
@@ -203,28 +205,17 @@ size_t arim_arq_files_flist_on_send_buffer(size_t size)
                              file_out.size - file_out_cnt, file_out.size);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_traffic_log(linebuf);
-        if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-            if (*file_out.path)
-                numch = snprintf(linebuf, sizeof(linebuf), "[%s] << [@] %s %zu of %zu bytes",
-                                 util_timestamp(timestamp, sizeof(timestamp)),
-                                     file_out.path, file_out.size - file_out_cnt, file_out.size);
-            else
-                numch = snprintf(linebuf, sizeof(linebuf), "[%s] << [@] %zu of %zu bytes",
-                                 util_timestamp(timestamp, sizeof(timestamp)),
-                                         file_out.size - file_out_cnt, file_out.size);
-            if (numch >= sizeof(linebuf))
-                ui_truncate_line(linebuf, sizeof(linebuf));
-        }
-        ui_queue_data_in(linebuf);
+        bufq_queue_traffic_log(linebuf);
+        bufq_queue_data_in(linebuf);
+        /* update progress meter */
+        ui_status_xfer_update(file_out.size - file_out_cnt);
     }
     return size;
 }
 
 int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
 {
-    char databuf[MIN_DATA_BUF_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    char databuf[MIN_DATA_BUF_SIZE], linebuf[MAX_LOG_LINE_SIZE];
     int numch;
     unsigned int check;
     z_stream zs;
@@ -239,7 +230,7 @@ int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
                              *file_in.path ? file_in.path : "(root)", file_in_cnt + size);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR Buffer overflow");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -252,7 +243,7 @@ int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
                          *file_in.path ? file_in.path : "(root)", file_in_cnt, file_in.size);
     if (numch >= sizeof(linebuf))
         ui_truncate_line(linebuf, sizeof(linebuf));
-    ui_queue_debug_log(linebuf);
+    bufq_queue_debug_log(linebuf);
     if (*file_in.path)
         numch = snprintf(linebuf, sizeof(linebuf), ">> [@] %s %zu of %zu bytes",
                          file_in.path, file_in_cnt, file_in.size);
@@ -261,20 +252,10 @@ int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
                          file_in_cnt, file_in.size);
     if (numch >= sizeof(linebuf))
         ui_truncate_line(linebuf, sizeof(linebuf));
-    ui_queue_traffic_log(linebuf);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        if (*file_in.path)
-            numch = snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s %zu of %zu bytes",
-                             util_timestamp(timestamp, sizeof(timestamp)),
-                                file_in.path, file_in_cnt, file_in.size);
-        else
-            numch = snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %zu of %zu bytes",
-                             util_timestamp(timestamp, sizeof(timestamp)),
-                                 file_in_cnt, file_in.size);
-        if (numch >= sizeof(linebuf))
-            ui_truncate_line(linebuf, sizeof(linebuf));
-    }
-    ui_queue_data_in(linebuf);
+    bufq_queue_traffic_log(linebuf);
+    bufq_queue_data_in(linebuf);
+    /* update progress meter */
+    ui_status_xfer_update(file_in_cnt);
     arim_on_event(EV_ARQ_FLIST_RCV_FRAME, 0);
     if (file_in_cnt >= file_in.size) {
         /* if excess data, take most recent file_in.size bytes */
@@ -291,7 +272,7 @@ int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
                                  *file_in.path ? file_in.path : "(root)", check);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad checksum");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -315,7 +296,7 @@ int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
                                          file_in.name);
                     if (numch >= sizeof(linebuf))
                         ui_truncate_line(linebuf, sizeof(linebuf));
-                    ui_queue_debug_log(linebuf);
+                    bufq_queue_debug_log(linebuf);
                     snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                     arim_arq_send_remote(linebuf);
                     arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -329,7 +310,7 @@ int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
                                     file_in.name);
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                 arim_arq_send_remote(linebuf);
                 arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -343,7 +324,7 @@ int arim_arq_files_flist_on_rcv_frame(const char *data, size_t size)
                                    *file_in.path ? file_in.path : "(root)", file_in_cnt, check);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         if (*file_in.path)
             snprintf(databuf, sizeof(databuf),
                      "/OK Received listing of %s %zu %04X", file_in.path, file_in_cnt, check);
@@ -424,7 +405,9 @@ int arim_arq_files_on_flput(char *cmd, size_t size, char *eol)
                                  p_path ? file_in.path : "(root)", file_in.size, file_in.check);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
+            /* start progress meter */
+            ui_status_xfer_start(0, file_in.size, STATUS_XFER_DIR_DOWN);
             /* cache any data remaining */
             if ((cmd + size) > eol) {
                 arim_arq_files_flist_on_rcv_frame(eol, size - (eol - cmd));
@@ -435,7 +418,7 @@ int arim_arq_files_on_flput(char *cmd, size_t size, char *eol)
                                  p_path ? p_path : "(root)");
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad parameters");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -443,7 +426,7 @@ int arim_arq_files_on_flput(char *cmd, size_t size, char *eol)
     } else {
         snprintf(linebuf, sizeof(linebuf),
                  "ARQ: File listing download failed, bad /FLPUT directory name");
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR Directory not found");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -486,7 +469,7 @@ int arim_arq_files_on_flget(char *cmd, size_t size, char *eol)
             /* directory not found */
             snprintf(linebuf, sizeof(linebuf),
                      "ARQ: File listing download %s failed, directory not found", p_path);
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Directory not found");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -566,7 +549,7 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                          "ARQ: File upload %s failed, dynamic file invocation failed", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return -1;
     }
     file_out.size = fread(file_out.data, 1, sizeof(file_out.data), fp);
@@ -584,7 +567,7 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                          "ARQ: File upload %s failed, size exceeds limit", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return -1;
     } else if (file_out.size == 0) {
         if (is_local) {
@@ -598,7 +581,7 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                          "ARQ: File upload %s failed, dynamic file read failed", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return -1;
     }
     /* compress file if -z option invoked */
@@ -625,7 +608,7 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                                  "ARQ: File upload %s failed, compression error", fn);
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 return -1;
             }
             deflateEnd(&zs);
@@ -643,7 +626,7 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                              "ARQ: File upload %s failed, compression init error", fn);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             return -1;
         }
     }
@@ -660,6 +643,8 @@ int arim_arq_files_send_dyn_file(const char *fn, const char *destdir, int is_loc
                  zoption ? "/FPUT -z" : "/FPUT",
                      file_out.name, file_out.size, file_out.check);
     len = arim_arq_send_remote(databuf);
+    /* start progress meter */
+    ui_status_xfer_start(0, file_out.size, STATUS_XFER_DIR_UP);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -692,7 +677,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                          "ARQ: File upload %s failed, file sharing disabled", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     result = arim_arq_files_send_dyn_file(fn, destdir, is_local);
@@ -714,7 +699,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                          "ARQ: File upload %s failed, bad file name or path", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     snprintf(fpath, sizeof(fpath), "%s", fn);
@@ -731,7 +716,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                          "ARQ: File upload %s failed, password digest file not accessible", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     if (!is_local) {
@@ -748,7 +733,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                                  "ARQ: File upload %s failed, path not allowed", fn);
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 return 0;
             }
         }
@@ -767,7 +752,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                          "ARQ: File upload %s failed, file not found", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     /* read into buffer, will be sent later by arim_arq_files_on_send_cmd() */
@@ -786,7 +771,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                          "ARQ: File upload %s failed, size exceeds limit", fn);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     /* compress file if -z option invoked */
@@ -813,7 +798,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                                  "ARQ: File upload %s failed, compression error", fn);
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 return 0;
             }
             deflateEnd(&zs);
@@ -831,7 +816,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                              "ARQ: File upload %s failed, compression init error", fn);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             return 0;
         }
     }
@@ -849,6 +834,8 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
                  zoption ? "/FPUT -z" : "/FPUT",
                     file_out.name, file_out.size, file_out.check);
     len = arim_arq_send_remote(databuf);
+    /* start progress meter */
+    ui_status_xfer_start(0, file_out.size, STATUS_XFER_DIR_UP);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -876,13 +863,13 @@ int arim_arq_files_on_send_cmd()
                      "ARQ: File upload %s buffered for sending", file_out.name);
     if (numch >= sizeof(linebuf))
         ui_truncate_line(linebuf, sizeof(linebuf));
-    ui_queue_debug_log(linebuf);
+    bufq_queue_debug_log(linebuf);
     return 1;
 }
 
 size_t arim_arq_files_on_send_buffer(size_t size)
 {
-    char linebuf[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE];
     int numch;
 
     /* ignore preliminary BUFFER response if TNC isn't done buffering data */
@@ -895,20 +882,15 @@ size_t arim_arq_files_on_send_buffer(size_t size)
                             file_out.name, file_out.size - file_out_cnt, file_out.size);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         numch = snprintf(linebuf, sizeof(linebuf), "<< [@] %s %zu of %zu bytes",
                          file_out.name, file_out.size - file_out_cnt, file_out.size);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_traffic_log(linebuf);
-        if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-            numch = snprintf(linebuf, sizeof(linebuf), "[%s] << [@] %s %zu of %zu bytes",
-                             util_timestamp(timestamp, sizeof(timestamp)),
-                                 file_out.name, file_out.size - file_out_cnt, file_out.size);
-            if (numch >= sizeof(linebuf))
-                ui_truncate_line(linebuf, sizeof(linebuf));
-        }
-        ui_queue_data_in(linebuf);
+        bufq_queue_traffic_log(linebuf);
+        bufq_queue_data_in(linebuf);
+        /* update progress meter */
+        ui_status_xfer_update(file_out.size - file_out_cnt);
     }
     return size;
 }
@@ -917,8 +899,8 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
 {
     FILE *fp;
     DIR *dirp;
-    char fpath[MAX_PATH_SIZE*2], dpath[MAX_PATH_SIZE], databuf[MIN_DATA_BUF_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    char fpath[MAX_PATH_SIZE*2], dpath[MAX_PATH_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE], databuf[MIN_DATA_BUF_SIZE];
     int numch;
     unsigned int check;
     z_stream zs;
@@ -933,7 +915,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                              file_in.name, file_in_cnt + size);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR Buffer overflow");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -946,20 +928,15 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                          file_in.name, file_in_cnt, file_in.size);
     if (numch >= sizeof(linebuf))
         ui_truncate_line(linebuf, sizeof(linebuf));
-    ui_queue_debug_log(linebuf);
+    bufq_queue_debug_log(linebuf);
     numch = snprintf(linebuf, sizeof(linebuf), ">> [@] %s %zu of %zu bytes",
                      file_in.name, file_in_cnt, file_in.size);
     if (numch >= sizeof(linebuf))
         ui_truncate_line(linebuf, sizeof(linebuf));
-    ui_queue_traffic_log(linebuf);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        numch = snprintf(linebuf, sizeof(linebuf), "[%s] >> [@] %s %zu of %zu bytes",
-                         util_timestamp(timestamp, sizeof(timestamp)),
-                            file_in.name, file_in_cnt, file_in.size);
-        if (numch >= sizeof(linebuf))
-            ui_truncate_line(linebuf, sizeof(linebuf));
-    }
-    ui_queue_data_in(linebuf);
+    bufq_queue_traffic_log(linebuf);
+    bufq_queue_data_in(linebuf);
+    /* update progress meter */
+    ui_status_xfer_update(file_in_cnt);
     arim_on_event(EV_ARQ_FILE_RCV_FRAME, 0);
     if (file_in_cnt >= file_in.size) {
         /* if excess data, take most recent file_in.size bytes */
@@ -976,7 +953,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                                  file_in.name, check);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad checksum");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -994,7 +971,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                                   file_in.name, dpath);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Directory not accessible");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1010,7 +987,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                                      file_in.name, dpath);
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open directory");
                 arim_arq_send_remote(linebuf);
                 arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1037,7 +1014,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                                          file_in.name);
                     if (numch >= sizeof(linebuf))
                         ui_truncate_line(linebuf, sizeof(linebuf));
-                    ui_queue_debug_log(linebuf);
+                    bufq_queue_debug_log(linebuf);
                     snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                     arim_arq_send_remote(linebuf);
                     arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1051,7 +1028,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                                     file_in.name);
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
                 arim_arq_send_remote(linebuf);
                 arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1069,7 +1046,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                              "ARQ: File download %s failed, file open error", file_in.name);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Cannot open file");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1082,7 +1059,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                                    file_in.name, file_in_cnt, check);
         if (numch >= sizeof(linebuf))
             ui_truncate_line(linebuf, sizeof(linebuf));
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(databuf, sizeof(databuf),
                  "/OK %s %zu %04X saved", file_in.name, file_in_cnt, check);
         arim_arq_send_remote(databuf);
@@ -1163,7 +1140,7 @@ int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
                 /* directory not found */
                 snprintf(linebuf, sizeof(linebuf),
                          "ARQ: File upload %s failed, file not found", p_name);
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
                 snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
                 arim_arq_send_remote(linebuf);
                 arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1200,7 +1177,7 @@ int arim_arq_files_on_fget(char *cmd, size_t size, char *eol)
         }
     } else {
         snprintf(linebuf, sizeof(linebuf), "ARQ: Bad /FGET file name parameter");
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1300,7 +1277,7 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                                          "ARQ: File download %s failed, directory not found", dpath);
                         if (numch >= sizeof(linebuf))
                             ui_truncate_line(linebuf, sizeof(linebuf));
-                        ui_queue_debug_log(linebuf);
+                        bufq_queue_debug_log(linebuf);
                         snprintf(linebuf, sizeof(linebuf), "/ERROR Directory not found");
                         arim_arq_send_remote(linebuf);
                         arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1327,7 +1304,9 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                                              file_in.name, file_in.path, file_in.size, file_in.check);
                         if (numch >= sizeof(linebuf))
                             ui_truncate_line(linebuf, sizeof(linebuf));
-                        ui_queue_debug_log(linebuf);
+                        bufq_queue_debug_log(linebuf);
+                        /* start progress meter */
+                        ui_status_xfer_start(0, file_in.size, STATUS_XFER_DIR_DOWN);
                     }
                 } else {
                     /* file located in root shared file dir */
@@ -1339,7 +1318,9 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                                          file_in.name, file_in.path, file_in.size, file_in.check);
                     if (numch >= sizeof(linebuf))
                         ui_truncate_line(linebuf, sizeof(linebuf));
-                    ui_queue_debug_log(linebuf);
+                    bufq_queue_debug_log(linebuf);
+                    /* start progress meter */
+                    ui_status_xfer_start(0, file_in.size, STATUS_XFER_DIR_DOWN);
                 }
             } else {
                 /* data arriving next if role is is 'client' */
@@ -1349,7 +1330,9 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                                      file_in.name, file_in.path, file_in.size, file_in.check);
                 if (numch >= sizeof(linebuf))
                     ui_truncate_line(linebuf, sizeof(linebuf));
-                ui_queue_debug_log(linebuf);
+                bufq_queue_debug_log(linebuf);
+                /* start progress meter */
+                ui_status_xfer_start(0, file_in.size, STATUS_XFER_DIR_DOWN);
                 /* cache any data remaining */
                 if ((cmd + size) > eol) {
                     arim_arq_files_on_rcv_frame(eol, size - (eol - cmd));
@@ -1360,7 +1343,7 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                              "ARQ: File download %s failed, bad size/checksum parameter", p_name);
             if (numch >= sizeof(linebuf))
                 ui_truncate_line(linebuf, sizeof(linebuf));
-            ui_queue_debug_log(linebuf);
+            bufq_queue_debug_log(linebuf);
             snprintf(linebuf, sizeof(linebuf), "/ERROR Bad parameters");
             arim_arq_send_remote(linebuf);
             arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1368,7 +1351,7 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
     } else {
         snprintf(linebuf, sizeof(linebuf),
                  "ARQ: File download failed, bad /FPUT file name");
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "/ERROR File not found");
         arim_arq_send_remote(linebuf);
         arim_on_event(EV_ARQ_FILE_ERROR, 0);
@@ -1406,7 +1389,7 @@ int arim_arq_files_on_client_fget(const char *cmd, const char *fn, const char *d
                        "\tbad file name or path.\n \n\t[O]k", "oO \n");
         snprintf(linebuf, sizeof(linebuf),
                  "ARQ: File download failed, bad file name or path");
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     arim_arq_auth_set_ha2_info("FGET", f);
@@ -1446,7 +1429,7 @@ int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_z
                        "\tbad file name or path.\n \n\t[O]k", "oO \n");
         snprintf(linebuf, sizeof(linebuf),
                  "ARQ: File upload failed, bad file name or path");
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     if (strstr(basename(f), DEFAULT_DIGEST_FNAME)) {
@@ -1455,7 +1438,7 @@ int arim_arq_files_on_client_fput(const char *fn, const char *destdir, int use_z
                        "\tpassword file not accessible.\n \n\t[O]k", "oO \n");
         snprintf(linebuf, sizeof(linebuf),
                  "ARQ: File upload failed, password digest file not accessible");
-        ui_queue_debug_log(linebuf);
+        bufq_queue_debug_log(linebuf);
         return 0;
     }
     if (destdir) {

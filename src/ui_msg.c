@@ -41,6 +41,7 @@
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
 #include "ui_cmd_prompt_win.h"
+#include "bufq.h"
 #include "mbox.h"
 
 #define MAX_CMD_HIST            10+1
@@ -634,7 +635,7 @@ int ui_list_get_line(char *cmd_line, size_t max_len)
 
 void ui_list_msg(const char *fn, int mbox_type)
 {
-    WINDOW *mbox_win, *prev_win;
+    WINDOW *mbox_win;
     FILE *mboxfp;
     char *p, linebuf[MAX_MBOX_HDR_SIZE+1], msgbuffer[MIN_MSG_BUF_SIZE];
     static char list[MAX_MBOX_LIST_LEN+1][MAX_MBOX_HDR_SIZE];
@@ -656,7 +657,7 @@ void ui_list_msg(const char *fn, int mbox_type)
     }
     if (color_code)
         wbkgd(mbox_win, COLOR_PAIR(7));
-    prev_win = ui_set_active_win(mbox_win);
+    ui_set_active_win(mbox_win);
     max_mbox_rows = tnc_data_box_h - 2;
     mbox_purge(fn, atoi(g_arim_settings.max_msg_days));
 
@@ -668,7 +669,7 @@ restart:
     mboxfp = fopen(fpath, "r");
     if (!mboxfp) {
         ui_print_status("List: failed to open mailbox file", 1);
-        ui_set_active_win(prev_win);
+        ui_set_active_win(tnc_data_box);
         return;
     }
     flockfile(mboxfp);
@@ -735,11 +736,11 @@ restart:
             /* process the command */
             if (linebuf[0] == ':') {
                 if (g_tnc_attached)
-                    ui_queue_data_out(&linebuf[1]);
+                    bufq_queue_data_out(&linebuf[1]);
                 break;
             } else if (linebuf[0] == '!') {
                 if (g_tnc_attached)
-                    ui_queue_cmd_out(&linebuf[1]);
+                    bufq_queue_cmd_out(&linebuf[1]);
                 break;
             } else if (linebuf[0] == 'q') {
                 quit = 1;
@@ -1120,7 +1121,7 @@ restart:
         usleep(100000);
     }
     delwin(mbox_win);
-    ui_set_active_win(prev_win);
+    ui_set_active_win(tnc_data_box);
     touchwin(tnc_data_box);
     wrefresh(tnc_data_box);
     if (show_titles)

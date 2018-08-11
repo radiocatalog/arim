@@ -35,6 +35,7 @@
 #include "ini.h"
 #include "mbox.h"
 #include "util.h"
+#include "bufq.h"
 #include "ui_msg.h"
 #include "ui.h"
 
@@ -114,7 +115,7 @@ int mbox_purge(const char *fn, int days)
                                 numch = snprintf(logbuf, sizeof(logbuf), "MBOX %s purged: [%s]", fn, linebuf);
                                 if (numch >= sizeof(logbuf))
                                     ui_truncate_line(logbuf, sizeof(logbuf));
-                                ui_queue_debug_log(logbuf);
+                                bufq_queue_debug_log(logbuf);
                                 p = fgets(linebuf, sizeof(linebuf), mboxfp);
                                 while (p && strncmp(p, "From ", 5)) {
                                     p = fgets(linebuf, sizeof(linebuf), mboxfp);

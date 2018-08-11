@@ -32,7 +32,6 @@ extern int ui_heard_list_init(int y, int x, int width, int height);
 extern int ui_heard_list_get_width(void);
 extern void ui_print_heard_list(void);
 extern void ui_refresh_heard_list(void);
-extern void ui_queue_heard(const char *text);
 extern void ui_get_heard_list(char *listbuf, size_t listbufsize);
 
 #endif

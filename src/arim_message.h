@@ -33,6 +33,7 @@ extern int arim_recv_msg(const char *fm_call, const char *to_call,
 extern int arim_cancel_msg(void);
 extern void arim_recv_ack(const char *fm_call, const char *to_call);
 extern void arim_recv_nak(const char *fm_call, const char *to_call);
+extern size_t arim_msg_on_send_buffer(size_t size);
 
 #endif
 

@@ -32,6 +32,7 @@
 #include "arim_arq.h"
 #include "ini.h"
 #include "mbox.h"
+#include "bufq.h"
 #include "ui.h"
 #include "util.h"
 
@@ -70,7 +71,7 @@ void arim_proto_ping_ack_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_cancel_ping();
         ui_set_status_dirty(STATUS_PING_SEND_CAN);

@@ -1,5 +1,5 @@
 
-.TH "ARIM" 5 "2018-07-22" "ARIM Messaging Program" "arim"
+.TH "ARIM" 5 "2018-07-28" "ARIM Messaging Program" "arim"
 .SH NAME
 arim - related files
 .SH FILES
@@ -66,6 +66,9 @@ arq-timeout The inactivity timeout for ARQ connections in seconds. Range is 30-6
 .TP
 \fBarq-negotiate-bw\fR
 Controls whether or not the TNC will negotiate ARQ bandwidth for incoming connections. Set to TRUE to enable, FALSE to disable. Default: TRUE.
+.TP
+\fBarq-timeout\fR
+The inactivity timeout for ARQ connections in seconds. Range is 30-600. Default: 120.
 .TP
 \fBarq-sendcr\fR
 Controls whether or not CRLF line endings are sent in ARQ mode, instead of Unix style LF endings. Set to TRUE to send CR, FALSE to send only LF. Default: TRUE.

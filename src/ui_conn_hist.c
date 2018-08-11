@@ -59,13 +59,6 @@ void ui_ctable_init()
     cur_ctable_row = ctable_row;
 }
 
-void ui_queue_ctable(const char *text)
-{
-    pthread_mutex_lock(&mutex_ctable);
-    cmdq_push(&g_ctable_q, text);
-    pthread_mutex_unlock(&mutex_ctable);
-}
-
 void ui_ctable_inc_start_line()
 {
     ctable_start_line++;
