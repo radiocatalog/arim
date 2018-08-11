@@ -31,6 +31,7 @@ extern int arim_recv_response(const char *fm_call, const char *to_call,
 extern int arim_recv_query(const char *fm_call, const char *to_call,
                              unsigned int check, const char *query);
 extern int arim_cancel_query(void);
+extern size_t arim_on_send_response_buffer(size_t size);
 
 #endif
 

@@ -69,13 +69,17 @@ int arim_send_msg(const char *msg, const char *to_call)
                     len,
                     check,
                     msg);
-    ui_queue_data_out(msg_buffer);
+    bufq_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
         sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
     pthread_mutex_unlock(&mutex_tnc_set);
     if (arim_test_netcall(to_call)) {
+        /* initialize arim_proto global */
+        msg_len = len;
+        /* start progress meter */
+        ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);
         /* if sent to netcall no ACK is expected */
         arim_on_event(EV_SEND_NET_MSG, 0);
     } else {
@@ -90,11 +94,26 @@ int arim_send_msg(const char *msg, const char *to_call)
             arim_copy_fecmode(fecmode, sizeof(fecmode));
             snprintf(prev_fecmode, sizeof(prev_fecmode), "%s", fecmode);
         }
+        /* initialize arim_proto globals */
         ack_timeout = atoi(g_arim_settings.ack_timeout);
         rcv_nak_cnt = 0;
+        msg_len = len;
+        /* start progress meter */
+        ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);
         arim_on_event(EV_SEND_MSG, 0);
     }
     return 1;
+}
+
+size_t arim_msg_on_send_buffer(size_t size)
+{
+    static size_t last_size;
+    if (size != last_size) {
+        last_size = size;
+        /* update progress meter */
+        ui_status_xfer_update(msg_len - size);
+    }
+    return size;
 }
 
 int arim_store_msg_prev_out()
@@ -130,7 +149,7 @@ int arim_send_msg_pp()
                      len,
                      check,
                      prev_msg);
-    ui_queue_data_out(msg_buffer);
+    bufq_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -147,8 +166,12 @@ int arim_send_msg_pp()
         arim_copy_fecmode(fecmode, sizeof(fecmode));
         snprintf(prev_fecmode, sizeof(prev_fecmode), "%s", fecmode);
     }
+    /* initialize arim_proto globals */
     ack_timeout = atoi(g_arim_settings.ack_timeout);
     rcv_nak_cnt = 0;
+    msg_len = len;
+    /* start progress meter */
+    ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);
     arim_on_event(EV_SEND_MSG, 0);
     (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return 1;
@@ -185,7 +208,7 @@ int arim_recv_msg(const char *fm_call, const char *to_call,
     } else {
         snprintf(buffer, sizeof(buffer), "7[M] %-10s ", fm_call);
     }
-    ui_queue_heard(buffer);
+    bufq_queue_heard(buffer);
     /* return ack or nak to sender if sent to mycall but not netcall */
     if (is_mycall) {
         /* force desired upper/lower case as set by user */
@@ -204,18 +227,13 @@ int arim_recv_msg(const char *fm_call, const char *to_call,
 
 int arim_cancel_msg()
 {
-    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE];
 
     /* operator has canceled the message by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Message canceled by operator)");
-    ui_queue_traffic_log(buffer);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(buffer, sizeof(buffer),
-                "[%s] >> [X] (Message canceled by operator)",
-                    util_timestamp(timestamp, sizeof(timestamp)));
-    }
-    ui_queue_data_in(buffer);
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
     return 1;
 }
 
@@ -227,7 +245,7 @@ void arim_recv_ack(const char *fm_call, const char *to_call)
     /* is this message directed to mycall? */
     is_mycall = arim_test_mycall(to_call);
     snprintf(buffer, sizeof(buffer), "%d[A] %-10s ", is_mycall ? 2 : 7, fm_call);
-    ui_queue_heard(buffer);
+    bufq_queue_heard(buffer);
     if (is_mycall)
         arim_on_event(EV_RCV_ACK, 0);
 }
@@ -240,7 +258,7 @@ void arim_recv_nak(const char *fm_call, const char *to_call)
     /* is this message directed to mycall? */
     is_mycall = arim_test_mycall(to_call);
     snprintf(buffer, sizeof(buffer), "%d[N] %-10s ", is_mycall ? 1 : 7, fm_call);
-    ui_queue_heard(buffer);
+    bufq_queue_heard(buffer);
     if (is_mycall)
         arim_on_event(EV_RCV_NAK, 0);
 }

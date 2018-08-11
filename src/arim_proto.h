@@ -172,6 +172,7 @@ extern int arim_tnc_is_idle(void);
 extern int arim_is_channel_busy(void);
 extern void arim_set_channel_not_busy(void);
 
+extern size_t msg_len;
 extern time_t prev_time;
 extern int rcv_nak_cnt;
 extern int ack_timeout;

@@ -1053,6 +1053,8 @@ int ini_read_settings()
     FILE *inifp, *srcfp;
     char *p, *home_path, linebuf[MAX_INI_LINE_SIZE];
     DIR *dirp;
+#else
+    char *cwd_path;
 #endif
 
 #ifndef PORTABLE_BIN
@@ -1076,7 +1078,10 @@ int ini_read_settings()
         closedir(dirp);
     }
 #else
-    snprintf(g_arim_path, sizeof(g_arim_path), ".");
+    cwd_path = getenv("PWD");
+    if (!cwd_path)
+        return 0;
+    snprintf(g_arim_path, sizeof(g_arim_path), "%s", cwd_path);
 #endif
     if (!g_config_clo)
         numch = snprintf(g_config_fname, sizeof(g_config_fname), "%s/%s", g_arim_path, DEFAULT_INI_FNAME);

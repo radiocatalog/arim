@@ -52,6 +52,7 @@
 #include "ui_tnc_data_win.h"
 #include "util.h"
 #include "auth.h"
+#include "bufq.h"
 #include "cmdproc.h"
 #include "tnc_attach.h"
 
@@ -249,7 +250,7 @@ int cmdproc_cmd(const char *cmd)
                 snprintf(buffer, sizeof(buffer), "%s\r\n", cmd);
             else
                 snprintf(buffer, sizeof(buffer), "%s\n", cmd);
-            ui_queue_data_out(buffer);
+            bufq_queue_data_out(buffer);
         }
         return 1;
     default:
@@ -272,7 +273,7 @@ int cmdproc_cmd(const char *cmd)
         result1 = arim_get_state();
         /* allow sending of text when TNC already busy with previous unproto send */
         if (g_tnc_attached && (result1 == ST_IDLE || result1 == ST_SEND_UN_BUF_WAIT)) {
-            ui_queue_data_out(&buffer[1]);
+            bufq_queue_data_out(&buffer[1]);
             if (!arim_get_buffer_cnt()) {
                 /* prime buffer count because update from TNC not immediate */
                 pthread_mutex_lock(&mutex_tnc_set);
@@ -287,7 +288,7 @@ int cmdproc_cmd(const char *cmd)
         break;
     case '!':
         if (g_tnc_attached) {
-            ui_queue_cmd_out(&buffer[1]);
+            bufq_queue_cmd_out(&buffer[1]);
         }
         break;
     case '.':
@@ -599,10 +600,10 @@ int cmdproc_cmd(const char *cmd)
                 }
                 pthread_mutex_unlock(&mutex_tnc_set);
                 if (result1) {
-                    ui_queue_cmd_out("LISTEN TRUE");
+                    bufq_queue_cmd_out("LISTEN TRUE");
                     ui_print_status("Listening for ARQ connect requests and pings enabled", 1);
                 } else if (result2) {
-                    ui_queue_cmd_out("LISTEN FALSE");
+                    bufq_queue_cmd_out("LISTEN FALSE");
                     ui_print_status("Listening for ARQ connect requests and pings disabled", 1);
                 } else {
                     ui_print_status("Invalid ARQ listen value, must be T(rue) or F(alse)", 1);
@@ -638,7 +639,7 @@ int cmdproc_cmd(const char *cmd)
                                 sizeof(g_tnc_settings[g_cur_tnc].arq_timeout), "%d", result1);
                     pthread_mutex_unlock(&mutex_tnc_set);
                     snprintf(status, sizeof(status), "ARQTIMEOUT %d", result1);
-                    ui_queue_cmd_out(status);
+                    bufq_queue_cmd_out(status);
                     snprintf(status, sizeof(status), "ARQ connection timeout: %d", result1);
                     ui_print_status(status, 1);
                 } else {
@@ -663,7 +664,7 @@ int cmdproc_cmd(const char *cmd)
                                      sizeof(g_tnc_settings[g_cur_tnc].arq_bandwidth), "%s", buffer);
                     pthread_mutex_unlock(&mutex_tnc_set);
                     numch = snprintf(status, sizeof(status), "ARQBW %s", buffer);
-                    ui_queue_cmd_out(status);
+                    bufq_queue_cmd_out(status);
                     numch = snprintf(status, sizeof(status), "ARQ connection bandwidth: %s", buffer);
                     ui_print_status(status, 1);
                 } else {
@@ -785,10 +786,10 @@ int cmdproc_cmd(const char *cmd)
                 }
                 pthread_mutex_unlock(&mutex_tnc_set);
                 if (result1) {
-                    ui_queue_cmd_out("ENABLEPINGACK TRUE");
+                    bufq_queue_cmd_out("ENABLEPINGACK TRUE");
                     ui_print_status("Ping ACK enabled", 1);
                 } else if (result2) {
-                    ui_queue_cmd_out("ENABLEPINGACK FALSE");
+                    bufq_queue_cmd_out("ENABLEPINGACK FALSE");
                     ui_print_status("Ping ACK disabled", 1);
                 } else {
                     ui_print_status("Invalid enable ping ACK value, must be T(rue) or F(alse)", 1);
@@ -822,7 +823,7 @@ int cmdproc_cmd(const char *cmd)
             result1 = ini_validate_mycall(call1);
             if (result1) {
                 snprintf(status, sizeof(status), "MYCALL %s", call1);
-                ui_queue_cmd_out(status);
+                bufq_queue_cmd_out(status);
                 snprintf(status, sizeof(status), "mycall changed to: %s", call1);
                 ui_print_status(status, 1);
             } else {
@@ -840,7 +841,7 @@ int cmdproc_cmd(const char *cmd)
             result1 = ini_validate_gridsq(buffer);
             if (result1) {
                 numch = snprintf(status, sizeof(status), "GRIDSQUARE %s", buffer);
-                ui_queue_cmd_out(status);
+                bufq_queue_cmd_out(status);
                 numch = snprintf(status, sizeof(status), "gridsq changed to: %s", buffer);
                 ui_print_status(status, 1);
             } else {
@@ -1058,13 +1059,13 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
                         arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
                         snprintf(buffer, sizeof(buffer),
                                     "ARQ: Listing of dir %s requires authentication", t);
-                        ui_queue_debug_log(buffer);
+                        bufq_queue_debug_log(buffer);
                         return CMDPROC_AUTH_REQ;
                     } else {
                         /* not accessible to remote station, send /EAUTH response */
                         snprintf(buffer, sizeof(buffer),
                                 "ARQ: Listing of dir %s no password for: %s", t, remote_call);
-                        ui_queue_debug_log(buffer);
+                        bufq_queue_debug_log(buffer);
                         return CMDPROC_AUTH_ERR;
                     }
                 }
@@ -1125,13 +1126,13 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
                                     arim_on_event(EV_ARQ_AUTH_SEND_CMD, 1);
                                     snprintf(buffer, sizeof(buffer),
                                                 "ARQ: Read of file  %s requires authentication", t);
-                                    ui_queue_debug_log(buffer);
+                                    bufq_queue_debug_log(buffer);
                                     return CMDPROC_AUTH_REQ;
                                 } else {
                                     /* no access for remote call, send /EAUTH response */
                                     snprintf(buffer, sizeof(buffer),
                                             "ARQ: Read of file %s no password for: %s", t, remote_call);
-                                    ui_queue_debug_log(buffer);
+                                    bufq_queue_debug_log(buffer);
                                     return CMDPROC_AUTH_ERR;
                                 }
                             }

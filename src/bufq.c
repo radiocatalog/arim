@@ -27,6 +27,9 @@
 #include <string.h>
 #include "main.h"
 #include "bufq.h"
+#include "util.h"
+#include "log.h"
+#include "ui.h"
 
 CMDQUEUE g_cmd_in_q;
 CMDQUEUE g_cmd_out_q;
@@ -199,5 +202,94 @@ MSGQUEUEITEM *msgq_pop(MSGQUEUE *q)
     if (q->size < 0)
         q->size = MAX_MSGQUEUE_LEN;
     return &q->data[p];
+}
+
+void bufq_queue_heard(const char *text)
+{
+    pthread_mutex_lock(&mutex_heard);
+    cmdq_push(&g_heard_q, text);
+    pthread_mutex_unlock(&mutex_heard);
+}
+
+void bufq_queue_traffic_log(const char *text)
+{
+    char buffer[MIN_MSG_BUF_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE];
+
+    if (g_traffic_log_enable) {
+        snprintf(buffer, sizeof(buffer), "[%s] %s",
+                util_timestamp(timestamp, sizeof(timestamp)), text);
+        pthread_mutex_lock(&mutex_traffic_log);
+        dataq_push(&g_traffic_log_q, buffer);
+        pthread_mutex_unlock(&mutex_traffic_log);
+    }
+}
+
+void bufq_queue_debug_log(const char *text)
+{
+    char buffer[MAX_CMD_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE];
+
+    if (g_debug_log_enable) {
+        snprintf(buffer, sizeof(buffer), "[%s] %s",
+                util_timestamp_usec(timestamp, sizeof(timestamp)), text);
+        pthread_mutex_lock(&mutex_debug_log);
+        cmdq_push(&g_debug_log_q, buffer);
+        pthread_mutex_unlock(&mutex_debug_log);
+    }
+}
+
+void bufq_queue_cmd_in(const char *text)
+{
+    pthread_mutex_lock(&mutex_cmd_in);
+    cmdq_push(&g_cmd_in_q, text);
+    pthread_mutex_unlock(&mutex_cmd_in);
+}
+
+void bufq_queue_cmd_out(const char *text)
+{
+    char inbuffer[MAX_CMD_SIZE];
+
+    snprintf(inbuffer, sizeof(inbuffer), "%s\r", text);
+    pthread_mutex_lock(&mutex_cmd_out);
+    cmdq_push(&g_cmd_out_q, text);
+    pthread_mutex_unlock(&mutex_cmd_out);
+}
+
+void bufq_queue_data_in(const char *text)
+{
+    char buffer[MIN_MSG_BUF_SIZE+MAX_TIMESTAMP_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE];
+
+    pthread_mutex_lock(&mutex_data_in);
+    if (mon_timestamp) {
+        snprintf(buffer, sizeof(buffer), "[%s] %s",
+                util_timestamp(timestamp, sizeof(timestamp)), text);
+        dataq_push(&g_data_in_q, buffer);
+    } else {
+        dataq_push(&g_data_in_q, text);
+    }
+    pthread_mutex_unlock(&mutex_data_in);
+}
+
+void bufq_queue_data_out(const char *text)
+{
+    pthread_mutex_lock(&mutex_data_out);
+    dataq_push(&g_data_out_q, text);
+    pthread_mutex_unlock(&mutex_data_out);
+}
+
+void bufq_queue_ptable(const char *text)
+{
+    pthread_mutex_lock(&mutex_ptable);
+    cmdq_push(&g_ptable_q, text);
+    pthread_mutex_unlock(&mutex_ptable);
+}
+
+void bufq_queue_ctable(const char *text)
+{
+    pthread_mutex_lock(&mutex_ctable);
+    cmdq_push(&g_ctable_q, text);
+    pthread_mutex_unlock(&mutex_ctable);
 }
 

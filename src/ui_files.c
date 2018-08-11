@@ -52,6 +52,7 @@
 #include "log.h"
 #include "util.h"
 #include "auth.h"
+#include "bufq.h"
 #include "cmdproc.h"
 
 #define MAX_CMD_HIST            10+1
@@ -657,7 +658,7 @@ int ui_files_get_line(char *cmd_line, size_t max_len)
 
 void ui_list_files(const char *dir)
 {
-    WINDOW *dir_win, *prev_win;
+    WINDOW *dir_win;
     DIR *dirp;
     struct dirent *dent;
     struct stat stats;
@@ -683,7 +684,7 @@ void ui_list_files(const char *dir)
     max_cols = (tnc_data_box_w - 4) + 1;
     if (max_cols > MAX_DIR_LINE_SIZE)
         max_cols = MAX_DIR_LINE_SIZE;
-    prev_win = ui_set_active_win(dir_win);
+    ui_set_active_win(dir_win);
     snprintf(dpath, sizeof(dpath), "%s", dir);
 
 restart:
@@ -792,11 +793,11 @@ restart:
             /* process the command */
             if (linebuf[0] == ':') {
                 if (g_tnc_attached)
-                    ui_queue_data_out(&linebuf[1]);
+                    bufq_queue_data_out(&linebuf[1]);
                 break;
             } else if (linebuf[0] == '!') {
                 if (g_tnc_attached)
-                    ui_queue_cmd_out(&linebuf[1]);
+                    bufq_queue_cmd_out(&linebuf[1]);
                 break;
             } else if (!strncasecmp(linebuf, "passwd", 4)) {
                 cmdproc_cmd(linebuf);
@@ -848,10 +849,12 @@ restart:
                                 *p = '\0';
                                 snprintf(dpath, sizeof(dpath), "%s", fn);
                                 --level;
+                                /* redraw the file listing view */
                                 goto restart;
                             }
                             snprintf(dpath, sizeof(dpath), "%s", fn);
                             ++level;
+                            /* redraw the file listing view */
                             goto restart;
                         } else {
                             ui_print_status("Change directory: not a directory", 1);
@@ -1123,7 +1126,7 @@ restart:
         usleep(100000);
     }
     delwin(dir_win);
-    ui_set_active_win(prev_win);
+    ui_set_active_win(tnc_data_box);
     touchwin(tnc_data_box);
     wrefresh(tnc_data_box);
     if (show_titles)
@@ -1138,7 +1141,7 @@ void ui_list_shared_files() {
 
 void ui_list_remote_files(const char *flist, const char *dir)
 {
-    WINDOW *dir_win, *prev_win;
+    WINDOW *dir_win;
     static char cache[MIN_MSG_BUF_SIZE];
     static char dpath[MAX_DIR_PATH_SIZE];
     static int is_root = 0;
@@ -1167,7 +1170,7 @@ void ui_list_remote_files(const char *flist, const char *dir)
     max_cols = (tnc_data_box_w - 4) + 1;
     if (max_cols > MAX_DIR_LINE_SIZE)
         max_cols = MAX_DIR_LINE_SIZE;
-    prev_win = ui_set_active_win(dir_win);
+    ui_set_active_win(dir_win);
     wclear(dir_win);
 
     if (flist) {
@@ -1280,6 +1283,7 @@ void ui_list_remote_files(const char *flist, const char *dir)
                             /* ordinary data file, try to read it */
                             numch = snprintf(cmdbuffer, sizeof(cmdbuffer), "/FILE %s", path[i]);
                             cmdproc_cmd(cmdbuffer);
+                            /* close the file listing view so op can read file in tfc monitor */
                             quit = 1;
                         } else {
                             ui_print_status("Read file: cannot read directory", 1);
@@ -1305,6 +1309,7 @@ void ui_list_remote_files(const char *flist, const char *dir)
                             numch = snprintf(cmdbuffer, sizeof(cmdbuffer),
                                              "%s %s", zoption ? "/FLGET -z" : "/FLGET", path[i]);
                             cmdproc_cmd(cmdbuffer);
+                            /* close the file listing view, it will reopen when listing received */
                             quit = 1;
                         } else {
                             ui_print_status("Change directory: not a directory", 1);
@@ -1343,7 +1348,6 @@ void ui_list_remote_files(const char *flist, const char *dir)
                                     numch = snprintf(cmdbuffer, sizeof(cmdbuffer), "%s %s",
                                                      zoption ? "/FGET -z" : "/FGET", path[i]);
                                 cmdproc_cmd(cmdbuffer);
-                                quit = 1;
                             } else {
                                 ui_print_status("Get file: cannot download, TNC busy", 1);
                             }
@@ -1472,7 +1476,7 @@ void ui_list_remote_files(const char *flist, const char *dir)
         usleep(100000);
     }
     delwin(dir_win);
-    ui_set_active_win(prev_win);
+    ui_set_active_win(tnc_data_box);
     touchwin(tnc_data_box);
     wrefresh(tnc_data_box);
     if (show_titles)

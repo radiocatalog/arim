@@ -1,6 +1,18 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v1.11 11Aug2018
+---------------
+1. Introduce progress meter feature for file, message, query response,
+   and directory listing data transfers. The meter is located on the
+   status bar and appears when an upload or download begins to
+   indicate percentage of completion as the tranfer progresses.
+   Suggested by Doug, WB6VAC, thanks!
+2. Fix bug where remote file listing view didn't close and return to
+   the traffic monitor view when the 'cd' command was invoked.
+3. Extend dwell time of status bar messages to 5 seconds.
+4. Update the PDF Help doc.
+
 v1.10 28Jul2018
 ---------------
 1. Add new "CONNECTION HISTORY" view, which displays a list of ARQ

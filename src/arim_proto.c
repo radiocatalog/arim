@@ -26,15 +26,16 @@
 #include <unistd.h>
 #include <string.h>
 #include "main.h"
-#include "arim.h"
-#include "arim_proto.h"
-#include "arim_ping.h"
-#include "arim_arq.h"
 #include "ini.h"
 #include "mbox.h"
 #include "ui.h"
 #include "ui_tnc_data_win.h"
 #include "util.h"
+#include "bufq.h"
+#include "arim.h"
+#include "arim_proto.h"
+#include "arim_ping.h"
+#include "arim_arq.h"
 #include "arim_proto_idle.h"
 #include "arim_proto_ping.h"
 #include "arim_proto_msg.h"
@@ -53,6 +54,7 @@ pthread_mutex_t mutex_send_repeats = PTHREAD_MUTEX_INITIALIZER;
 char msg_acknak_buffer[MAX_ACKNAK_SIZE];
 char msg_buffer[MIN_MSG_BUF_SIZE];
 
+size_t msg_len;
 time_t prev_time;
 char prev_fecmode[TNC_FECMODE_SIZE];
 char prev_to_call[TNC_MYCALL_SIZE];
@@ -336,7 +338,7 @@ void arim_restore_prev_fecmode()
     char temp[MAX_CMD_SIZE];
 
     snprintf(temp, sizeof(temp), "FECMODE %s", prev_fecmode);
-    ui_queue_cmd_out(temp);
+    bufq_queue_cmd_out(temp);
 }
 
 int arim_is_arq_state()
@@ -386,10 +388,10 @@ void arim_set_state(int newstate)
     char buffer[TNC_LISTEN_SIZE], cmd[MAX_CMD_SIZE];
 
     if (newstate == ST_IDLE) {
-        ui_queue_cmd_out("PROTOCOLMODE FEC");
+        bufq_queue_cmd_out("PROTOCOLMODE FEC");
         arim_copy_listen(buffer, sizeof(buffer));
         snprintf(cmd, sizeof(cmd), "LISTEN %s", buffer);
-        ui_queue_cmd_out(cmd);
+        bufq_queue_cmd_out(cmd);
     }
     pthread_mutex_lock(&mutex_arim_state);
     arim_state = newstate;
@@ -425,7 +427,7 @@ void arim_set_channel_not_busy()
     snprintf(g_tnc_settings[g_cur_tnc].busy,
         sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
     pthread_mutex_unlock(&mutex_tnc_set);
-    arim_queue_debug_log("ARIM: TNC is not BUSY");
+    bufq_queue_debug_log("ARIM: TNC is not BUSY");
 }
 
 int arim_tnc_is_idle()
@@ -509,7 +511,7 @@ void arim_fecmode_downshift()
         if (!result && *(p + len) == ',') {
             p += (len + 1);
             snprintf(temp, sizeof(temp), "FECMODE %s", p);
-            ui_queue_cmd_out(temp);
+            bufq_queue_cmd_out(temp);
             break;
         }
         p = downshift[++i];
@@ -519,40 +521,30 @@ void arim_fecmode_downshift()
 void arim_cancel_trans()
 {
     if (arim_get_buffer_cnt() > 0)
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
 }
 
 int arim_cancel_unproto()
 {
-    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE];
 
     /* operator has canceled the unproto transmission by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Unproto message canceled by operator)");
-    ui_queue_traffic_log(buffer);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(buffer, sizeof(buffer),
-                "[%s] >> [X] (Unproto message canceled by operator)",
-                    util_timestamp(timestamp, sizeof(timestamp)));
-    }
-    ui_queue_data_in(buffer);
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
     return 1;
 }
 
 int arim_cancel_frame()
 {
-    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE];
 
     /* operator has canceled the data frame receipt by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Wait for ARIM frame canceled by operator)");
-    ui_queue_traffic_log(buffer);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(buffer, sizeof(buffer),
-                "[%s] >> [X] (Wait for ARIM frame canceled by operator)",
-                    util_timestamp(timestamp, sizeof(timestamp)));
-    }
-    ui_queue_data_in(buffer);
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
     return 1;
 }
 
@@ -696,7 +688,7 @@ void arim_on_event(int event, int param)
         snprintf(buffer, sizeof(buffer),
             "ARIM: Event %s, Param %d, State %s==>%s",
                 events[event], param, states[prev_state], states[next_state]);
-        arim_queue_debug_log(buffer);
+        bufq_queue_debug_log(buffer);
     }
 }
 

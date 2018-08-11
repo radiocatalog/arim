@@ -34,6 +34,7 @@
 #include "arim_arq_files.h"
 #include "ini.h"
 #include "mbox.h"
+#include "bufq.h"
 #include "ui.h"
 #include "util.h"
 
@@ -44,7 +45,7 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -85,11 +86,12 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
         arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
-        ui_set_status_dirty(STATUS_REFRESH);
+        ui_set_status_dirty(STATUS_ARQ_FILE_SEND_ERROR);
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
         arim_set_state(ST_ARQ_CONNECTED);
+        ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         break;
@@ -121,7 +123,7 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
             ack_timeout = ARDOP_CONN_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_CONNECTED);
-            ui_set_status_dirty(STATUS_REFRESH);
+            ui_set_status_dirty(STATUS_ARQ_FILE_SEND_TIMEOUT);
         }
         break;
     }
@@ -134,7 +136,7 @@ void arim_proto_arq_file_send_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -149,6 +151,7 @@ void arim_proto_arq_file_send_wait(int event, int param)
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
         arim_set_state(ST_ARQ_CONNECTED);
+        ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         break;
@@ -188,7 +191,7 @@ void arim_proto_arq_file_send_wait(int event, int param)
                 ack_timeout = ARDOP_CONN_TIMEOUT;
                 prev_time = time(NULL);
                 arim_set_state(ST_ARQ_CONNECTED);
-                ui_set_status_dirty(STATUS_REFRESH);
+                ui_set_status_dirty(STATUS_ARQ_FILE_SEND_TIMEOUT);
             }
         }
         break;
@@ -202,7 +205,7 @@ void arim_proto_arq_file_send(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -226,7 +229,7 @@ void arim_proto_arq_file_send(int event, int param)
         arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
-        ui_set_status_dirty(STATUS_REFRESH);
+        ui_set_status_dirty(STATUS_ARQ_FILE_SEND_ERROR);
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
@@ -260,7 +263,7 @@ void arim_proto_arq_file_send(int event, int param)
                 ack_timeout = ARDOP_CONN_TIMEOUT;
                 prev_time = time(NULL);
                 arim_set_state(ST_ARQ_CONNECTED);
-                ui_set_status_dirty(STATUS_REFRESH);
+                ui_set_status_dirty(STATUS_ARQ_FILE_SEND_TIMEOUT);
             }
         }
         break;
@@ -274,7 +277,7 @@ void arim_proto_arq_file_rcv_wait_ok(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -289,6 +292,7 @@ void arim_proto_arq_file_rcv_wait_ok(int event, int param)
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
         arim_set_state(ST_ARQ_CONNECTED);
+        ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         break;
@@ -327,7 +331,7 @@ void arim_proto_arq_file_rcv_wait_ok(int event, int param)
                 ack_timeout = ARDOP_CONN_TIMEOUT;
                 prev_time = time(NULL);
                 arim_set_state(ST_ARQ_CONNECTED);
-                ui_set_status_dirty(STATUS_REFRESH);
+                ui_set_status_dirty(STATUS_ARQ_FILE_RCV_TIMEOUT);
             }
         }
         break;
@@ -341,7 +345,7 @@ void arim_proto_arq_file_rcv_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -372,6 +376,7 @@ void arim_proto_arq_file_rcv_wait(int event, int param)
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
         arim_set_state(ST_ARQ_CONNECTED);
+        ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         break;
@@ -417,7 +422,7 @@ void arim_proto_arq_file_rcv_wait(int event, int param)
             ack_timeout = ARDOP_CONN_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_CONNECTED);
-            ui_set_status_dirty(STATUS_REFRESH);
+            ui_set_status_dirty(STATUS_ARQ_FILE_RCV_TIMEOUT);
         }
         break;
     }
@@ -430,7 +435,7 @@ void arim_proto_arq_file_rcv(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -490,7 +495,7 @@ void arim_proto_arq_file_rcv(int event, int param)
             ack_timeout = ARDOP_CONN_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_CONNECTED);
-            ui_set_status_dirty(STATUS_REFRESH);
+            ui_set_status_dirty(STATUS_ARQ_FILE_RCV_TIMEOUT);
         }
         break;
     }
@@ -503,7 +508,7 @@ void arim_proto_arq_file_flist_rcv_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -534,6 +539,7 @@ void arim_proto_arq_file_flist_rcv_wait(int event, int param)
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
         arim_set_state(ST_ARQ_CONNECTED);
+        ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         break;
@@ -579,7 +585,7 @@ void arim_proto_arq_file_flist_rcv_wait(int event, int param)
             ack_timeout = ARDOP_CONN_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_CONNECTED);
-            ui_set_status_dirty(STATUS_REFRESH);
+            ui_set_status_dirty(STATUS_ARQ_FLIST_RCV_TIMEOUT);
         }
         break;
     }
@@ -592,7 +598,7 @@ void arim_proto_arq_file_flist_rcv(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -652,7 +658,7 @@ void arim_proto_arq_file_flist_rcv(int event, int param)
             ack_timeout = ARDOP_CONN_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_CONNECTED);
-            ui_set_status_dirty(STATUS_REFRESH);
+            ui_set_status_dirty(STATUS_ARQ_FLIST_RCV_TIMEOUT);
         }
         break;
     }
@@ -665,7 +671,7 @@ void arim_proto_arq_file_flist_send_wait(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -680,6 +686,7 @@ void arim_proto_arq_file_flist_send_wait(int event, int param)
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
         arim_set_state(ST_ARQ_CONNECTED);
+        ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         break;
@@ -719,7 +726,7 @@ void arim_proto_arq_file_flist_send_wait(int event, int param)
                 ack_timeout = ARDOP_CONN_TIMEOUT;
                 prev_time = time(NULL);
                 arim_set_state(ST_ARQ_CONNECTED);
-                ui_set_status_dirty(STATUS_REFRESH);
+                ui_set_status_dirty(STATUS_ARQ_FLIST_SEND_TIMEOUT);
             }
         }
         break;
@@ -733,7 +740,7 @@ void arim_proto_arq_file_flist_send(int event, int param)
 
     switch (event) {
     case EV_CANCEL:
-        ui_queue_cmd_out("ABORT");
+        bufq_queue_cmd_out("ABORT");
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
@@ -757,7 +764,7 @@ void arim_proto_arq_file_flist_send(int event, int param)
         arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
-        ui_set_status_dirty(STATUS_REFRESH);
+        ui_set_status_dirty(STATUS_ARQ_FLIST_SEND_ERROR);
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
@@ -791,7 +798,7 @@ void arim_proto_arq_file_flist_send(int event, int param)
                 ack_timeout = ARDOP_CONN_TIMEOUT;
                 prev_time = time(NULL);
                 arim_set_state(ST_ARQ_CONNECTED);
-                ui_set_status_dirty(STATUS_REFRESH);
+                ui_set_status_dirty(STATUS_ARQ_FLIST_SEND_TIMEOUT);
             }
         }
         break;

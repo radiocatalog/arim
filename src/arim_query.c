@@ -68,7 +68,7 @@ int arim_send_query(const char *query, const char *to_call)
                     len,
                     check,
                     query);
-    ui_queue_data_out(msg_buffer);
+    bufq_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -102,7 +102,7 @@ int arim_send_query_pp()
                      len,
                      check,
                      prev_msg);
-    ui_queue_data_out(msg_buffer);
+    bufq_queue_data_out(msg_buffer);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
     snprintf(g_tnc_settings[g_cur_tnc].buffer,
@@ -142,7 +142,7 @@ int arim_recv_response(const char *fm_call, const char *to_call,
     } else {
         snprintf(buffer, sizeof(buffer), "7[R] %-10s ", fm_call);
     }
-    ui_queue_heard(buffer);
+    bufq_queue_heard(buffer);
     return result;
 }
 
@@ -178,6 +178,10 @@ int arim_recv_query(const char *fm_call, const char *to_call,
                              len,
                              check,
                              respbuf);
+            /* initialize arim_proto global */
+            msg_len = len;
+            /* start progress meter */
+            ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);
             arim_on_event(EV_RCV_QRY, 0);
             snprintf(buffer, sizeof(buffer), "3[Q] %-10s ", fm_call);
         } else {
@@ -186,25 +190,31 @@ int arim_recv_query(const char *fm_call, const char *to_call,
     } else {
         snprintf(buffer, sizeof(buffer), "7[Q] %-10s ", fm_call);
     }
-    ui_queue_heard(buffer);
+    bufq_queue_heard(buffer);
     (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return result;
 }
 
+size_t arim_on_send_response_buffer(size_t size)
+{
+    static size_t last_size;
+    if (size != last_size) {
+        last_size = size;
+        /* update progress meter */
+        ui_status_xfer_update(msg_len - size);
+    }
+    return size;
+}
+
 int arim_cancel_query()
 {
-    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE];
 
     /* operator has canceled the query by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Query canceled by operator)");
-    ui_queue_traffic_log(buffer);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(buffer, sizeof(buffer),
-                "[%s] >> [X] (Query canceled by operator)",
-                    util_timestamp(timestamp, sizeof(timestamp)));
-    }
-    ui_queue_data_in(buffer);
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
     return 1;
 }
 

@@ -2,6 +2,18 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 1.11
+------------
+* Introduce progress meter feature for file, message, query response,
+  and directory listing data transfers. The meter is located on the
+  status bar and appears when an upload or download begins to
+  indicate percentage of completion as the tranfer progresses.
+  Suggested by Doug, WB6VAC, thanks!
+* Fix bug where remote file listing view didn't close and return to
+  the traffic monitor view when the 'cd' command was invoked.
+* Extend dwell time of status bar messages to 5 seconds.
+* Update the PDF Help doc.
+
 Version 1.10
 ------------
 * Add new "CONNECTION HISTORY" view, which displays a list of ARQ

@@ -44,37 +44,6 @@
 #include "ui.h"
 #include "util.h"
 
-void cmdthread_queue_debug_log(const char *text)
-{
-    char buffer[MAX_CMD_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE];
-
-    if (g_debug_log_enable) {
-        snprintf(buffer, sizeof(buffer), "[%s] %s",
-                util_timestamp_usec(timestamp, sizeof(timestamp)), text);
-        pthread_mutex_lock(&mutex_debug_log);
-        cmdq_push(&g_debug_log_q, buffer);
-        pthread_mutex_unlock(&mutex_debug_log);
-    }
-}
-
-void cmdthread_queue_cmd_in(const char *text)
-{
-    pthread_mutex_lock(&mutex_cmd_in);
-    cmdq_push(&g_cmd_in_q, text);
-    pthread_mutex_unlock(&mutex_cmd_in);
-}
-
-void cmdthread_queue_cmd_out(const char *text)
-{
-    char inbuffer[MAX_CMD_SIZE];
-
-    snprintf(inbuffer, sizeof(inbuffer), "%s\r", text);
-    pthread_mutex_lock(&mutex_cmd_out);
-    cmdq_push(&g_cmd_out_q, text);
-    pthread_mutex_unlock(&mutex_cmd_out);
-}
-
 void cmdthread_next_cmd_out(int sock)
 {
     char *cmd, inbuffer[MAX_CMD_SIZE];
@@ -87,11 +56,11 @@ void cmdthread_next_cmd_out(int sock)
         snprintf(inbuffer, sizeof(inbuffer), "%s\r", cmd);
         sent = write(sock, inbuffer, strlen(inbuffer));
         if (sent < 0) {
-            cmdthread_queue_debug_log("Cmd thread: write to socket failed");
+            bufq_queue_debug_log("Cmd thread: write to socket failed");
         } else {
             snprintf(inbuffer, sizeof(inbuffer), "<< %s", cmd);
-            cmdthread_queue_cmd_in(inbuffer);
-            cmdthread_queue_debug_log(inbuffer);
+            bufq_queue_cmd_in(inbuffer);
+            bufq_queue_debug_log(inbuffer);
         }
     }
 }
@@ -118,8 +87,8 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
         if (end < (buffer + cnt) && *end == '\r') {
             *end = '\0';
             snprintf(inbuffer, sizeof(inbuffer), ">> %s", start);
-            cmdthread_queue_cmd_in(inbuffer);
-            cmdthread_queue_debug_log(inbuffer);
+            bufq_queue_cmd_in(inbuffer);
+            bufq_queue_debug_log(inbuffer);
             /* process certain responses */
             val = start;
             while (*val && *val != ' ')
@@ -260,13 +229,13 @@ size_t cmdthread_proc_response(char *response, size_t size, int sock)
                     snprintf(g_tnc_settings[g_cur_tnc].busy,
                         sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "TRUE");
                     pthread_mutex_unlock(&mutex_tnc_set);
-                    cmdthread_queue_debug_log("Cmd thread: TNC is BUSY");
+                    bufq_queue_debug_log("Cmd thread: TNC is BUSY");
                 } else {
                     pthread_mutex_lock(&mutex_tnc_set);
                     snprintf(g_tnc_settings[g_cur_tnc].busy,
                         sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
                     pthread_mutex_unlock(&mutex_tnc_set);
-                    cmdthread_queue_debug_log("Cmd thread: TNC is not BUSY");
+                    bufq_queue_debug_log("Cmd thread: TNC is not BUSY");
                 }
             } else if (!strncasecmp(start, "LEADER", 6)) {
                 pthread_mutex_lock(&mutex_tnc_set);
@@ -309,20 +278,20 @@ void *cmdthread_func(void *data)
     ssize_t rsize;
     int i, result;
 
-    cmdthread_queue_debug_log("Cmd thread: initializing");
+    bufq_queue_debug_log("Cmd thread: initializing");
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;  /* IPv4 or IPv6 */
     hints.ai_socktype = SOCK_STREAM;
     getaddrinfo(g_tnc_settings[g_cur_tnc].ipaddr, g_tnc_settings[g_cur_tnc].port, &hints, &res);
     if (!res)
     {
-        cmdthread_queue_debug_log("Cmd thread: failed to resolve IP address");
+        bufq_queue_debug_log("Cmd thread: failed to resolve IP address");
         g_cmdthread_stop = 1;
         pthread_exit(data);
     }
     cmdsock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (connect(cmdsock, res->ai_addr, res->ai_addrlen) == -1) {
-        cmdthread_queue_debug_log("Cmd thread: failed to open TCP socket");
+        bufq_queue_debug_log("Cmd thread: failed to open TCP socket");
         g_cmdthread_stop = 1;
         pthread_exit(data);
     }
@@ -331,42 +300,42 @@ void *cmdthread_func(void *data)
     snprintf(g_tnc_settings[g_cur_tnc].busy,
         sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
 
-    cmdthread_queue_cmd_out("INITIALIZE");
+    bufq_queue_cmd_out("INITIALIZE");
     snprintf(buffer, sizeof(buffer), "MYCALL %s", g_tnc_settings[g_cur_tnc].mycall);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "GRIDSQUARE %s", g_tnc_settings[g_cur_tnc].gridsq);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "FECMODE %s", g_tnc_settings[g_cur_tnc].fecmode);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "FECID %s", g_tnc_settings[g_cur_tnc].fecid);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "FECREPEATS %s", g_tnc_settings[g_cur_tnc].fecrepeats);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "SQUELCH %s", g_tnc_settings[g_cur_tnc].squelch);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "BUSYDET %s", g_tnc_settings[g_cur_tnc].busydet);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "LEADER %s", g_tnc_settings[g_cur_tnc].leader);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "TRAILER %s", g_tnc_settings[g_cur_tnc].trailer);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "ENABLEPINGACK %s", g_tnc_settings[g_cur_tnc].en_pingack);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "ARQBW %s", g_tnc_settings[g_cur_tnc].arq_bandwidth);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "ARQTIMEOUT %s", g_tnc_settings[g_cur_tnc].arq_timeout);
-    cmdthread_queue_cmd_out(buffer);
+    bufq_queue_cmd_out(buffer);
     snprintf(buffer, sizeof(buffer), "LISTEN %s", g_tnc_settings[g_cur_tnc].listen);
-    cmdthread_queue_cmd_out(buffer);
-    cmdthread_queue_cmd_out("PROTOCOLMODE FEC");
-    cmdthread_queue_cmd_out("AUTOBREAK TRUE");
-    cmdthread_queue_cmd_out("MONITOR TRUE");
-    cmdthread_queue_cmd_out("CWID FALSE");
-    cmdthread_queue_cmd_out("VERSION");
-    cmdthread_queue_cmd_out("STATE");
+    bufq_queue_cmd_out(buffer);
+    bufq_queue_cmd_out("PROTOCOLMODE FEC");
+    bufq_queue_cmd_out("AUTOBREAK TRUE");
+    bufq_queue_cmd_out("MONITOR TRUE");
+    bufq_queue_cmd_out("CWID FALSE");
+    bufq_queue_cmd_out("VERSION");
+    bufq_queue_cmd_out("STATE");
     /* send TNC initialization commands from config file */
     for (i = 0; i < g_tnc_settings[g_cur_tnc].tnc_init_cmds_cnt; i++)
-        cmdthread_queue_cmd_out(g_tnc_settings[g_cur_tnc].tnc_init_cmds[i]);
+        bufq_queue_cmd_out(g_tnc_settings[g_cur_tnc].tnc_init_cmds[i]);
 
     while (1) {
         FD_ZERO(&cmdreadfds);
@@ -381,7 +350,7 @@ void *cmdthread_func(void *data)
             cmdthread_next_cmd_out(cmdsock);
             break;
         case -1:
-            cmdthread_queue_debug_log("Cmd thread: Socket select error (-1)");
+            bufq_queue_debug_log("Cmd thread: Socket select error (-1)");
             break;
         default:
             if (FD_ISSET(cmdsock, &cmdreadfds)) {
@@ -390,7 +359,7 @@ void *cmdthread_func(void *data)
                     cmdthread_proc_response(buffer, rsize, cmdsock);
             }
             if (FD_ISSET(cmdsock, &cmderrorfds)) {
-                cmdthread_queue_debug_log("Cmd thread: Socket select error (FD_ISSET)");
+                bufq_queue_debug_log("Cmd thread: Socket select error (FD_ISSET)");
                 break;
             }
         }
@@ -400,7 +369,7 @@ void *cmdthread_func(void *data)
     }
     snprintf(g_tnc_settings[g_cur_tnc].busy,
         sizeof(g_tnc_settings[g_cur_tnc].busy), "%s", "FALSE");
-    cmdthread_queue_debug_log("Cmd thread: terminating");
+    bufq_queue_debug_log("Cmd thread: terminating");
     sleep(2);
     close(cmdsock);
     return data;

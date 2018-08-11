@@ -35,6 +35,7 @@
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
+#include "bufq.h"
 #include "arim_proto.h"
 
 #define MAX_FEC_ROW_SIZE  256
@@ -252,7 +253,7 @@ void ui_show_fec_menu()
                 state != ST_ARQ_OUT_CONNECT_WAIT) {
                 p = ui_get_feccmd(cmd);
                 if (p) {
-                    ui_queue_cmd_out(p);
+                    bufq_queue_cmd_out(p);
                     ui_print_status(p, 1);
                 }
             }

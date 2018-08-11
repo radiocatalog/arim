@@ -103,5 +103,15 @@ extern int fileq_get_size(FILEQUEUE *q);
 extern int fileq_push(FILEQUEUE *q, const FILEQUEUEITEM *data);
 extern FILEQUEUEITEM *fileq_pop(FILEQUEUE *q);
 
+extern void bufq_queue_heard(const char *text);
+extern void bufq_queue_traffic_log(const char *text);
+extern void bufq_queue_debug_log(const char *text);
+extern void bufq_queue_cmd_in(const char *text);
+extern void bufq_queue_cmd_out(const char *text);
+extern void bufq_queue_data_in(const char *text);
+extern void bufq_queue_data_out(const char *text);
+extern void bufq_queue_ptable(const char *text);
+extern void bufq_queue_ctable(const char *text);
+
 #endif
 

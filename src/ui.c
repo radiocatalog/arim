@@ -73,40 +73,29 @@ int status_row, status_col;
 
 int num_new_msgs;
 int num_new_files;
+int show_prog_meter;
+static int xfer_dir, xfer_min, xfer_max, xfer_val;
 
-void ui_queue_traffic_log(const char *text)
+void ui_status_xfer_start(int min, int max, int dir)
 {
-    char buffer[MIN_MSG_BUF_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE];
-
-    if (g_traffic_log_enable) {
-        snprintf(buffer, sizeof(buffer), "[%s] %s",
-                util_timestamp(timestamp, sizeof(timestamp)), text);
-        pthread_mutex_lock(&mutex_traffic_log);
-        dataq_push(&g_traffic_log_q, buffer);
-        pthread_mutex_unlock(&mutex_traffic_log);
-    }
+    pthread_mutex_lock(&mutex_status);
+    xfer_min = xfer_val = min;
+    xfer_max = max;
+    xfer_dir = dir;
+    pthread_mutex_unlock(&mutex_status);
+    show_prog_meter = 1;
 }
 
-void ui_queue_debug_log(const char *text)
+void ui_status_xfer_update(int val)
 {
-    char buffer[MAX_CMD_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE];
-
-    if (g_debug_log_enable) {
-        snprintf(buffer, sizeof(buffer), "[%s] %s",
-                util_timestamp_usec(timestamp, sizeof(timestamp)), text);
-        pthread_mutex_lock(&mutex_debug_log);
-        cmdq_push(&g_debug_log_q, buffer);
-        pthread_mutex_unlock(&mutex_debug_log);
-    }
+    pthread_mutex_lock(&mutex_status);
+    xfer_val = val > xfer_max ? xfer_max : val;
+    pthread_mutex_unlock(&mutex_status);
 }
 
-void ui_queue_cmd_out(const char *text)
+void ui_status_xfer_end()
 {
-    pthread_mutex_lock(&mutex_cmd_out);
-    cmdq_push(&g_cmd_out_q, text);
-    pthread_mutex_unlock(&mutex_cmd_out);
+    show_prog_meter = 0;
 }
 
 void ui_set_title_dirty(int val)
@@ -265,6 +254,56 @@ void ui_check_channel_busy()
     }
 }
 
+void ui_check_prog_meter()
+{
+    static int is_showing = 0;
+    char meter[MAX_STATUS_BAR_SIZE*2];
+    int i, start, stop, meter_len, max, val, dir;
+    float pct, num_fill_ch;
+
+    if (!show_prog_meter && is_showing) {
+        is_showing = 0;
+        wmove(main_win, status_row + 1, status_col);
+        wclrtoeol(main_win);
+        return;
+    } else if (!show_prog_meter) {
+        return;
+    }
+    is_showing = show_prog_meter;
+    pthread_mutex_lock(&mutex_status);
+    max = xfer_max;
+    val = xfer_val;
+    dir = xfer_dir;
+    pthread_mutex_unlock(&mutex_status);
+    /* compute progress meter layout */
+    start = status_col;
+    stop = COLS - strlen(CH_BUSY_IND) - 17;
+    meter_len = stop - start - 7;
+    num_fill_ch = ((float)val / (float)max) * (float)meter_len;
+    for (i = 0; i < meter_len && i < sizeof(meter) - 1; i++) {
+        if (i < (int)num_fill_ch)
+            meter[i] = '#';
+        else
+            meter[i] = ' ';
+    }
+    meter[i] = '\0';
+    /* compute progress meter percentage of completion */
+    pct = ((float)val / (float)max) * 100.0;
+    /* clear line and draw meter */
+    wmove(main_win, status_row + 1, start);
+    wclrtoeol(main_win);
+    if (color_code) {
+        wattrset(main_win, COLOR_PAIR(22)|themes[theme].ui_ch_busy_attr);
+    } else {
+        wattron(main_win, A_BOLD);
+    }
+    mvwprintw(main_win, status_row + 1, start, "[%s][%s %2.0f%%]", meter, dir ? "  Upload:" : "Download:", pct);
+    if (color_code)
+        wattrset(main_win, COLOR_PAIR(7)|A_NORMAL);
+    else
+        wattroff(main_win, A_BOLD);
+}
+
 void ui_print_status(const char *text, int temporary)
 {
     static char status[MAX_STATUS_BAR_SIZE];
@@ -374,6 +413,7 @@ void ui_check_status_dirty()
     char cmd;
 
     ui_check_title_dirty();
+    ui_check_prog_meter();
     ui_check_channel_busy();
     if (!status_dirty)
         return;
@@ -382,13 +422,15 @@ void ui_check_status_dirty()
     case STATUS_REFRESH:
         ui_print_status(NULL, status_timer ? 1 : 0);
         break;
-    case STATUS_WAIT_ACK:
+    case STATUS_MSG_WAIT_ACK:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Busy: message sent, waiting for ACK", 1);
         break;
     case STATUS_WAIT_RESP:
         ui_print_status("ARIM Busy: query sent, waiting for response", 1);
         break;
     case STATUS_NET_MSG_SENT:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: done sending net message", 1);
         break;
     case STATUS_BEACON_SENT:
@@ -412,7 +454,7 @@ void ui_check_status_dirty()
         ++num_new_msgs;
         ui_print_new_ctrs();
         break;
-    case STATUS_ACK_TIMEOUT:
+    case STATUS_MSG_ACK_TIMEOUT:
         ui_print_status("ARIM Idle: message ACK wait time out", 1);
         ui_set_status_dirty(0); /* must clear flag before opening modal dialog */
         cmd = ui_show_dialog("\tMessage send failed!\n\tDo you want to save\n\tthe message to your Outbox?\n \n\t[Y]es   [N]o", "yYnN");
@@ -422,6 +464,7 @@ void ui_check_status_dirty()
         }
         break;
     case STATUS_RESP_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: response wait time out", 1);
         break;
     case STATUS_FRAME_START:
@@ -455,6 +498,7 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Idle: response frame received", 1);
         break;
     case STATUS_ARIM_FRAME_TO:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARIM frame receive time out", 1);
         break;
     case STATUS_RESP_SEND:
@@ -480,6 +524,7 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Busy: ACK time out, repeating message send", 1);
         break;
     case STATUS_RESP_SENT:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: done sending response", 1);
         break;
     case STATUS_ACKNAK_SENT:
@@ -489,6 +534,7 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Idle: query send canceled!", 1);
         break;
     case STATUS_RESP_SEND_CAN:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: response send canceled!", 1);
         break;
     case STATUS_ACKNAK_SEND_CAN:
@@ -501,6 +547,7 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Idle: unproto send canceled!", 1);
         break;
     case STATUS_MSG_SEND_CAN:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: message send canceled!", 1);
         ui_set_status_dirty(0); /* must clear flag before opening modal dialog */
         cmd = ui_show_dialog("\tMessage send canceled!\n\tDo you want to save\n\tthe message to your Outbox?\n \n\t[Y]es   [N]o", "yYnN");
@@ -510,9 +557,11 @@ void ui_check_status_dirty()
         }
         break;
     case STATUS_RESP_WAIT_CAN:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: wait for response canceled!", 1);
         break;
     case STATUS_FRAME_WAIT_CAN:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: wait for ARIM frame canceled!", 1);
         break;
     case STATUS_PING_SENT:
@@ -568,12 +617,14 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Busy: received ARQ connection request", 1);
         break;
     case STATUS_ARQ_CONN_CAN:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ connection canceled!", 1);
         break;
     case STATUS_ARQ_CONNECTED:
         ui_print_status("ARIM Busy: ARQ connection started", 1);
         break;
     case STATUS_ARQ_DISCONNECTED:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ connection ended", 1);
         break;
     case STATUS_ARQ_CONN_REQ_SENT:
@@ -598,6 +649,7 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Idle: ping ACK quality < threshold, connection request canceled", 1);
         break;
     case STATUS_ARQ_CONN_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ connection timeout", 1);
         break;
     case STATUS_ARQ_FILE_RCV_WAIT:
@@ -607,12 +659,18 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Busy: ARQ file download in progress", 1);
         break;
     case STATUS_ARQ_FILE_RCV_DONE:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ file download complete", 1);
         ++num_new_files;
         ui_print_new_ctrs();
         break;
     case STATUS_ARQ_FILE_RCV_ERROR:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ file download failed", 1);
+        break;
+    case STATUS_ARQ_FILE_RCV_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ file download timeout", 1);
         break;
     case STATUS_ARQ_FILE_SEND:
         ui_print_status("ARIM Busy: ARQ file upload in progress", 1);
@@ -620,29 +678,53 @@ void ui_check_status_dirty()
     case STATUS_ARQ_FILE_SEND_DONE:
         ui_print_status("ARIM Idle: ARQ file upload complete", 1);
         break;
+    case STATUS_ARQ_FILE_SEND_ERROR:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ file upload failed", 1);
+        break;
     case STATUS_ARQ_FILE_SEND_ACK:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Busy: ARQ file upload acknowleged", 1);
+        break;
+    case STATUS_ARQ_FILE_SEND_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ file upload timeout", 1);
         break;
     case STATUS_ARQ_MSG_RCV:
         ui_print_status("ARIM Busy: ARQ message download in progress", 1);
         break;
     case STATUS_ARQ_MSG_RCV_DONE:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ message download complete", 1);
         ++num_new_msgs;
         ui_print_new_ctrs();
         break;
     case STATUS_ARQ_MSG_RCV_ERROR:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ message download failed", 1);
+        break;
+    case STATUS_ARQ_MSG_RCV_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ message download timeout", 1);
         break;
     case STATUS_ARQ_MSG_SEND:
         ui_print_status("ARIM Busy: ARQ message upload in progress", 1);
         break;
+    case STATUS_ARQ_MSG_SEND_DONE:
+        ui_print_status("ARIM Idle: ARQ message upload complete", 1);
+        break;
+    case STATUS_ARQ_MSG_SEND_ERROR:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ message upload failed", 1);
+        break;
     case STATUS_ARQ_MSG_SEND_ACK:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Busy: ARQ message upload acknowleged", 1);
         arim_arq_msg_on_send_next();
         break;
-    case STATUS_ARQ_MSG_SEND_DONE:
-        ui_print_status("ARIM Idle: ARQ message upload complete", 1);
+    case STATUS_ARQ_MSG_SEND_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ message upload timeout", 1);
         break;
     case STATUS_ARQ_AUTH_BUSY:
         ui_print_status("ARIM Busy: ARQ session authentication in progress", 1);
@@ -684,11 +766,17 @@ void ui_check_status_dirty()
         ui_print_status("ARIM Busy: ARQ remote file listing in progress", 1);
         break;
     case STATUS_ARQ_FLIST_RCV_DONE:
-        ui_set_status_dirty(0); /* must clear flag before opening modal dialog */
+        ui_status_xfer_end(); /* end progress meter */
+        ui_set_status_dirty(0); /* must clear flag before opening remote file view */
         arim_arq_files_on_flget_done();
         break;
     case STATUS_ARQ_FLIST_RCV_ERROR:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Idle: ARQ remote file listing failed", 1);
+        break;
+    case STATUS_ARQ_FLIST_RCV_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ remote file listing download timeout", 1);
         break;
     case STATUS_ARQ_FLIST_SEND:
         ui_print_status("ARIM Busy: ARQ remote file listing upload in progress", 1);
@@ -696,8 +784,17 @@ void ui_check_status_dirty()
     case STATUS_ARQ_FLIST_SEND_DONE:
         ui_print_status("ARIM Idle: ARQ remote file listing upload complete", 1);
         break;
+    case STATUS_ARQ_FLIST_SEND_ERROR:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ remote file listing upload failed", 1);
+        break;
     case STATUS_ARQ_FLIST_SEND_ACK:
+        ui_status_xfer_end(); /* end progress meter */
         ui_print_status("ARIM Busy: ARQ remote file listing upload acknowleged", 1);
+        break;
+    case STATUS_ARQ_FLIST_SEND_TIMEOUT:
+        ui_status_xfer_end(); /* end progress meter */
+        ui_print_status("ARIM Idle: ARQ remote file listing upload timeout", 1);
         break;
     }
     ui_set_status_dirty(0);

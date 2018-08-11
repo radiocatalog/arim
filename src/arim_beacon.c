@@ -32,6 +32,7 @@
 #include "ui.h"
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
+#include "bufq.h"
 #include "util.h"
 
 int g_btime;
@@ -48,7 +49,7 @@ int arim_beacon_send()
 
     if (!arim_is_idle() || !arim_tnc_is_idle())
         return 0;
-    ui_queue_data_out(beaconstr);
+    bufq_queue_data_out(beaconstr);
     len = strlen(beaconstr);
     /* prime buffer count because update from TNC not immediate */
     pthread_mutex_lock(&mutex_tnc_set);
@@ -64,7 +65,7 @@ void arim_beacon_recv(const char *fm_call, const char *gridsq, const char *msg)
     char buffer[MAX_HEARD_SIZE];
 
     snprintf(buffer, sizeof(buffer), "5[B] %-10s ", fm_call);
-    ui_queue_heard(buffer);
+    bufq_queue_heard(buffer);
 }
 
 void arim_beacon_on_alarm()
@@ -81,7 +82,7 @@ void arim_beacon_on_alarm()
     pthread_mutex_unlock(&mutex_beacon);
     if (send_beacon) {
         if (!arim_beacon_send()) {
-            ui_queue_debug_log("Automatic beacon: can't send, TNC busy.");
+            bufq_queue_debug_log("Automatic beacon: can't send, TNC busy.");
             if (!try_again) {
                 /* try again once, two minutes from now */
                 try_again = 1;
@@ -140,18 +141,13 @@ void arim_beacon_reset_btimer()
 
 int arim_beacon_cancel()
 {
-    char buffer[MAX_LOG_LINE_SIZE], timestamp[MAX_TIMESTAMP_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE];
 
     /* operator has canceled the beacon by pressing ESC key,
        print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer), ">> [X] (Beacon canceled by operator)");
-    ui_queue_traffic_log(buffer);
-    if (!strncasecmp(g_ui_settings.mon_timestamp, "TRUE", 4)) {
-        snprintf(buffer, sizeof(buffer),
-                "[%s] >> [X] (Beacon canceled by operator)",
-                    util_timestamp(timestamp, sizeof(timestamp)));
-    }
-    ui_queue_data_in(buffer);
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
     return 1;
 }
 
