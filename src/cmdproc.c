@@ -444,8 +444,7 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("Send ping: invalid repeat count", 1);
                 break;
             }
-            if (!arim_is_idle() || !arim_tnc_is_idle() ||
-                !arim_send_ping(t, call1, 1)) {
+            if (!arim_is_idle() || !arim_send_ping(t, call1, 1)) {
                 ui_print_status("Send ping: cannot send, TNC busy", 1);
             }
         } else if (!strncasecmp(t, "conn", 2)) {

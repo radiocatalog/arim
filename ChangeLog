@@ -1,6 +1,14 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v2.3  01Sep2018
+---------------
+1. Do not send PING command to TNC if it's not in DISC state.
+2. In FEC mode, don't start download progress meter when ARIM
+   message frames addressed to a different station are heard.
+3. If the command prompt is active, but empty, pressing the backspace
+   key will deactivate it.
+
 v2.2  11Aug2018
 ---------------
 1. Introduce progress meter feature for file, message, query response,

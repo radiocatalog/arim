@@ -514,6 +514,8 @@ int ui_list_get_line(char *cmd_line, size_t max_len)
                 --len;
                 --cur;
                 mvwdelch(prompt_win, prompt_row, prompt_col + cur);
+            } else if (len == 0) {
+                quit = 1;
             }
             break;
         case 4: /* CTRL-D */
