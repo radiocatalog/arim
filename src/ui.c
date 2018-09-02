@@ -570,6 +570,9 @@ void ui_check_status_dirty()
     case STATUS_PING_ACK_RCVD:
         ui_print_status("ARIM Idle: ping ACK received", 1);
         break;
+    case STATUS_PING_TNC_BUSY:
+        ui_print_status("ARIM Idle: cannot send ping; TNC is busy", 1);
+        break;
     case STATUS_PING_RCVD:
         ui_print_status("ARIM Busy: received ping", 1);
         break;

@@ -75,9 +75,12 @@ void arim_proto_idle(int event, int param)
     case EV_SEND_MSG_PP:
         ack_timeout = param * ARDOP_PINGACK_TIMEOUT;
         prev_time = time(NULL);
-        arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0);
-        arim_set_state(ST_RCV_MSG_PING_ACK_WAIT);
-        bufq_queue_cmd_out("LISTEN FALSE");
+        if (arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0)) {
+            arim_set_state(ST_RCV_MSG_PING_ACK_WAIT);
+            bufq_queue_cmd_out("LISTEN FALSE");
+        } else {
+            ui_set_status_dirty(STATUS_PING_TNC_BUSY);
+        }
         break;
     case EV_SEND_NET_MSG:
         arim_set_state(ST_SEND_NET_MSG_BUF_WAIT);
@@ -95,9 +98,12 @@ void arim_proto_idle(int event, int param)
     case EV_SEND_QRY_PP:
         ack_timeout = param * ARDOP_PINGACK_TIMEOUT;
         prev_time = time(NULL);
-        arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0);
-        arim_set_state(ST_RCV_QRY_PING_ACK_WAIT);
-        bufq_queue_cmd_out("LISTEN FALSE");
+        if (arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0)) {
+            arim_set_state(ST_RCV_QRY_PING_ACK_WAIT);
+            bufq_queue_cmd_out("LISTEN FALSE");
+        } else {
+            ui_set_status_dirty(STATUS_PING_TNC_BUSY);
+        }
         break;
     case EV_SEND_PING:
         /* a PING command was sent to the TNC */
@@ -108,7 +114,7 @@ void arim_proto_idle(int event, int param)
         break;
     case EV_ARQ_PENDING:
         /* a PENDING async response was received from the TNC
-           signalling arrival of an ARQ connect or ping frame */
+           heralding arrival of an ARQ connect or ping frame */
         arim_copy_listen(buffer, sizeof(buffer));
         if (!strncasecmp(buffer, "TRUE", 4)) {
             /* respond only if ARQ listen is TRUE */
@@ -130,8 +136,10 @@ void arim_proto_idle(int event, int param)
         /* an ARQ connection attempt is underway */
         ack_timeout = param * ARDOP_PINGACK_TIMEOUT;
         prev_time = time(NULL);
-        arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0);
-        arim_set_state(ST_RCV_ARQ_CONN_PING_ACK_WAIT);
+        if (arim_send_ping(g_arim_settings.pilot_ping, prev_to_call, 0))
+            arim_set_state(ST_RCV_ARQ_CONN_PING_ACK_WAIT);
+        else
+            ui_set_status_dirty(STATUS_PING_TNC_BUSY);
         break;
     }
 }

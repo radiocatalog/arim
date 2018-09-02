@@ -99,7 +99,7 @@ int arim_test_frame(const char *data, size_t size)
 
 int arim_on_data(char *data, size_t size)
 {
-    int quit = 0, check_valid, numch;
+    int quit = 0, check_valid, numch, is_netcall, is_mycall;
     size_t remaining;
     char inbuffer[MIN_MSG_BUF_SIZE], numbuf[MAX_CHECK_SIZE];
     char *s, *e;
@@ -294,8 +294,12 @@ bufq_queue_debug_log("Parser: entering size");
                     remaining -= 4;
                     hdr_size += 4;
                     if (type == 'M' || type == 'R') {
-                        /* start the download progress meter */
-                        ui_status_xfer_start(0, msg_size, STATUS_XFER_DIR_DOWN);
+                        is_mycall = arim_test_mycall(to_call);
+                        is_netcall = arim_test_netcall(to_call);
+                        if (is_mycall || is_netcall) {
+                            /* start the download progress meter */
+                            ui_status_xfer_start(0, msg_size, STATUS_XFER_DIR_DOWN);
+                        }
                     }
                     if (type == 'M' || type == 'Q' || type == 'R')
                         state = ST_PIPE_5;
@@ -477,7 +481,6 @@ sleep(1);
             break;
         } /* end switch */
     } while (!quit && remaining > 0);
-
     if (state == ST_MSG_END) {
         check_valid = arim_recv_msg(fm_call, to_call, check, buffer + hdr_size);
         numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'M' : '!', buffer);

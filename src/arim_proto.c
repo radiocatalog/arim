@@ -432,14 +432,13 @@ void arim_set_channel_not_busy()
 
 int arim_tnc_is_idle()
 {
-    int buffer_cnt, not_fec_send, not_ch_busy;
+    int tnc_disc, tnc_ch_not_busy;
 
     pthread_mutex_lock(&mutex_tnc_set);
-    buffer_cnt = atoi(g_tnc_settings[g_cur_tnc].buffer);
-    not_fec_send = strncmp(g_tnc_settings[g_cur_tnc].state, "FECSEND", 7);
-    not_ch_busy = strncmp(g_tnc_settings[g_cur_tnc].busy, "TRUE", 4);
+    tnc_disc = strncmp(g_tnc_settings[g_cur_tnc].state, "DISC", 4) ? 0 : 1;
+    tnc_ch_not_busy = strncmp(g_tnc_settings[g_cur_tnc].busy, "TRUE", 4);
     pthread_mutex_unlock(&mutex_tnc_set);
-    return (!buffer_cnt && not_fec_send && not_ch_busy);
+    return (tnc_disc && tnc_ch_not_busy);
 }
 
 int arim_get_send_repeats()
