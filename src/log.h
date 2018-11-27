@@ -29,6 +29,7 @@ extern void log_close(void);
 extern void log_on_alarm(void);
 
 extern int g_debug_log_enable;
+extern int g_tncpi9k6_log_enable;
 extern int g_traffic_log_enable;
 extern char g_df_error_fn[];
 

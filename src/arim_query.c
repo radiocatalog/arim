@@ -180,6 +180,11 @@ int arim_recv_query(const char *fm_call, const char *to_call,
                              respbuf);
             /* initialize arim_proto global */
             msg_len = len;
+            /* prime buffer count because update from TNC not immediate */
+            pthread_mutex_lock(&mutex_tnc_set);
+            snprintf(g_tnc_settings[g_cur_tnc].buffer,
+                sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
+            pthread_mutex_unlock(&mutex_tnc_set);
             /* start progress meter */
             ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);
             arim_on_event(EV_RCV_QRY, 0);

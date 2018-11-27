@@ -30,7 +30,7 @@
 #include "ui.h"
 #include "ui_tnc_cmd_win.h"
 #include "util.h"
-#include "datathread.h"
+#include "ardop_data.h"
 
 WINDOW *ui_ctable_win;
 int show_ctable;
@@ -162,8 +162,8 @@ void ui_print_ctable()
                 --ctable_list_cnt;
         } else {
             ctable_list[0].stop_time = time(NULL);
-            ctable_list[0].num_bytes_in = datathread_get_num_bytes_in();
-            ctable_list[0].num_bytes_out = datathread_get_num_bytes_out();
+            ctable_list[0].num_bytes_in = ardop_data_get_num_bytes_in();
+            ctable_list[0].num_bytes_out = ardop_data_get_num_bytes_out();
             ctable_list[0].disconnected = 1;
         }
         refresh_ctable = 1;

@@ -78,16 +78,20 @@
 #define DEFAULT_INI_FNAME      "arim.ini"
 #define DEFAULT_FILE_FNAME     "test.txt"
 #define DEFAULT_DOWNLOAD_DIR   "download"
+#define DEFAULT_PDF_HELP_FNAME "garim-help.pdf"
 #define MBOX_INBOX_FNAME       "in.mbox"
 #define MBOX_OUTBOX_FNAME      "out.mbox"
 #define MBOX_SENTBOX_FNAME     "sent.mbox"
 
 extern pthread_t g_cmdthread;
 extern pthread_t g_datathread;
+extern pthread_t g_serialthread;
 extern int g_cmdthread_stop;
 extern int g_cmdthread_ready;
 extern int g_datathread_stop;
 extern int g_datathread_ready;
+extern int g_serialthread_stop;
+extern int g_serialthread_ready;
 extern int g_timerthread_stop;
 extern int g_tnc_attached;
 extern int g_win_changed;
@@ -102,6 +106,7 @@ extern pthread_mutex_t mutex_data_in;
 extern pthread_mutex_t mutex_data_out;
 extern pthread_mutex_t mutex_heard;
 extern pthread_mutex_t mutex_debug_log;
+extern pthread_mutex_t mutex_tncpi9k6_log;
 extern pthread_mutex_t mutex_df_error_log;
 extern pthread_mutex_t mutex_traffic_log;
 extern pthread_mutex_t mutex_recents;

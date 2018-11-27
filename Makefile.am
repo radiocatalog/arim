@@ -63,9 +63,12 @@ arim_SOURCES = \
     src/arim_query.c src/arim_query.h \
     src/bufq.c src/bufq.h \
     src/cmdproc.c src/cmdproc.h \
+    src/ardop_cmds.c src/ardop_cmds.h \
+    src/ardop_data.c src/ardop_data.h \
     src/tnc_attach.c src/tnc_attach.h \
     src/cmdthread.c src/cmdthread.h \
     src/datathread.c src/datathread.h \
+    src/serialthread.c src/serialthread.h \
     src/ini.c src/ini.h \
     src/log.c src/log.h \
     src/mbox.c src/mbox.h \

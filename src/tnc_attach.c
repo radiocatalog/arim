@@ -29,6 +29,8 @@
 #include "main.h"
 #include "cmdthread.h"
 #include "datathread.h"
+#include "serialthread.h"
+#include "ini.h"
 #include "ui.h"
 #include "arim_beacon.h"
 #include "tnc_attach.h"
@@ -83,7 +85,8 @@ void tnc_get_version(const char *str)
     }
 }
 
-int tnc_attach(int which) {
+int tnc_attach_tcp(int which)
+{
     int result1, result2 = 0;
 
     g_cur_tnc = which;
@@ -143,11 +146,13 @@ int tnc_attach(int which) {
         g_cmdthread = 0;
         g_datathread = 0;
         ui_print_status("Failed to start TNC service threads", 1);
+        return 0;
     }
     return 1;
 }
 
-int tnc_detach() {
+int tnc_detach_tcp()
+{
     if (g_cmdthread) {
         g_cmdthread_stop = 1;
         pthread_join(g_cmdthread, NULL);
@@ -161,5 +166,74 @@ int tnc_detach() {
     g_tnc_attached = 0;
     g_cur_tnc = 0;
     return 1;
+}
+
+int tnc_attach_serial(int which)
+{
+    int result = 0;
+
+    g_cur_tnc = which;
+    g_serialthread_ready = 0;
+    g_serialthread_stop = 0;
+    result = pthread_create(&g_serialthread, NULL, serialthread_func, NULL);
+    if (result) {
+        g_serialthread_stop = 1;
+        pthread_join(g_serialthread, NULL);
+        g_serialthread = 0;
+    }
+    if (!result) {
+        /* while waiting for thread to signal ready status,
+           check stop flag and terminate if set, because thread
+           encountered an error when attempting to connect */
+        do {
+            if (g_serialthread_stop) {
+                pthread_join(g_serialthread, NULL);
+                g_serialthread = 0;
+                return 0;
+            }
+        } while (!g_serialthread_ready);
+        if (g_serialthread_ready) {
+            g_tnc_attached = 1;
+            arim_beacon_set(atoi(g_tnc_settings[g_cur_tnc].btime));
+            ui_print_status("TNC connection successful", 1);
+            return 1;
+        } else {
+            ui_print_status("Failed to connect to TNC", 1);
+            return 0;
+        }
+    } else {
+        g_serialthread = 0;
+        ui_print_status("Failed to start TNC service thread", 1);
+        return 0;
+    }
+    return 1;
+}
+
+int tnc_detach_serial()
+{
+    if (g_serialthread) {
+        g_serialthread_stop = 1;
+        pthread_join(g_serialthread, NULL);
+        g_serialthread = 0;
+    }
+    g_tnc_attached = 0;
+    g_cur_tnc = 0;
+    return 1;
+}
+
+int tnc_attach(int which)
+{
+    if (!strncasecmp(g_tnc_settings[which].interface, "serial", 6))
+        return tnc_attach_serial(which);
+    else
+        return tnc_attach_tcp(which);
+}
+
+int tnc_detach()
+{
+    if (!strncasecmp(g_tnc_settings[g_cur_tnc].interface, "serial", 6))
+        return tnc_detach_serial();
+    else
+        return tnc_detach_tcp();
 }
 

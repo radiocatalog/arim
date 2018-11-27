@@ -31,10 +31,33 @@
 #include <sys/stat.h>
 #include "main.h"
 #include "ini.h"
+#include "tnc_attach.h"
 
 #define MAX_INI_LINE_SIZE 256
 
-char *fecmodes[] = {
+const char *fecmodes_v1[] = {
+    "4FSK.200.50S",
+    "4FSK.500.100S",
+    "4FSK.500.100",
+    "4FSK.2000.600S",
+    "4FSK.2000.600",
+    "4PSK.200.100S",
+    "4PSK.200.100",
+    "8PSK.200.100",
+    "4PSK.500.100",
+    "8PSK.500.100",
+    "4PSK.1000.100",
+    "8PSK.1000.100",
+    "4PSK.2000.100",
+    "8PSK.2000.100",
+    "16QAM.200.100",
+    "16QAM.500.100",
+    "16QAM.1000.100",
+    "16QAM.2000.100",
+    0,
+};
+
+const char *fecmodes_v2[] = {
     "4PSK.200.50",
     "4PSK.200.100",
     "16QAM.200.100",
@@ -50,6 +73,15 @@ char *fecmodes[] = {
     0,
 };
 
+const char *baud_rates[] = {
+    "9600",
+    "19200",
+    "38400",
+    "57600",
+    "115200",
+    0,
+};
+
 ARIM_SET g_arim_settings;
 LOG_SET g_log_settings;
 UI_SET g_ui_settings;
@@ -60,6 +92,29 @@ char g_config_fname[MAX_PATH_SIZE];
 char g_print_config_fname[MAX_PATH_SIZE];
 int g_config_clo;
 FILE *printconf_fp;
+
+int ini_validate_interface(const char *val)
+{
+    if (!strncasecmp(val, "serial", 6))
+        return 1;
+    if (!strncasecmp(val, "tcp", 3))
+        return 1;
+    return 0;
+}
+
+int ini_validate_baudrate(const char *rate)
+{
+    const char *p;
+    int i = 0;
+
+    p = baud_rates[i];
+    while (p) {
+        if (!strncasecmp(baud_rates[i], rate, strlen(rate)))
+            return 1;
+        p = baud_rates[++i];
+    }
+    return 0;
+}
 
 int ini_validate_ipaddr(const char *addr)
 {
@@ -192,14 +247,18 @@ int ini_validate_info(const char *name)
 
 int ini_validate_fecmode(const char *mode)
 {
-    const char *p;
+    const char *p, **modes;
     int i = 0;
 
-    p = fecmodes[i];
+    if (g_tnc_version.major <= 1)
+        modes = fecmodes_v1;
+    else
+        modes = fecmodes_v2;
+    p = modes[i];
     while (p) {
-        if (!strncasecmp(fecmodes[i], mode, strlen(mode)))
+        if (!strncasecmp(modes[i], mode, strlen(mode)))
             return 1;
-        p = fecmodes[++i];
+        p = modes[++i];
     }
     return 0;
 }
@@ -232,12 +291,31 @@ int ini_validate_gridsq(const char *gridsq)
 
 int ini_validate_arq_bw(const char *val)
 {
-    if (!strncasecmp(val, "200", 3))
-        return 1;
-    if (!strncasecmp(val, "500", 3))
-        return 1;
-    if (!strncasecmp(val, "2500", 4))
-        return 1;
+    if (g_tnc_version.major <= 1) {
+        if (!strncasecmp(val, "200MAX", 6))
+            return 1;
+        if (!strncasecmp(val, "500MAX", 6))
+            return 1;
+        if (!strncasecmp(val, "1000MAX", 7))
+            return 1;
+        if (!strncasecmp(val, "2000MAX", 7))
+            return 1;
+        if (!strncasecmp(val, "200FORCED", 9))
+            return 1;
+        if (!strncasecmp(val, "500FORCED", 9))
+            return 1;
+        if (!strncasecmp(val, "1000FORCED", 10))
+            return 1;
+        if (!strncasecmp(val, "2000FORCED", 10))
+            return 1;
+    } else {
+        if (!strncasecmp(val, "200", 3))
+            return 1;
+        if (!strncasecmp(val, "500", 3))
+            return 1;
+        if (!strncasecmp(val, "2500", 4))
+            return 1;
+    }
     return 0;
 }
 
@@ -409,6 +487,9 @@ void ini_read_tnc_set(FILE *inifp, int which)
     snprintf(g_tnc_settings[which].arq_timeout, sizeof(g_tnc_settings[which].arq_timeout), DEFAULT_TNC_ARQ_TO);
     snprintf(g_tnc_settings[which].arq_negotiate_bw, sizeof(g_tnc_settings[which].arq_negotiate_bw), DEFAULT_TNC_NEGOTIATE_BW);
     snprintf(g_tnc_settings[which].reset_btime_tx, sizeof(g_tnc_settings[which].reset_btime_tx), DEFAULT_TNC_RESET_BT_TX);
+    snprintf(g_tnc_settings[which].interface, sizeof(g_tnc_settings[which].interface), DEFAULT_TNC_INTERFACE);
+    snprintf(g_tnc_settings[which].serial_port, sizeof(g_tnc_settings[which].serial_port), DEFAULT_TNC_SERIAL_PORT);
+    snprintf(g_tnc_settings[which].serial_baudrate, sizeof(g_tnc_settings[which].serial_baudrate), DEFAULT_TNC_SERIAL_BAUD);
 
     /* if program invoked with --print-conf switch, print section header */
     if (g_print_config)
@@ -510,8 +591,8 @@ void ini_read_tnc_set(FILE *inifp, int which)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "fecid", g_tnc_settings[which].fecid);
             }
             else if ((v = ini_get_value("fecmode", p))) {
-                if (ini_validate_fecmode(v))
-                    snprintf(g_tnc_settings[which].fecmode, sizeof(g_tnc_settings[which].fecmode), "%s", v);
+                /* TNC version dependent - will be validated after attaching to TNC */
+                snprintf(g_tnc_settings[which].fecmode, sizeof(g_tnc_settings[which].fecmode), "%s", v);
                 /* if program invoked with --print-conf switch, print key/value pair */
                 if (g_print_config)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "fecmode", g_tnc_settings[which].fecmode);
@@ -584,8 +665,8 @@ void ini_read_tnc_set(FILE *inifp, int which)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-timeout", g_tnc_settings[which].arq_timeout);
             }
             else if ((v = ini_get_value("arq-bandwidth", p))) {
-                if (ini_validate_arq_bw(v))
-                    snprintf(g_tnc_settings[which].arq_bandwidth, sizeof(g_tnc_settings[which].arq_bandwidth), "%s", v);
+                /* TNC version dependent - will be validated after attaching to TNC */
+                snprintf(g_tnc_settings[which].arq_bandwidth, sizeof(g_tnc_settings[which].arq_bandwidth), "%s", v);
                 /* if program invoked with --print-conf switch, print key/value pair */
                 if (g_print_config)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-bandwidth", g_tnc_settings[which].arq_bandwidth);
@@ -598,6 +679,26 @@ void ini_read_tnc_set(FILE *inifp, int which)
                 /* if program invoked with --print-conf switch, print key/value pair */
                 if (g_print_config)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "arq-negotiate-bw", g_tnc_settings[which].arq_negotiate_bw);
+            }
+            else if ((v = ini_get_value("interface", p))) {
+                if (ini_validate_interface(v))
+                    snprintf(g_tnc_settings[which].interface, sizeof(g_tnc_settings[which].interface), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "interface", g_tnc_settings[which].interface);
+            }
+            else if ((v = ini_get_value("serial-baudrate", p))) {
+                if (ini_validate_baudrate(v))
+                    snprintf(g_tnc_settings[which].serial_baudrate, sizeof(g_tnc_settings[which].serial_baudrate), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "serial-baudrate", g_tnc_settings[which].serial_baudrate);
+            }
+            else if ((v = ini_get_value("serial-port", p))) {
+                snprintf(g_tnc_settings[which].serial_port, sizeof(g_tnc_settings[which].serial_port), "%s", v);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "serial-port", g_tnc_settings[which].serial_port);
             }
             else if ((v = ini_get_value("tnc-init-cmd", p))) {
                 if (g_tnc_settings[which].tnc_init_cmds_cnt < TNC_INIT_CMDS_MAX_CNT)
@@ -673,6 +774,14 @@ void ini_read_log_set(FILE *inifp)
                 /* if program invoked with --print-conf switch, print key/value pair */
                 if (g_print_config)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "traffic-log", g_log_settings.traffic_en);
+            } else if ((v = ini_get_value("tncpi9k6-log", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_log_settings.tncpi9k6_en, sizeof(g_log_settings.tncpi9k6_en), "TRUE");
+                else
+                    snprintf(g_log_settings.tncpi9k6_en, sizeof(g_log_settings.tncpi9k6_en), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "tncpi9k6-log", g_log_settings.tncpi9k6_en);
             }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);
@@ -1058,16 +1167,17 @@ int ini_read_settings()
     snprintf(g_arim_path, sizeof(g_arim_path), "%s/%s", home_path, ARIM_NAME);
     dirp = opendir(g_arim_path);
     if (!dirp) {
-        if (errno == ENOENT && mkdir(g_arim_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+        /* create local directory structure for this user */
+        if (errno == ENOENT && mkdir(g_arim_path, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) == -1)
             return 0;
-        /* make symlinks to NEWS and Help PDF files */
+        /* make symlinks to NEWS and PDF Help file */
         numch = snprintf(linebuf, sizeof(linebuf), "%s/doc", g_arim_path);
-        if (mkdir(linebuf, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+        if (mkdir(linebuf, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) == -1)
             return 0;
         numch = snprintf(linebuf, sizeof(linebuf), "%s/doc/NEWS", g_arim_path);
         symlink(ARIM_DOCDIR "/NEWS", linebuf);
-        numch = snprintf(linebuf, sizeof(linebuf), "%s/doc/arim-help.pdf", g_arim_path);
-        symlink(ARIM_DOCDIR "/arim-help.pdf", linebuf);
+        numch = snprintf(linebuf, sizeof(linebuf), "%s/doc/%s", g_arim_path, DEFAULT_PDF_HELP_FNAME);
+        symlink(ARIM_DOCDIR "/" DEFAULT_PDF_HELP_FNAME, linebuf);
     } else {
         closedir(dirp);
     }

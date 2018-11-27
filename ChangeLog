@@ -1,6 +1,80 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v2.4 26Nov2018
+--------------
+1. Add support for TNC-Pi9K6 hardware ARDOP TNC. This requires that
+   ARIM be installed on the Raspberry Pi unit hosting the TNC-Pi9K6
+   and interface with the TNC over the /dev/serial0 serial port.
+   These new parameters are used in a [tnc] section of the
+   configuration file to define the TNC-Pi9K6 port:
+   -- 'interface' may be 'serial' or 'tcp'. Set to 'serial' for a
+      port using the TNC-Pi9K6. Example:
+         interface = serial
+      The default is 'tcp'.
+   -- 'serial-port' is assigned the device name for the RPi serial
+      port used by ARIM to attach to the TNC-Pi9K6. Example:
+         serial-port = /dev/serial0
+      The default is '/dev/serial0', which is typical for the
+      TNC-Pi9K6 on an RPi host running the Raspbian OS.
+   -- 'serial-baudrate' is assigned the baud rate for the serial port
+      device. Example:
+         serial-baudrate = 115200
+      The default is '115200', which is typical for the TNC-Pi9K6
+      running ARDOP or ARDOP 2.
+   Another new parameter is used in the [log] section of the
+   configuration file:
+   -- 'tncpi9k6-log' is used to enable or disable the TNC-Pi9K6 debug
+      log on the RPi. Example:
+         tncpi9k6-log = TRUE
+      The log is written to a file in the ARIM 'log' directory with
+      a name like 'tncpi9k6-20181110.log' which includes a datestamp.
+      Although the log is rotated daily, it can become very large
+      with the default verbosity setting of 7. To reduce log size,
+      the 'LOGLEVEL' command can be sent to the TNC when the port is
+      initialized to change the level. Do this with a 'tnc-init-cmd'
+      parameter in the [tnc] section for the port. Example:
+         tnc-init-cmd = LOGLEVEL 6
+      ---------------------------------------------------------------
+      NOTE: Support for TNCPi9K6 debug logging must be compiled in to
+      the ARDOP or ARDOP 2 Teensy program. To do this, change line 79
+      in "TeensyProjects/libraries/TeensyConfig/TeensyConfigARDOP.h"
+      from this:
+         #define MONPORT Serial
+      to:
+         //#define MONPORT Serial
+      in other words, comment out line 79.
+      ---------------------------------------------------------------
+   As an example, [tnc] #2 in the sample 'arim.ini' file supplied
+   with the ARIM distribution is configured as a TNC-Pi9K6 port.
+   ------------------------------------------------------------------
+   NOTE: In testing, I've noticed a problem with FEC data transfers
+   in the ARDOP and ARDOP 2 software for the TNC-Pi9K6. The symptom
+   is intermittent failure of FEC transmissions such as messages or
+   beacons, with a re-start of the TNC required to recover. Perhaps
+   this is a peculiarity of my RPi-3/TNC-Pi9K6 system, so I'm very
+   interested in hearing reports from others. If you experience the
+   same problem, there's an effective work-around. It consists of
+   making a simple source code change in the ARDOP_Teensy or
+   ARDOP2_Teensy project and re-compiling. For example, if using
+   ARDOP 2, change line 53 in file "TeensyProjects/ARDOP2/FEC.c"
+   from:
+      FECRepeats = intRepeats;
+   to:
+      FECRepeats = intRepeats = 0;
+   The process is the same for the ARDOP_Teensy project. This,
+   unfortunately, prevents the use of FECREPEATS > 0 in ARIM. Be
+   sure to use the latest TeensyProjects source code available here:
+   <http://www.cantab.net/users/john.wiseman/Downloads/Beta/>
+   Download the "TeensyProjects.zip" file.
+   ------------------------------------------------------------------
+2. Add support for ARDOP version 1 as well as version 2. ARIM detects
+   the TNC version when attaching and adapts to the FECMODE and
+   ARQBANDWIDTH options available for that version.
+3. Fix bug where upload progress meter not showing when sending the
+   response to an ARIM query in FEC mode.
+4. Update arim(5) man page and Help document.
+
 v2.3  01Sep2018
 ---------------
 1. Do not send PING command to TNC if it's not in DISC state.

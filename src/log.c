@@ -43,10 +43,12 @@ static int time_interval = 0;
 static int time_elapsed = 0;
 static char traffic_fn[MAX_LOG_FN_SIZE];
 static char debug_fn[MAX_LOG_FN_SIZE];
+static char tncpi9k6_fn[MAX_LOG_FN_SIZE];
 static char log_dir_path[MAX_DIR_PATH_SIZE];
 static int prev_yday;
 
 int g_debug_log_enable;
+int g_tncpi9k6_log_enable;
 int g_traffic_log_enable;
 
 void log_write_debug_log()
@@ -67,16 +69,40 @@ void log_write_debug_log()
     }
 }
 
+void log_write_tncpi9k6_log()
+{
+    FILE *tncpi9k6_fp;
+    char *p;
+
+    tncpi9k6_fp = fopen(tncpi9k6_fn, "a");
+    if (tncpi9k6_fp != NULL) {
+        pthread_mutex_lock(&mutex_tncpi9k6_log);
+        p = cmdq_pop(&g_tncpi9k6_log_q);
+        while (p) {
+            fprintf(tncpi9k6_fp, "%s\n",  p);
+            p = cmdq_pop(&g_tncpi9k6_log_q);
+        }
+        pthread_mutex_unlock(&mutex_tncpi9k6_log);
+        fclose(tncpi9k6_fp);
+    }
+}
+
 void log_write_traffic_log()
 {
     FILE *traffic_fp;
     char *p;
+    size_t len;
 
     traffic_fp = fopen(traffic_fn, "a");
     if (traffic_fp != NULL) {
         pthread_mutex_lock(&mutex_traffic_log);
         p = dataq_pop(&g_traffic_log_q);
         while (p) {
+            len = strlen(p);
+            if (p[len - 1] == '\n')
+                p[len - 1] = '\0';
+            if (p[len - 2] == '\r')
+                p[len - 2] = '\0';
             fprintf(traffic_fp, "%s\n", p);
             p = dataq_pop(&g_traffic_log_q);
         }
@@ -91,6 +117,8 @@ void log_close()
         log_write_traffic_log();
     if (g_debug_log_enable)
         log_write_debug_log();
+    if (g_tncpi9k6_log_enable)
+        log_write_tncpi9k6_log();
 }
 
 void log_on_alarm()
@@ -109,6 +137,8 @@ void log_on_alarm()
                          log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         numch = snprintf(debug_fn, sizeof(debug_fn), "%s/debug-%s.log",
                          log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+        numch = snprintf(tncpi9k6_fn, sizeof(tncpi9k6_fn), "%s/tncpi9k6-%s.log",
+                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         pthread_mutex_lock(&mutex_df_error_log);
         numch =snprintf(g_df_error_fn, sizeof(g_df_error_fn), "%s/dyn-file-error-%s.log",
                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
@@ -122,6 +152,8 @@ void log_on_alarm()
             log_write_traffic_log();
         if (g_debug_log_enable)
             log_write_debug_log();
+        if (g_tncpi9k6_log_enable)
+            log_write_tncpi9k6_log();
     }
     (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
@@ -166,6 +198,21 @@ int log_init()
         fp = fopen(debug_fn, "a");
         if (fp == NULL) {
             g_debug_log_enable = 0;
+            return 0;
+        } else {
+            fprintf(fp, "\n[%s] %s\n",
+                    util_timestamp_usec(timestamp, sizeof(timestamp)),
+                        "--- Program start, initializing log ---");
+            fclose(fp);
+        }
+    }
+    if (!strncasecmp(g_log_settings.tncpi9k6_en, "TRUE", 4)) {
+        g_tncpi9k6_log_enable = 1;
+        numch = snprintf(tncpi9k6_fn, sizeof(tncpi9k6_fn), "%s/tncpi9k6-%s.log",
+                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+        fp = fopen(tncpi9k6_fn, "a");
+        if (fp == NULL) {
+            g_tncpi9k6_log_enable = 0;
             return 0;
         } else {
             fprintf(fp, "\n[%s] %s\n",

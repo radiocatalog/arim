@@ -39,7 +39,7 @@
 #include "arim_arq_auth.h"
 #include "ini.h"
 #include "bufq.h"
-#include "datathread.h"
+#include "ardop_data.h"
 #include "ui_recents.h"
 #include "ui_ping_hist.h"
 #include "ui_conn_hist.h"
@@ -196,7 +196,7 @@ int arim_arq_on_connected()
     bufq_queue_ctable(buffer);
     /* close recents, ping or connection history view if open */
     show_recents = show_ptable = show_ctable = 0;
-    datathread_reset_num_bytes(); /* reset ARQ data transfer byte counters */
+    ardop_data_reset_num_bytes(); /* reset ARQ data transfer byte counters */
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */
     arim_set_channel_not_busy(); /* force TNC not busy status */

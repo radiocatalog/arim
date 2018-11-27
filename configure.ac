@@ -4,7 +4,7 @@
 AC_COPYRIGHT([Copyright (C) 2016, 2017, 2018 Robert Cunnings, NW8L])
 
 AC_PREREQ([2.69])
-AC_INIT([arim], [2.3], [nw8l@whitemesa.com])
+AC_INIT([arim], [2.4], [nw8l@whitemesa.com])
 AC_CONFIG_SRCDIR([src/ui.c])
 AC_CONFIG_HEADERS([src/config.h])
 AC_CANONICAL_TARGET

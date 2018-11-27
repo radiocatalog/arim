@@ -41,6 +41,7 @@ CMDQUEUE g_recents_q;
 CMDQUEUE g_ptable_q;
 CMDQUEUE g_ctable_q;
 CMDQUEUE g_debug_log_q;
+CMDQUEUE g_tncpi9k6_log_q;
 FILEQUEUE g_file_out_q;
 MSGQUEUE g_msg_out_q;
 
@@ -236,6 +237,20 @@ void bufq_queue_debug_log(const char *text)
         pthread_mutex_lock(&mutex_debug_log);
         cmdq_push(&g_debug_log_q, buffer);
         pthread_mutex_unlock(&mutex_debug_log);
+    }
+}
+
+void bufq_queue_tncpi9k6_log(const char *text)
+{
+    char buffer[MAX_CMD_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE];
+
+    if (g_tncpi9k6_log_enable) {
+        snprintf(buffer, sizeof(buffer), "[%s] %s",
+                util_timestamp_usec(timestamp, sizeof(timestamp)), text);
+        pthread_mutex_lock(&mutex_tncpi9k6_log);
+        cmdq_push(&g_tncpi9k6_log_q, buffer);
+        pthread_mutex_unlock(&mutex_tncpi9k6_log);
     }
 }
 

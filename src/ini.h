@@ -56,6 +56,9 @@
 #define TNC_NEGOTIATE_BW_SIZE    8
 #define TNC_INIT_CMDS_MAX_CNT    32
 #define TNC_INIT_CMD_SIZE        128
+#define TNC_INTERFACE_SIZE       12
+#define TNC_SERIAL_PORT_SIZE     64
+#define TNC_SERIAL_BAUD_SIZE     16
 
 #define TNC_MAX_COUNT            10
 #define TNC_NETCALL_MAX_CNT      8
@@ -82,6 +85,9 @@
 #define DEFAULT_TNC_ARQ_SENDCR   "TRUE"
 #define DEFAULT_TNC_RESET_BT_TX  "FALSE"
 #define DEFAULT_TNC_NEGOTIATE_BW "TRUE"
+#define DEFAULT_TNC_INTERFACE    "TCP"
+#define DEFAULT_TNC_SERIAL_PORT  "/dev/serial0"
+#define DEFAULT_TNC_SERIAL_BAUD  "115200"
 
 #define MAX_TNC_GRIDSQ_STRLEN    8
 #define MAX_TNC_NETCALL_STRLEN   10
@@ -131,6 +137,9 @@ typedef struct tnc_set {
     char tmp_listen[TNC_LISTEN_SIZE];
     char en_pingack[TNC_EN_PINGACK_SIZE];
     char reset_btime_tx[TNC_RESET_BT_TX_SIZE];
+    char interface[TNC_INTERFACE_SIZE];
+    char serial_port[TNC_SERIAL_PORT_SIZE];
+    char serial_baudrate[TNC_SERIAL_BAUD_SIZE];
     char tnc_init_cmds[TNC_INIT_CMDS_MAX_CNT][TNC_INIT_CMD_SIZE];
     int tnc_init_cmds_cnt;
 } TNC_SET;
@@ -199,13 +208,16 @@ extern ARIM_SET g_arim_settings;
 
 #define LOG_DEBUG_EN_SIZE           8
 #define LOG_TRAFFIC_EN_SIZE         8
+#define LOG_TNCPI9K6_EN_SIZE        8
 
 #define DEFAULT_LOG_DEBUG_EN        "FALSE"
 #define DEFAULT_LOG_TRAFFIC_EN      "TRUE"
+#define DEFAULT_LOG_TNCPI9K6_EN     "FALSE"
 
 typedef struct log_set {
     char debug_en[LOG_DEBUG_EN_SIZE];
     char traffic_en[LOG_TRAFFIC_EN_SIZE];
+    char tncpi9k6_en[LOG_TRAFFIC_EN_SIZE];
 } LOG_SET;
 
 extern LOG_SET g_log_settings;
@@ -241,6 +253,7 @@ extern int ini_validate_netcall(const char *call);
 extern int ini_validate_gridsq(const char *gridsq);
 extern int ini_validate_name(const char *name);
 extern int ini_validate_arq_bw(const char *val);
+extern int ini_validate_fecmode(const char *val);
 extern int ini_check_add_files_dir(const char *path);
 extern int ini_check_ac_files_dir(const char *path);
 extern char g_arim_path[];

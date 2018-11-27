@@ -80,6 +80,7 @@ extern CMDQUEUE g_recents_q;
 extern CMDQUEUE g_ptable_q;
 extern CMDQUEUE g_ctable_q;
 extern CMDQUEUE g_debug_log_q;
+extern CMDQUEUE g_tncpi9k6_log_q;
 extern FILEQUEUE g_file_out_q;
 extern MSGQUEUE g_msg_out_q;
 
@@ -106,6 +107,7 @@ extern FILEQUEUEITEM *fileq_pop(FILEQUEUE *q);
 extern void bufq_queue_heard(const char *text);
 extern void bufq_queue_traffic_log(const char *text);
 extern void bufq_queue_debug_log(const char *text);
+extern void bufq_queue_tncpi9k6_log(const char *text);
 extern void bufq_queue_cmd_in(const char *text);
 extern void bufq_queue_cmd_out(const char *text);
 extern void bufq_queue_data_in(const char *text);

@@ -719,32 +719,61 @@ int cmdproc_cmd(const char *cmd)
         } else if (!strncasecmp(t, "tncset", 4)) {
             if (g_tnc_attached) {
                 pthread_mutex_lock(&mutex_tnc_set);
-                snprintf(msgbuffer, sizeof(msgbuffer),
-                "\tARDOP TNC SETTINGS\n \n"
-                "   ip addr: %-10.30s      port: %.5s\n"
-                "    mycall: %-10.10s     gridsq: %.10s\n"
-                "     fecid: %-10.8s fecrepeats: %.5s\n"
-                "   squelch: %-10.2s    busydet: %.2s\n"
-                "    leader: %-10.4s    trailer: %.4s\n"
-                "    listen: %-10.5s  enpingack: %.5s\n"
-                "   busydet: %-10.5s      arqbw: %.10s\n"
-                " netcall 1: %-10.10s  netcall 2: %.10s\n"
-                " netcall 3: %-10.10s  netcall 4: %.10s\n"
-                " netcall 5: %-10.10s  netcall 6: %.10s\n"
-                " netcall 7: %-10.10s  netcall 8: %.10s\n"
-                "   version: %.25s\n \n\t[O]k",
-                g_tnc_settings[g_cur_tnc].ipaddr, g_tnc_settings[g_cur_tnc].port,
-                g_tnc_settings[g_cur_tnc].mycall, g_tnc_settings[g_cur_tnc].gridsq,
-                g_tnc_settings[g_cur_tnc].fecid, g_tnc_settings[g_cur_tnc].fecrepeats,
-                g_tnc_settings[g_cur_tnc].squelch, g_tnc_settings[g_cur_tnc].busydet,
-                g_tnc_settings[g_cur_tnc].leader, g_tnc_settings[g_cur_tnc].trailer,
-                g_tnc_settings[g_cur_tnc].listen, g_tnc_settings[g_cur_tnc].en_pingack,
-                g_tnc_settings[g_cur_tnc].busydet, g_tnc_settings[g_cur_tnc].arq_bandwidth,
-                g_tnc_settings[g_cur_tnc].netcall[0], g_tnc_settings[g_cur_tnc].netcall[1],
-                g_tnc_settings[g_cur_tnc].netcall[2], g_tnc_settings[g_cur_tnc].netcall[3],
-                g_tnc_settings[g_cur_tnc].netcall[4], g_tnc_settings[g_cur_tnc].netcall[5],
-                g_tnc_settings[g_cur_tnc].netcall[6], g_tnc_settings[g_cur_tnc].netcall[7],
-                g_tnc_settings[g_cur_tnc].version);
+                if (!strncasecmp(g_tnc_settings[g_cur_tnc].interface, "tcp", 3)) {
+                    snprintf(msgbuffer, sizeof(msgbuffer),
+                    "\tARDOP TNC SETTINGS\n \n"
+                    "   ip addr: %-10.30s       port: %.5s\n"
+                    "    mycall: %-10.10s     gridsq: %.10s\n"
+                    "     fecid: %-10.8s fecrepeats: %.5s\n"
+                    "   squelch: %-10.2s    busydet: %.2s\n"
+                    "    leader: %-10.4s    trailer: %.4s\n"
+                    "    listen: %-10.5s  enpingack: %.5s\n"
+                    "   busydet: %-10.5s      arqbw: %.10s\n"
+                    " netcall 1: %-10.10s  netcall 2: %.10s\n"
+                    " netcall 3: %-10.10s  netcall 4: %.10s\n"
+                    " netcall 5: %-10.10s  netcall 6: %.10s\n"
+                    " netcall 7: %-10.10s  netcall 8: %.10s\n"
+                    "   version: %.25s\n \n\t[O]k",
+                    g_tnc_settings[g_cur_tnc].ipaddr, g_tnc_settings[g_cur_tnc].port,
+                    g_tnc_settings[g_cur_tnc].mycall, g_tnc_settings[g_cur_tnc].gridsq,
+                    g_tnc_settings[g_cur_tnc].fecid, g_tnc_settings[g_cur_tnc].fecrepeats,
+                    g_tnc_settings[g_cur_tnc].squelch, g_tnc_settings[g_cur_tnc].busydet,
+                    g_tnc_settings[g_cur_tnc].leader, g_tnc_settings[g_cur_tnc].trailer,
+                    g_tnc_settings[g_cur_tnc].listen, g_tnc_settings[g_cur_tnc].en_pingack,
+                    g_tnc_settings[g_cur_tnc].busydet, g_tnc_settings[g_cur_tnc].arq_bandwidth,
+                    g_tnc_settings[g_cur_tnc].netcall[0], g_tnc_settings[g_cur_tnc].netcall[1],
+                    g_tnc_settings[g_cur_tnc].netcall[2], g_tnc_settings[g_cur_tnc].netcall[3],
+                    g_tnc_settings[g_cur_tnc].netcall[4], g_tnc_settings[g_cur_tnc].netcall[5],
+                    g_tnc_settings[g_cur_tnc].netcall[6], g_tnc_settings[g_cur_tnc].netcall[7],
+                    g_tnc_settings[g_cur_tnc].version);
+                } else {
+                    snprintf(msgbuffer, sizeof(msgbuffer),
+                    "\tARDOP TNC SETTINGS\n \n"
+                    "serial dev: %-12.30s  baud rate: %.6s\n"
+                    "    mycall: %-12.10s     gridsq: %.10s\n"
+                    "     fecid: %-12.8s fecrepeats: %.5s\n"
+                    "   squelch: %-12.2s    busydet: %.2s\n"
+                    "    leader: %-12.4s    trailer: %.4s\n"
+                    "    listen: %-12.5s  enpingack: %.5s\n"
+                    "   busydet: %-12.5s      arqbw: %.10s\n"
+                    " netcall 1: %-12.10s  netcall 2: %.10s\n"
+                    " netcall 3: %-12.10s  netcall 4: %.10s\n"
+                    " netcall 5: %-12.10s  netcall 6: %.10s\n"
+                    " netcall 7: %-12.10s  netcall 8: %.10s\n"
+                    "   version: %.25s\n \n\t[O]k",
+                    g_tnc_settings[g_cur_tnc].serial_port, g_tnc_settings[g_cur_tnc].serial_baudrate,
+                    g_tnc_settings[g_cur_tnc].mycall, g_tnc_settings[g_cur_tnc].gridsq,
+                    g_tnc_settings[g_cur_tnc].fecid, g_tnc_settings[g_cur_tnc].fecrepeats,
+                    g_tnc_settings[g_cur_tnc].squelch, g_tnc_settings[g_cur_tnc].busydet,
+                    g_tnc_settings[g_cur_tnc].leader, g_tnc_settings[g_cur_tnc].trailer,
+                    g_tnc_settings[g_cur_tnc].listen, g_tnc_settings[g_cur_tnc].en_pingack,
+                    g_tnc_settings[g_cur_tnc].busydet, g_tnc_settings[g_cur_tnc].arq_bandwidth,
+                    g_tnc_settings[g_cur_tnc].netcall[0], g_tnc_settings[g_cur_tnc].netcall[1],
+                    g_tnc_settings[g_cur_tnc].netcall[2], g_tnc_settings[g_cur_tnc].netcall[3],
+                    g_tnc_settings[g_cur_tnc].netcall[4], g_tnc_settings[g_cur_tnc].netcall[5],
+                    g_tnc_settings[g_cur_tnc].netcall[6], g_tnc_settings[g_cur_tnc].netcall[7],
+                    g_tnc_settings[g_cur_tnc].version);
+                }
                 pthread_mutex_unlock(&mutex_tnc_set);
                 ui_show_dialog(msgbuffer, " oO\n");
             } else {
