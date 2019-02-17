@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -161,6 +161,7 @@ extern int g_num_tnc;
 #define ARIM_AC_FILES_DIR_MAX_CNT    16
 #define ARIM_FECMODE_DOWN_SIZE       8
 #define ARIM_MAX_MSG_DAYS_SIZE       8
+#define ARIM_MSG_TRACE_EN_SIZE       8
 
 #define DEFAULT_ARIM_MYCALL          "NOCALL"
 #define DEFAULT_ARIM_SEND_REPEATS    "0"
@@ -172,6 +173,7 @@ extern int g_num_tnc;
 #define DEFAULT_ARIM_FILES_MAX_SIZE  "4096"
 #define DEFAULT_ARIM_FECMODE_DOWN    "FALSE"
 #define DEFAULT_ARIM_MSG_MAX_DAYS    "0"
+#define DEFAULT_ARIM_MSG_TRACE_EN    "FALSE"
 
 #define MAX_ARIM_SEND_REPEATS        5
 #define MIN_ARIM_PILOT_PING          2
@@ -196,6 +198,7 @@ typedef struct arim_set {
     char files_dir[MAX_DIR_PATH_SIZE];
     char max_file_size[ARIM_FILES_MAX_SIZE];
     char max_msg_days[ARIM_MAX_MSG_DAYS_SIZE];
+    char msg_trace_en[ARIM_MSG_TRACE_EN_SIZE];
     char dyn_files[ARIM_DYN_FILES_MAX_CNT][ARIM_DYN_FILES_SIZE];
     int dyn_files_cnt;
     char add_files_dir[ARIM_ADD_FILES_DIR_MAX_CNT][MAX_DIR_PATH_SIZE];

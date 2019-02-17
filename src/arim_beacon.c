@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -74,6 +74,8 @@ void arim_beacon_on_alarm()
     int send_beacon = 0;
 
     /* called every ALARM_INTERVAL_SEC secs (1/10 minute granularity) */
+    if (!g_tnc_attached)
+        return;
     pthread_mutex_lock(&mutex_beacon);
     if (beacon_time_elapsed && --beacon_time_elapsed == 0) {
         beacon_time_elapsed = beacon_time_interval;

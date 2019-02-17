@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -61,19 +61,28 @@ int ui_send_file(char *msgbuffer, size_t msgbufsize,
                     const char *fn, const char *to_call)
 {
     FILE *fp;
-    size_t len;
+    size_t len, max;
+    struct stat stats;
 
-    if (!arim_is_idle())
-        return 0;
+    if (stat(fn, &stats) == 0) {
+        if (!S_ISDIR(stats.st_mode)) {
+            max = atoi(g_arim_settings.max_file_size);
+            if (stats.st_size > max) {
+                return -2;
+            }
+        } else {
+            return -3;
+        }
+    } else {
+        return -1;
+    }
     fp = fopen(fn, "r");
     if (fp == NULL)
-        return 0;
-    len = fread(msgbuffer, 1, msgbufsize, fp);
+        return -1;
+    len = fread(msgbuffer, 1, msgbufsize - 1, fp);
     fclose(fp);
     msgbuffer[len] = '\0';
     /* send the file */
-    if (strlen(to_call) < 1)
-        return 0;
     return arim_send_msg(msgbuffer, to_call);
 }
 
@@ -99,12 +108,13 @@ int ui_get_dyn_file(const char *fn, const char *cmd,
     }
     snprintf(filebuf, filebufsize, "File: %s\n\n", fn);
     cnt = strlen(filebuf);
-    if (max > filebufsize - cnt)
-        max = filebufsize - cnt;
-    len = fread(filebuf + cnt, 1, max - 1, fp);
+    len = fread(filebuf + cnt, 1, max, fp);
     pclose(fp);
     if (len == 0) {
         snprintf(filebuf, filebufsize, "File: %s read failed.\n", fn);
+        return 0;
+    } else if (len > max) {
+        snprintf(filebuf, filebufsize, "File: %s size exceeds limit.\n", fn);
         return 0;
     }
     cnt += len;
@@ -130,27 +140,30 @@ int ui_get_file(const char *fn, char *filebuf, size_t filebufsize)
         snprintf(filebuf, filebufsize, "File: %s not found.\n", fn);
         return 0;
     }
-    if (atoi(g_arim_settings.max_file_size) <= 0) {
+    max = atoi(g_arim_settings.max_file_size);
+    if (max <= 0) {
         snprintf(filebuf, filebufsize, "File: file sharing disabled.\n");
         return 0;
     }
-    max = atoi(g_arim_settings.max_file_size);
     snprintf(fpath, sizeof(fpath), "%s/%s", g_arim_settings.files_dir, fn);
     if (stat(fpath, &stats) == 0) {
         if (!S_ISDIR(stats.st_mode)) {
-            fp = fopen(fpath, "r");
-            if (fp == NULL) {
-                snprintf(filebuf, filebufsize, "File: %s not found.\n", fn);
+            if (max > stats.st_size) {
+                fp = fopen(fpath, "r");
+                if (fp == NULL) {
+                    snprintf(filebuf, filebufsize, "File: %s not found.\n", fn);
+                    return 0;
+                }
+                snprintf(filebuf, filebufsize, "File: %s\n\n", fn);
+                cnt = strlen(filebuf);
+                len = fread(filebuf + cnt, 1, filebufsize - cnt - 1, fp);
+                cnt += len;
+                fclose(fp);
+                filebuf[cnt] = '\0';
+            } else {
+                snprintf(filebuf, filebufsize, "File: %s size exceeds limit.\n", fn);
                 return 0;
             }
-            snprintf(filebuf, filebufsize, "File: %s\n\n", fn);
-            cnt = strlen(filebuf);
-            if (max > filebufsize - cnt)
-                max = filebufsize - cnt;
-            len = fread(filebuf + cnt, 1, max - 1, fp);
-            cnt += len;
-            fclose(fp);
-            filebuf[cnt] = '\0';
         } else {
             snprintf(filebuf, filebufsize, "File: %s is a directory.\n", fn);
             return 0;
@@ -196,7 +209,7 @@ int ui_read_file(const char *fn, int index)
     size_t i, len;
     int cmd, max_pad_rows = 0, top = 0, quit = 0;
     int max_read_rows, max_read_cols, min_read_rows, min_read_cols, num_read_rows;
-    char filebuf[MIN_MSG_BUF_SIZE+1], status[MAX_STATUS_BAR_SIZE];
+    char filebuf[MAX_UNCOMP_DATA_SIZE+1], status[MAX_STATUS_BAR_SIZE];
 
     fp = fopen(fn, "r");
     if (fp == NULL)
@@ -385,15 +398,19 @@ int ui_get_file_list(const char *basedir, const char *dir,
         if (stat(fn, &stats) == 0) {
             if (!S_ISDIR(stats.st_mode)) {
                 /* don't list password digest file */
-                if (!strstr(dent->d_name, DEFAULT_DIGEST_FNAME) && stats.st_size <= max_file_size) {
-                    numch = snprintf(linebuf, sizeof(linebuf),
-                                     "%24s%8jd\n", dent->d_name, (intmax_t)stats.st_size);
-                    if (numch >= sizeof(linebuf))
-                        ui_truncate_line(linebuf, sizeof(linebuf));
-                    len = strlen(linebuf);
-                    if ((cnt + len) < listbufsize) {
-                        strncat(listbuf, linebuf, listbufsize - cnt - 1);
-                        cnt += len;
+                if (!strstr(dent->d_name, DEFAULT_DIGEST_FNAME)) {
+                    /* if not in ARQ mode (where compression is available), don't list
+                       files whose size is greater than the max set in config file */
+                    if (arim_is_arq_state() || stats.st_size <= max_file_size) {
+                        numch = snprintf(linebuf, sizeof(linebuf),
+                                         "%24s%8jd\n", dent->d_name, (intmax_t)stats.st_size);
+                        if (numch >= sizeof(linebuf))
+                            ui_truncate_line(linebuf, sizeof(linebuf));
+                        len = strlen(linebuf);
+                        if ((cnt + len) < listbufsize) {
+                            strncat(listbuf, linebuf, listbufsize - cnt - 1);
+                            cnt += len;
+                        }
                     }
                 }
             } else if (strcmp(dent->d_name, "..") && strcmp(dent->d_name, ".")) {
@@ -664,7 +681,7 @@ void ui_list_files(const char *dir)
     DIR *dirp;
     struct dirent *dent;
     struct stat stats;
-    char linebuf[MAX_DIR_LINE_SIZE+1], msgbuffer[MIN_MSG_BUF_SIZE];
+    char linebuf[MAX_DIR_LINE_SIZE+1], msgbuffer[MAX_UNCOMP_DATA_SIZE];
     char path[MAX_DIR_LIST_LEN+1][MAX_DIR_PATH_SIZE+MAX_FILE_NAME_SIZE+1];
     char list[MAX_DIR_LIST_LEN+1][MAX_DIR_LINE_SIZE];
     char fn[MAX_FILE_NAME_SIZE], dpath[MAX_DIR_PATH_SIZE];
@@ -932,10 +949,20 @@ restart:
                                 }
                                 snprintf(to_call, sizeof(to_call), "%s", p);
                                 numch = snprintf(fn, sizeof(fn), "%s", path[i]);
-                                if (ui_send_file(msgbuffer, sizeof(msgbuffer), fn, to_call))
-                                    ui_print_status("ARIM Busy: sending file", 1);
-                                else
+                                switch (ui_send_file(msgbuffer, sizeof(msgbuffer), fn, to_call)) {
+                                case 0:
                                     ui_print_status("Send file: cannot send, TNC busy", 1);
+                                    break;
+                                case 1:
+                                    ui_print_status("ARIM Busy: sending file", 1);
+                                    break;
+                                case -2:
+                                    ui_print_status("Send file: cannot send, file size exceeds maximum", 1);
+                                    break;
+                                default:
+                                    ui_print_status("Send file: cannot send, failed to open file", 1);
+                                    break;
+                                }
                             }
                         } else {
                             ui_print_status("Send file: cannot send directory", 1);
@@ -1144,11 +1171,11 @@ void ui_list_shared_files() {
 void ui_list_remote_files(const char *flist, const char *dir)
 {
     WINDOW *dir_win;
-    static char cache[MIN_MSG_BUF_SIZE];
+    static char cache[MAX_UNCOMP_DATA_SIZE];
     static char dpath[MAX_DIR_PATH_SIZE];
     static int is_root = 0;
     static int initialized = 0;
-    char buffer[MIN_MSG_BUF_SIZE], linebuf[MAX_DIR_LINE_SIZE+1];
+    char buffer[MAX_UNCOMP_DATA_SIZE], linebuf[MAX_DIR_LINE_SIZE+1];
     char list[MAX_DIR_LIST_LEN+1][MAX_DIR_LINE_SIZE];
     char path[MAX_DIR_LIST_LEN+1][MAX_DIR_PATH_SIZE+MAX_FILE_NAME_SIZE+1];
     char fn[MAX_FILE_NAME_SIZE], temp[MAX_PATH_SIZE], cmdbuffer[MAX_CMD_SIZE];

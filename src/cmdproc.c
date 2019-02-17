@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -60,10 +60,10 @@
 
 int cmdproc_cmd(const char *cmd)
 {
-    int state, result1, result2, numch, zoption = 0;
     static char prevbuf[MAX_CMD_SIZE];
+    int state, result1, result2, numch, zoption = 0;
     char *t, *fn, *destdir, buffer[MAX_CMD_SIZE], sendcr[TNC_ARQ_SENDCR_SIZE];
-    char msgbuffer[MIN_MSG_BUF_SIZE], status[MAX_STATUS_BAR_SIZE];
+    char msgbuffer[MAX_UNCOMP_DATA_SIZE], status[MAX_STATUS_BAR_SIZE];
     char call1[TNC_MYCALL_SIZE], call2[TNC_MYCALL_SIZE];
     const char *p;
 
@@ -124,7 +124,7 @@ int cmdproc_cmd(const char *cmd)
             if (!strncasecmp(cmd, "/FGET", 5)) {
                 arim_arq_cache_cmd(cmd);
                 /* check for -z option */
-                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
+                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 5);
                 fn = msgbuffer;
                 while (*fn && *fn == ' ')
                     ++fn;
@@ -148,7 +148,7 @@ int cmdproc_cmd(const char *cmd)
             } else if (!strncasecmp(cmd, "/FPUT", 5)) {
                 arim_arq_cache_cmd(cmd);
                 /* check for -z option */
-                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
+                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 5);
                 fn = msgbuffer;
                 while (*fn && *fn == ' ')
                     ++fn;
@@ -172,7 +172,7 @@ int cmdproc_cmd(const char *cmd)
             } else if (!strncasecmp(cmd, "/MGET", 5)) {
                 arim_arq_cache_cmd(cmd);
                 /* check for -z option */
-                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 6);
+                snprintf(msgbuffer, sizeof(msgbuffer), "%s", cmd + 5);
                 t = msgbuffer;
                 while (*t && *t == ' ')
                     ++t;
@@ -188,7 +188,7 @@ int cmdproc_cmd(const char *cmd)
             } else if (!strncasecmp(cmd, "/FLGET", 6)) {
                 arim_arq_cache_cmd(cmd);
                 /* check for -z option */
-                snprintf(buffer, sizeof(buffer), "%s", cmd + 7);
+                snprintf(buffer, sizeof(buffer), "%s", cmd + 6);
                 t = buffer;
                 while (*t && (*t == ' ' || *t == '/'))
                     ++t;

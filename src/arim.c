@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -64,7 +64,7 @@
 
 //#define TRACE_PARSER
 
-static char buffer[MIN_MSG_BUF_SIZE*4];
+static char buffer[MAX_UNCOMP_DATA_SIZE];
 static char to_call[TNC_MYCALL_SIZE];
 static char fm_call[TNC_MYCALL_SIZE];
 static char gridsq[TNC_GRIDSQ_SIZE];
@@ -104,7 +104,7 @@ int arim_on_data(char *data, size_t size)
     char inbuffer[MIN_MSG_BUF_SIZE], numbuf[MAX_CHECK_SIZE];
     char *s, *e;
 
-    if (!data || !size || (cnt + size) > MIN_MSG_BUF_SIZE*4) {
+    if (!data || !size || (cnt + size) > MAX_UNCOMP_DATA_SIZE) {
         arim_reset();
         return 0; /* not waiting */
     }

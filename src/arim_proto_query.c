@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -37,6 +37,7 @@
 #include "util.h"
 #include "bufq.h"
 #include "ui_tnc_data_win.h"
+#include "datathread.h"
 
 void arim_proto_query_buf_wait(int event, int param)
 {
@@ -48,8 +49,8 @@ void arim_proto_query_buf_wait(int event, int param)
         ui_set_status_dirty(STATUS_QRY_SEND_CAN);
         break;
     case EV_PERIODIC:
-        /* wait until tx buffer is empty before announcing waiting state */
-        if (!arim_get_buffer_cnt()) {
+        if (arim_get_buffer_cnt()) {
+            /* query is buffered, change to response waiting state */
             prev_time = time(NULL);
             arim_set_state(ST_RCV_RESP_WAIT);
             ui_set_status_dirty(STATUS_WAIT_RESP);
@@ -88,9 +89,9 @@ void arim_proto_query_resp_pend(int event, int param)
         ui_set_status_dirty(STATUS_RESP_SEND_CAN);
         break;
     case EV_PERIODIC:
-        /* 1 to 2 second delay for sending response to query */
+        /* 1 second delay for sending response to query */
         t = time(NULL);
-        if (t > prev_time + 2) {
+        if (t > prev_time) {
             bufq_queue_data_out(msg_buffer);
             arim_set_state(ST_SEND_RESP_BUF_WAIT);
             ui_set_status_dirty(STATUS_RESP_SEND);

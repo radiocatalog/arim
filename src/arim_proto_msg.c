@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -69,7 +69,7 @@ void arim_proto_msg_net_buf_wait(int event, int param)
         ui_set_status_dirty(STATUS_MSG_SEND_CAN);
         break;
     case EV_PERIODIC:
-        /* wait until tx buffer is empty before starting ack timer */
+        /* no ACK for net message, return to idle state when buffer empty */
         if (!arim_msg_on_send_buffer(arim_get_buffer_cnt())) {
             arim_set_state(ST_IDLE);
             ui_set_status_dirty(STATUS_NET_MSG_SENT);
@@ -159,11 +159,6 @@ extern void arim_proto_msg_acknak_wait(int event, int param)
                     arim_fecmode_downshift();
                 bufq_queue_data_out(msg_buffer);
                 prev_time = t;
-                /* prime buffer count because update from TNC not immediate */
-                pthread_mutex_lock(&mutex_tnc_set);
-                snprintf(g_tnc_settings[g_cur_tnc].buffer,
-                    sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", strlen(msg_buffer));
-                pthread_mutex_unlock(&mutex_tnc_set);
                 arim_set_state(ST_SEND_MSG_BUF_WAIT);
                 /* start progress meter */
                 ui_status_xfer_start(0, msg_len, STATUS_XFER_DIR_UP);

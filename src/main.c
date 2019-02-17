@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
             g_print_config = 1;
             break;
         case 'v':
-            printf("ARIM %s\nCopyright 2016, 2017, 2018 Robert Cunnings NW8L\n"
+            printf("ARIM %s\nCopyright 2016-2019 Robert Cunnings NW8L\n"
                    "\nLicense GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>.\n"
                    "This is free software: you are free to change and redistribute it.\n"
                    "There is NO WARRANTY, to the extent permitted by law.\n", ARIM_VERSION);

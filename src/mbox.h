@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -27,13 +27,14 @@
 #include "main.h"
 
 extern int mbox_init(void);
-extern int mbox_add_msg(const char *fn, const char *fm_call,
-                            const char *to_call, int check, const char *msg);
+extern int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call,
+                            int check, const char *msg, int trace);
 extern int mbox_delete_msg(const char *fn, const char *hdr);
 extern int mbox_save_msg(const char *fn, const char *hdr, const char *savefn);
+extern int mbox_set_flag(const char *fn, const char *hdr, int flag);
 extern int mbox_clear_flag(const char *fn, const char *hdr, int flag);
 extern int mbox_read_msg(char *msgbuffer, size_t msgbufsize,
-                            const char *fn, const char *hdr);
+                             const char *fn, const char *hdr);
 extern int mbox_fwd_msg(char *msgbuffer, size_t msgbufsize,
                             const char *fn, const char *hdr);
 extern int mbox_send_msg(char *msgbuffer, size_t msgbufsize, char *tocall,
@@ -43,7 +44,7 @@ extern int mbox_get_msg_list(char *msgbuffer, size_t msgbufsize,
 extern int mbox_get_headers_to(char headers[][MAX_MBOX_HDR_SIZE],
                         int max_hdrs, const char *fn, const char *to_call);
 extern int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
-                                const char *fn, const char *hdr);
+                            const char *fn, const char *hdr, int canonical_eol);
 extern int mbox_purge(const char *fn, int days);
 extern char mbox_dir_path[];
 

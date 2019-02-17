@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -31,13 +31,14 @@
 #define MAX_ARIM_HDR_SIZE      64
 #define MAX_CMD_SIZE           256
 #define MAX_DATA_SIZE          16384
-#define MIN_DATA_BUF_SIZE      MAX_DATA_SIZE+1
+#define MAX_UNCOMP_DATA_SIZE   (MAX_DATA_SIZE*5)
+#define MIN_DATA_BUF_SIZE      (MAX_DATA_SIZE+256)
 #define MAX_MSG_SIZE           MAX_DATA_SIZE
-#define MIN_MSG_BUF_SIZE       MAX_ARIM_HDR_SIZE+MAX_MSG_SIZE+1
+#define MIN_MSG_BUF_SIZE       (MAX_ARIM_HDR_SIZE+MAX_MSG_SIZE+1)
 #define MAX_MSG_LINE_SIZE      1024
 #define MAX_FILE_SIZE          MAX_DATA_SIZE
 #define MAX_BEACON_SIZE        128
-#define MIN_BEACON_BUF_SIZE    MAX_ARIM_HDR_SIZE+MAX_BEACON_SIZE+1
+#define MIN_BEACON_BUF_SIZE    (MAX_ARIM_HDR_SIZE+MAX_BEACON_SIZE+1)
 #define MAX_HEARD_SIZE         32
 #define MAX_HEARD_LIST_LEN     64
 #define MAX_RECENTS_LIST_LEN   32

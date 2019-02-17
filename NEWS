@@ -2,8 +2,43 @@
                        ARIM Release Notes
 =====================================================================
 
-Version 2.4b1
--------------
+Version 2.5
+-----------
+* Add optional message tracing feature. This inserts headers like:
+    Received: from KA8RYU by NW8L; Jan 30 2019 05:01:48 UTC
+  into received messages. If the message is forwarded to another
+  station with tracing enabled, another Received: header is added by
+  the receiving station, and so on. In this way a record of the
+  message's progress through a network is built up as it is forwarded
+  from station to station (read from bottom to top). The timestamp
+  indicates time of receipt, either local time or UTC time at the
+  receiving station, as set by the 'utc-time' parameter in the [ui]
+  section of the configuration file. No time zone is included for
+  stations configured for local time stamps (utc-time=FALSE). Message
+  tracing is enabled or disabled by the value of the 'msg-trace-en'
+  parameter in the [arim] section of the configuration file. Set to
+  TRUE to enable tracing or FALSE to disable it. The default value is
+  FALSE. The Received: header is inspired by, but not perfectly
+  conformant with, the Received: header specification in RFC822.
+* In ARQ mode, enforce size limit for file, file listing, and message
+  transfers *after* compression is applied. The max "over the air"
+  payload size remains 16K bytes, but input buffers are big enough to
+  accomodate compression ratios up to 5:1. If compressed input data
+  exceeds the 16K payload limit the transaction fails with an error.
+* In ARQ mode, where files may be compressed for download, don't
+  filter file listings to remove files larger than the max size
+  defined by the configuration file 'max_file_size' parameter.
+* In FEC mode, enforce size limit when sending files as messages.
+* Implement closed loop flow control for data transfers to TNC to
+  prevent overflow of TNC transmit data buffers.
+* Implement support for ARQBW choice "any" for ARDOP version 1 TNCs
+  when initiating ARQ connections from the command prompt.
+* Messages sent to net addresses are now stored in the Sent Messages
+  mailbox if successfully transmitted.
+* Update garim(5) man page and Help document.
+
+Version 2.4
+-----------
 * Add support for TNC-Pi9K6 hardware ARDOP TNC. This requires that
   ARIM be installed on the Raspberry Pi unit hosting the TNC-Pi9K6
   and interface with the TNC over the /dev/serial0 serial port.

@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -130,6 +130,28 @@ char *util_date_timestamp(char *buffer, size_t maxsize)
                 days[cur_time->tm_wday], months[cur_time->tm_mon],
                     cur_time->tm_mday, cur_time->tm_hour, cur_time->tm_min,
                         cur_time->tm_sec, cur_time->tm_year - 100);
+    pthread_mutex_unlock(&mutex_time);
+    return buffer;
+}
+
+char *util_rcv_timestamp(char *buffer, size_t maxsize)
+{
+    time_t t;
+    struct tm *cur_time;
+
+    pthread_mutex_lock(&mutex_time);
+    t = time(NULL);
+    if (!strncasecmp(g_ui_settings.utc_time, "TRUE", 4)) {
+        cur_time = gmtime(&t);
+        snprintf(buffer, maxsize, "%s %2d 2%03d %02d:%02d:%02d UTC",
+                    months[cur_time->tm_mon], cur_time->tm_mday, cur_time->tm_year - 100,
+                        cur_time->tm_hour, cur_time->tm_min, cur_time->tm_sec);
+    } else {
+        cur_time = localtime(&t);
+        snprintf(buffer, maxsize, "%s %2d 2%03d %02d:%02d:%02d",
+                    months[cur_time->tm_mon], cur_time->tm_mday, cur_time->tm_year - 100,
+                        cur_time->tm_hour, cur_time->tm_min, cur_time->tm_sec);
+    }
     pthread_mutex_unlock(&mutex_time);
     return buffer;
 }

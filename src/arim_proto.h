@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -172,6 +172,7 @@ extern int arim_is_receiving(void);
 extern int arim_tnc_is_idle(void);
 extern int arim_is_channel_busy(void);
 extern void arim_set_channel_not_busy(void);
+extern void arim_on_cancel(void);
 
 extern size_t msg_len;
 extern time_t prev_time;
@@ -181,8 +182,8 @@ extern int send_repeats;
 extern int fecmode_downshift;
 extern char prev_fecmode[TNC_FECMODE_SIZE];
 extern char prev_to_call[TNC_MYCALL_SIZE];
-extern char prev_msg[MIN_MSG_BUF_SIZE];
-extern char msg_buffer[MIN_MSG_BUF_SIZE];
+extern char prev_msg[MAX_UNCOMP_DATA_SIZE];
+extern char msg_buffer[MAX_UNCOMP_DATA_SIZE];
 extern char msg_acknak_buffer[MAX_ACKNAK_SIZE];
 
 #endif

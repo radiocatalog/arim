@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -43,25 +43,61 @@
 #include "bufq.h"
 #include "ardop_data.h"
 
+/* 10 second wait before next check of TNC's BUFFER count */
+#define TNC_BUFFER_UPDATE_WAIT  50
+#define TNC_DATA_BLOCK_SIZE     2048
+
+static size_t data_send_nrem, file_send_nrem, msg_send_nrem, send_bytes_buffered;
+static int data_send_nblk, data_send_timer;
+static int file_send_nblk, file_send_timer;
+static int msg_send_nblk, msg_send_timer;
+
+size_t datathread_get_num_bytes_buffered()
+{
+    return send_bytes_buffered;
+}
+
+void datathread_cancel_send_data_out()
+{
+    /* reset TNC transmit data buffering state */
+    data_send_nrem = file_send_nrem = msg_send_nrem = send_bytes_buffered = 0;
+    data_send_nblk = file_send_nblk = msg_send_nblk = 0;
+    data_send_timer = file_send_timer = msg_send_timer = 0;
+}
+
 void datathread_send_file_out(int sock)
 {
-    char *p, buffer[MAX_FILE_SIZE+4];
-    unsigned char *s;
-    FILEQUEUEITEM *item;
-    size_t sent, nblk, nrem;
-    int i;
+    static FILEQUEUEITEM *item;
+    static char *p, buffer[MAX_FILE_SIZE+4];
+    static unsigned char *s;
+    size_t sent;
 
-    pthread_mutex_lock(&mutex_file_out);
-    item = fileq_pop(&g_file_out_q);
-    pthread_mutex_unlock(&mutex_file_out);
-    if (!item)
+    if (msg_send_nblk || msg_send_nrem || data_send_nblk || data_send_nrem)
         return;
-    bufq_queue_debug_log("Data thread: sending file to TNC");
-    p = buffer;
-    s = item->data;
-    nblk = item->size / TNC_DATA_BLOCK_SIZE;
-    nrem = item->size % TNC_DATA_BLOCK_SIZE;
-    for (i = 0; i < nblk; i++) {
+    if (!file_send_nblk && !file_send_nrem) {
+        pthread_mutex_lock(&mutex_file_out);
+        item = fileq_pop(&g_file_out_q);
+        pthread_mutex_unlock(&mutex_file_out);
+        if (!item)
+            return;
+        bufq_queue_debug_log("Data thread: sending file to TNC");
+        p = buffer;
+        s = item->data;
+        file_send_nblk = item->size / TNC_DATA_BLOCK_SIZE;
+        file_send_nrem = item->size % TNC_DATA_BLOCK_SIZE;
+        send_bytes_buffered = 0;
+        file_send_timer = 0;
+    }
+    /*  BUFFER notifications from TNC are several seconds apart when transmitting.
+        Don't proceed until timer has expired to save the overhead of checking
+        the BUFFER value every time function is called (multiple times per sec). */
+    if (file_send_timer && --file_send_timer > 0)
+        return;
+    if (file_send_nblk) {
+        if (arim_get_buffer_cnt() >= TNC_DATA_BLOCK_SIZE) {
+            file_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
+            return;
+        }
         bufq_queue_debug_log("Data thread: writing block of data to socket");
         *p++ = (TNC_DATA_BLOCK_SIZE >> 8) & 0xFF;
         *p++ = TNC_DATA_BLOCK_SIZE & 0xFF;
@@ -69,46 +105,70 @@ void datathread_send_file_out(int sock)
         sent = write(sock, buffer, TNC_DATA_BLOCK_SIZE + 2);
         if (sent < 0) {
             bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_cancel_send_data_out();
             return;
         }
         s += TNC_DATA_BLOCK_SIZE;
         p = buffer;
         ardop_data_inc_num_bytes_out(TNC_DATA_BLOCK_SIZE);
-        usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
+        send_bytes_buffered += TNC_DATA_BLOCK_SIZE;
+        --file_send_nblk;
+        file_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
+        return;
     }
-    if (nrem) {
-        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
-        *p++ = (nrem >> 8) & 0xFF;
-        *p++ = nrem & 0xFF;
-        memcpy(p, s, nrem);
-        sent = write(sock, buffer, nrem + 2);
-        if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+    if (!file_send_nblk && file_send_nrem) {
+        if (arim_get_buffer_cnt() >= TNC_DATA_BLOCK_SIZE) {
+            file_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
             return;
         }
-        ardop_data_inc_num_bytes_out(nrem + 2);
-        usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
+        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
+        *p++ = (file_send_nrem >> 8) & 0xFF;
+        *p++ = file_send_nrem & 0xFF;
+        memcpy(p, s, file_send_nrem);
+        sent = write(sock, buffer, file_send_nrem + 2);
+        if (sent < 0) {
+            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_cancel_send_data_out();
+            return;
+        }
+        ardop_data_inc_num_bytes_out(file_send_nrem + 2);
+        send_bytes_buffered += file_send_nrem;
+        file_send_nrem = 0;
     }
 }
 
 void datathread_send_msg_out(int sock)
 {
-    char *p, *s, buffer[MIN_MSG_BUF_SIZE];
-    MSGQUEUEITEM *item;
-    size_t sent, nblk, nrem;
-    int i;
+    static MSGQUEUEITEM *item;
+    static char *p, *s, buffer[MIN_MSG_BUF_SIZE];
+    size_t sent;
 
-    pthread_mutex_lock(&mutex_msg_out);
-    item = msgq_pop(&g_msg_out_q);
-    pthread_mutex_unlock(&mutex_msg_out);
-    if (!item)
+    if (file_send_nblk || file_send_nrem || data_send_nblk || data_send_nrem)
         return;
-    bufq_queue_debug_log("Data thread: sending message to TNC");
-    p = buffer;
-    s = item->data;
-    nblk = item->size / TNC_DATA_BLOCK_SIZE;
-    nrem = item->size % TNC_DATA_BLOCK_SIZE;
-    for (i = 0; i < nblk; i++) {
+    if (!msg_send_nblk && !msg_send_nrem) {
+        pthread_mutex_lock(&mutex_msg_out);
+        item = msgq_pop(&g_msg_out_q);
+        pthread_mutex_unlock(&mutex_msg_out);
+        if (!item)
+            return;
+        bufq_queue_debug_log("Data thread: sending message to TNC");
+        p = buffer;
+        s = item->data;
+        msg_send_nblk = item->size / TNC_DATA_BLOCK_SIZE;
+        msg_send_nrem = item->size % TNC_DATA_BLOCK_SIZE;
+        send_bytes_buffered = 0;
+        msg_send_timer = 0;
+    }
+    /*  BUFFER notifications from TNC are several seconds apart when transmitting.
+        Don't proceed until timer has expired to save the overhead of checking
+        the BUFFER value every time function is called (multiple times per sec). */
+    if (msg_send_timer && --msg_send_timer > 0)
+        return;
+    if (msg_send_nblk) {
+        if (arim_get_buffer_cnt() >= TNC_DATA_BLOCK_SIZE) {
+            msg_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
+            return;
+        }
         bufq_queue_debug_log("Data thread: writing block of data to socket");
         *p++ = (TNC_DATA_BLOCK_SIZE >> 8) & 0xFF;
         *p++ = TNC_DATA_BLOCK_SIZE & 0xFF;
@@ -116,47 +176,75 @@ void datathread_send_msg_out(int sock)
         sent = write(sock, buffer, TNC_DATA_BLOCK_SIZE + 2);
         if (sent < 0) {
             bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_cancel_send_data_out();
             return;
         }
         s += TNC_DATA_BLOCK_SIZE;
         p = buffer;
         ardop_data_inc_num_bytes_out(TNC_DATA_BLOCK_SIZE);
-        usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
+        send_bytes_buffered += TNC_DATA_BLOCK_SIZE;
+        --msg_send_nblk;
+        msg_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
+        return;
     }
-    if (nrem) {
-        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
-        *p++ = (nrem >> 8) & 0xFF;
-        *p++ = nrem & 0xFF;
-        memcpy(p, s, nrem);
-        sent = write(sock, buffer, nrem + 2);
-        if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+    if (!msg_send_nblk && msg_send_nrem) {
+        if (arim_get_buffer_cnt() >= TNC_DATA_BLOCK_SIZE) {
+            msg_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
             return;
         }
-        ardop_data_inc_num_bytes_out(nrem + 2);
-        usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
+        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
+        *p++ = (msg_send_nrem >> 8) & 0xFF;
+        *p++ = msg_send_nrem & 0xFF;
+        memcpy(p, s, msg_send_nrem);
+        sent = write(sock, buffer, msg_send_nrem + 2);
+        if (sent < 0) {
+            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_cancel_send_data_out();
+            return;
+        }
+        ardop_data_inc_num_bytes_out(msg_send_nrem + 2);
+        send_bytes_buffered += msg_send_nrem;
+        msg_send_nrem = 0;
     }
 }
 
 void datathread_send_data_out(int sock)
 {
-    char *p, *s, *data;
-    char buffer[MIN_MSG_BUF_SIZE];
-    size_t len, sent, nblk, nrem;
-    int i;
+    static char *p, *s, *data, buffer[MIN_DATA_BUF_SIZE];
+    size_t len, sent;
 
-    pthread_mutex_lock(&mutex_data_out);
-    data = dataq_pop(&g_data_out_q);
-    pthread_mutex_unlock(&mutex_data_out);
-    if (!data)
+    if (file_send_nblk || file_send_nrem || msg_send_nblk || msg_send_nrem)
         return;
-    bufq_queue_debug_log("Data thread: sending data to TNC");
-    len = strlen(data);
-    p = buffer;
-    s = data;
-    nblk = len / TNC_DATA_BLOCK_SIZE;
-    nrem = len % TNC_DATA_BLOCK_SIZE;
-    for (i = 0; i < nblk; i++) {
+    if (!data_send_nblk && !data_send_nrem) {
+        pthread_mutex_lock(&mutex_data_out);
+        data = dataq_pop(&g_data_out_q);
+        pthread_mutex_unlock(&mutex_data_out);
+        if (!data)
+            return;
+        bufq_queue_debug_log("Data thread: sending data to TNC");
+        len = strlen(data);
+        if (arim_test_frame(data, len))
+            snprintf(buffer, sizeof(buffer), "<< [%c] %s", data[1], data);
+        else if (arim_is_arq_state())
+            snprintf(buffer, sizeof(buffer), "<< [@] %s", data);
+        else
+            snprintf(buffer, sizeof(buffer), "<< [U] %s", data);
+        bufq_queue_data_in(buffer);
+        bufq_queue_traffic_log(buffer);
+        p = buffer;
+        s = data;
+        data_send_nblk = len / TNC_DATA_BLOCK_SIZE;
+        data_send_nrem = len % TNC_DATA_BLOCK_SIZE;
+        send_bytes_buffered = 0;
+        data_send_timer = 0;
+    }
+    if (data_send_timer && --data_send_timer > 0)
+        return;
+    if (data_send_nblk) {
+        if (arim_get_buffer_cnt() >= TNC_DATA_BLOCK_SIZE) {
+            data_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
+            return;
+        }
         bufq_queue_debug_log("Data thread: writing block of data to socket");
         *p++ = (TNC_DATA_BLOCK_SIZE >> 8) & 0xFF;
         *p++ = TNC_DATA_BLOCK_SIZE & 0xFF;
@@ -164,41 +252,45 @@ void datathread_send_data_out(int sock)
         sent = write(sock, buffer, TNC_DATA_BLOCK_SIZE + 2);
         if (sent < 0) {
             bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_cancel_send_data_out();
             return;
         }
         s += TNC_DATA_BLOCK_SIZE;
         p = buffer;
         ardop_data_inc_num_bytes_out(TNC_DATA_BLOCK_SIZE);
-        usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
+        send_bytes_buffered += TNC_DATA_BLOCK_SIZE;
+        --data_send_nblk;
+        if (!arim_is_arq_state())
+            bufq_queue_cmd_out("FECSEND TRUE");
+        data_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
+        return;
     }
-    if (nrem) {
-        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
-        *p++ = (nrem >> 8) & 0xFF;
-        *p++ = nrem & 0xFF;
-        memcpy(p, s, nrem);
-        sent = write(sock, buffer, nrem + 2);
-        if (sent < 0) {
-            bufq_queue_debug_log("Data thread: write to socket failed");
+    if (!data_send_nblk && data_send_nrem) {
+        if (arim_get_buffer_cnt() >= TNC_DATA_BLOCK_SIZE) {
+            data_send_timer = TNC_BUFFER_UPDATE_WAIT; /* wait for next BUFFER notification */
             return;
         }
-        ardop_data_inc_num_bytes_out(nrem + 2);
-        usleep(TNC_DATA_WAIT_TIME); /* give TNC time to process data */
+        bufq_queue_debug_log("Data thread: writing remainder of data to socket");
+        *p++ = (data_send_nrem >> 8) & 0xFF;
+        *p++ = data_send_nrem & 0xFF;
+        memcpy(p, s, data_send_nrem);
+        sent = write(sock, buffer, data_send_nrem + 2);
+        if (sent < 0) {
+            bufq_queue_debug_log("Data thread: write to socket failed");
+            datathread_cancel_send_data_out();
+            return;
+        }
+        ardop_data_inc_num_bytes_out(data_send_nrem + 2);
+        send_bytes_buffered += data_send_nrem;
+        data_send_nrem = 0;
+        if (!arim_is_arq_state())
+            bufq_queue_cmd_out("FECSEND TRUE");
     }
-    if (arim_test_frame(data, len))
-        snprintf(buffer, sizeof(buffer), "<< [%c] %s", data[1], data);
-    else if (arim_is_arq_state())
-        snprintf(buffer, sizeof(buffer), "<< [@] %s", data);
-    else
-        snprintf(buffer, sizeof(buffer), "<< [U] %s", data);
-    bufq_queue_data_in(buffer);
-    bufq_queue_traffic_log(buffer);
-    if (!arim_is_arq_state())
-        bufq_queue_cmd_out("FECSEND TRUE");
 }
 
 void *datathread_func(void *data)
 {
-    unsigned char buffer[MIN_MSG_BUF_SIZE];
+    unsigned char buffer[MIN_DATA_BUF_SIZE];
     struct addrinfo hints, *res = NULL;
     fd_set datareadfds, dataerrorfds;
     struct timeval timeout;

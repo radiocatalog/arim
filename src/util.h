@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -31,6 +31,7 @@ extern char *util_timestamp_usec(char *buffer, size_t maxsize);
 extern char *util_datestamp(char *buffer, size_t maxsize);
 extern char *util_date_timestamp(char *buffer, size_t maxsize);
 extern char *util_file_timestamp(time_t t, char *buffer, size_t maxsize);
+extern char *util_rcv_timestamp(char *buffer, size_t maxsize);
 extern char *util_clock(char *buffer, size_t maxsize);
 extern char *util_clock_tm(time_t t, char *buffer, size_t maxsize);
 extern unsigned int ccitt_crc16(const unsigned char *data, size_t size);

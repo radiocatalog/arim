@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -118,7 +118,7 @@ int ui_read_msg(const char *fn, const char *hdr, int msgnbr, int is_recent)
     int cmd, top = 0, quit = 0;
     int max_read_rows, max_read_cols, min_read_rows, min_read_cols, num_read_rows;
     int center, start, max_pad_rows = 0;
-    char msgbuffer[MIN_MSG_BUF_SIZE], status[MAX_STATUS_BAR_SIZE];
+    char msgbuffer[MAX_UNCOMP_DATA_SIZE], status[MAX_STATUS_BAR_SIZE];
 
     /* get the message from the mbox file */
     max_pad_rows = mbox_read_msg(msgbuffer, sizeof(msgbuffer), fn, hdr);
@@ -639,7 +639,7 @@ void ui_list_msg(const char *fn, int mbox_type)
 {
     WINDOW *mbox_win;
     FILE *mboxfp;
-    char *p, linebuf[MAX_MBOX_HDR_SIZE+1], msgbuffer[MIN_MSG_BUF_SIZE];
+    char *p, linebuf[MAX_MBOX_HDR_SIZE+1], msgbuffer[MAX_UNCOMP_DATA_SIZE];
     static char list[MAX_MBOX_LIST_LEN+1][MAX_MBOX_HDR_SIZE];
     char to_call[MAX_CALLSIGN_SIZE];
     char fpath[MAX_PATH_SIZE];

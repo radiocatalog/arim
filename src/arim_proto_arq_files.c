@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -176,8 +176,8 @@ void arim_proto_arq_file_send_wait(int event, int param)
         }
         break;
     case EV_PERIODIC:
-        if (!arim_get_buffer_cnt()) {
-            /* done sending cmd, will send file next */
+        if (arim_get_buffer_cnt()) {
+            /* data is buffered, change state to sending */
             ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_FILE_SEND);
@@ -711,8 +711,8 @@ void arim_proto_arq_file_flist_send_wait(int event, int param)
         }
         break;
     case EV_PERIODIC:
-        if (!arim_get_buffer_cnt()) {
-            /* done sending cmd, will send file listing next */
+        if (arim_get_buffer_cnt()) {
+            /* data is buffered, change state to sending */
             ack_timeout = ARDOP_CONN_SEND_TIMEOUT;
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_FLIST_SEND);

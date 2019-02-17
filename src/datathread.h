@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -24,13 +24,12 @@
 #ifndef _DATATHREAD_H_INCLUDED_
 #define _DATATHREAD_H_INCLUDED_
 
-#define TNC_DATA_WAIT_TIME  500000
-#define TNC_DATA_BLOCK_SIZE 4096
-
 extern void *datathread_func(void *data);
 extern size_t datathread_get_num_bytes_in(void);
 extern size_t datathread_get_num_bytes_out(void);
 extern void datathread_reset_num_bytes(void);
+extern void datathread_cancel_send_data_out(void);
+extern size_t datathread_get_num_bytes_buffered(void);
 
 #endif
 

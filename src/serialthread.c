@@ -2,7 +2,7 @@
 
     gARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the gARIM messaging program.
 
@@ -39,6 +39,8 @@
 #include "log.h"
 #include "ardop_cmds.h"
 #include "ardop_data.h"
+#include "util.h"
+#include "ui.h"
 
 #define IO_STATE_ERROR            (-1)
 #define IO_STATE_IDLE               0
@@ -321,12 +323,12 @@ int serialthread_send_msg_out(int fd)
 int serialthread_send_data_out(int fd)
 {
     static size_t sent = 0, nblk = 0, nrem = 0, done = 0, len = 0;
-    static char databuf[MIN_MSG_BUF_SIZE];
+    static char databuf[MIN_DATA_BUF_SIZE];
     static unsigned char framebuf[MAX_CMD_SIZE*2];
     char buffer[MAX_LOG_LINE_SIZE];
     unsigned char *p;
     char *s, *data;
-    int state;
+    int state, numch;
 
     state = io_state;
     if (!nblk && !nrem) { /* nothing to send, check for queued data */
@@ -387,11 +389,13 @@ int serialthread_send_data_out(int fd)
     if (done) {
         /* print trace to monitor view */
         if (arim_test_frame(databuf, len))
-            snprintf(buffer, sizeof(buffer), "<< [%c] %s", databuf[1], databuf);
+            numch = snprintf(buffer, sizeof(buffer), "<< [%c] %s", databuf[1], databuf);
         else if (arim_is_arq_state())
-            snprintf(buffer, sizeof(buffer), "<< [@] %s", databuf);
+            numch = snprintf(buffer, sizeof(buffer), "<< [@] %s", databuf);
         else
-            snprintf(buffer, sizeof(buffer), "<< [U] %s", databuf);
+            numch = snprintf(buffer, sizeof(buffer), "<< [U] %s", databuf);
+        if (numch >= sizeof(buffer))
+            ui_truncate_line(buffer, sizeof(buffer));
         bufq_queue_data_in(buffer);
         bufq_queue_traffic_log(buffer);
         /* send FECSEND command to TNC in FEC mode */

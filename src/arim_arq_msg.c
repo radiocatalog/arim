@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -47,14 +47,12 @@ static MSGQUEUEITEM msg_in;
 static MSGQUEUEITEM msg_out;
 static size_t msg_in_cnt, msg_out_cnt;
 static char headers[MAX_MGET_HEADERS][MAX_MBOX_HDR_SIZE];
-static int zoption, num_msgs, next_msg;
+static int zoption, num_msgs, next_msg, send_done;
 
 int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
 {
     char linebuf[MAX_LOG_LINE_SIZE];
-    size_t len;
     z_stream zs;
-    char zbuffer[MIN_DATA_BUF_SIZE];
     int zret;
 
     zoption = use_zoption;
@@ -65,8 +63,8 @@ int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
         zs.opaque = Z_NULL;
         zs.avail_in = strlen(data);
         zs.next_in = (Bytef *)data;
-        zs.avail_out = sizeof(zbuffer);
-        zs.next_out = (Bytef *)zbuffer;
+        zs.avail_out = sizeof(msg_out.data);
+        zs.next_out = (Bytef *)msg_out.data;
         zret = deflateInit(&zs, Z_BEST_COMPRESSION);
         if (zret == Z_OK) {
             zret = deflate(&zs, Z_FINISH);
@@ -79,7 +77,6 @@ int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
                 bufq_queue_debug_log(linebuf);
                 return 0;
             }
-            memcpy(msg_out.data, zbuffer, zs.total_out);
             msg_out.size = zs.total_out;
         } else {
             ui_show_dialog("\tCannot send message:\n"
@@ -99,14 +96,11 @@ int arim_arq_msg_on_send_cmd(const char *data, int use_zoption)
     snprintf(linebuf, sizeof(linebuf),
         "%s %s %zu %04X", zoption ? "/MPUT -z" : "/MPUT",
             msg_out.call, msg_out.size, msg_out.check);
-    len = arim_arq_send_remote(linebuf);
-    /* prime buffer count because update from TNC not immediate */
-    pthread_mutex_lock(&mutex_tnc_set);
-    snprintf(g_tnc_settings[g_cur_tnc].buffer,
-        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
-    pthread_mutex_unlock(&mutex_tnc_set);
-    /* start progress meter */
+    arim_arq_send_remote(linebuf);
+    /* initialize count and start progress meter */
+    msg_out_cnt = 0;
     ui_status_xfer_start(0, msg_out.size, STATUS_XFER_DIR_UP);
+    /* change state to begin transfer */
     arim_on_event(EV_ARQ_MSG_SEND_CMD, 0);
     return 1;
 }
@@ -118,39 +112,51 @@ int arim_arq_msg_on_send_msg()
     pthread_mutex_lock(&mutex_msg_out);
     msgq_push(&g_msg_out_q, &msg_out);
     pthread_mutex_unlock(&mutex_msg_out);
-    /* prime buffer count because update from TNC not immediate */
-    pthread_mutex_lock(&mutex_tnc_set);
-    snprintf(g_tnc_settings[g_cur_tnc].buffer,
-        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", msg_out.size);
-    pthread_mutex_unlock(&mutex_tnc_set);
-    /* initialize cnt to prevent '0 of size' notification in monitor */
-    msg_out_cnt = msg_out.size;
     snprintf(linebuf, sizeof(linebuf), "ARQ: Message upload buffered for sending");
     bufq_queue_debug_log(linebuf);
+    send_done = 0;
     return 1;
 }
 
 size_t arim_arq_msg_on_send_buffer(size_t size)
 {
+    static int prev_size = -1, prev_msg_out_cnt = 0;
+    static size_t prev_msg_out_buffered;
     char linebuf[MAX_LOG_LINE_SIZE];
+    size_t msg_out_buffered = datathread_get_num_bytes_buffered();
 
-    /* ignore preliminary BUFFER response if TNC isn't done buffering data */
-    if (msg_out.size > TNC_DATA_BLOCK_SIZE && size == TNC_DATA_BLOCK_SIZE)
-        return size;
-    if (msg_out_cnt != size) {
-        msg_out_cnt = size;
+    if (!send_done && prev_size != size && msg_out_buffered >= size) {
+        /* handle case where BUFFER notication is lagging behind */
+        if (prev_msg_out_buffered > size &&
+                msg_out_buffered > prev_msg_out_buffered && size < prev_size)
+            msg_out_cnt = prev_msg_out_buffered - size;
+        else
+            msg_out_cnt = msg_out_buffered - size;
+        prev_size = size;
+        prev_msg_out_buffered = msg_out_buffered;
+        if (msg_out_cnt == 0 || msg_out_cnt == prev_msg_out_cnt)
+            return 1; /* don't double-print upload status lines */
+        prev_msg_out_cnt = msg_out_cnt;
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Message to %s sending %zu of %zu bytes",
-                msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
+                msg_out.call, msg_out_cnt, msg_out.size);
         bufq_queue_debug_log(linebuf);
         snprintf(linebuf, sizeof(linebuf), "<< [@] Message to %s %zu of %zu bytes",
-                    msg_out.call, msg_out.size - msg_out_cnt, msg_out.size);
+                    msg_out.call, msg_out_cnt, msg_out.size);
         bufq_queue_traffic_log(linebuf);
         bufq_queue_data_in(linebuf);
         /* update progress meter */
-        ui_status_xfer_update(msg_out.size - msg_out_cnt);
+        ui_status_xfer_update(msg_out_cnt);
+        /* if done, re-arm for next upload */
+        if (msg_out_cnt == msg_out.size) {
+            send_done = 1;
+            prev_size = -1;
+            prev_msg_out_cnt = 0;
+            prev_msg_out_buffered = 0;
+            return 0;
+        }
     }
-    return size;
+    return 1;
 }
 
 int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
@@ -159,7 +165,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
     char timestamp[MAX_TIMESTAMP_SIZE], linebuf[MAX_LOG_LINE_SIZE];
     unsigned int check;
     z_stream zs;
-    char zbuffer[MIN_DATA_BUF_SIZE];
+    char zbuffer[MAX_UNCOMP_DATA_SIZE];
     int zret;
 
     /* buffer data, increment count of bytes */
@@ -193,7 +199,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
         /* if excess data, take most recent msg_in_size bytes */
         if (msg_in_cnt > msg_in.size) {
             memmove(msg_in.data, msg_in.data + (msg_in_cnt - msg_in.size),
-                msg_in_cnt - msg_in.size);
+                                                msg_in_cnt - msg_in.size);
             msg_in_cnt = msg_in.size;
         }
         /* verify checksum */
@@ -213,17 +219,17 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
             zs.opaque = Z_NULL;
             zs.avail_in = msg_in.size;
             zs.next_in = (Bytef *)msg_in.data;
-            zs.avail_out = sizeof(zbuffer);
+            zs.avail_out = sizeof(zbuffer) - 1; /* leave room for null termination */
             zs.next_out = (Bytef *)zbuffer;
             zret = inflateInit(&zs);
             if (zret == Z_OK) {
-                zret = inflate(&zs, Z_NO_FLUSH);
+                zret = inflate(&zs, Z_FINISH);
                 inflateEnd(&zs);
                 if (zret != Z_STREAM_END) {
                     snprintf(linebuf, sizeof(linebuf),
                         "ARQ: Message download failed, decompression error");
                     bufq_queue_debug_log(linebuf);
-                    snprintf(linebuf, sizeof(linebuf), "/ERROR Decompression failed");
+                    snprintf(linebuf, sizeof(linebuf), "/ERROR Message size exceeds limit");
                     arim_arq_send_remote(linebuf);
                     arim_on_event(EV_ARQ_MSG_ERROR, 0);
                     return 0;
@@ -237,10 +243,9 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
                 arim_on_event(EV_ARQ_MSG_ERROR, 0);
                 return 0;
             }
-            memcpy(msg_in.data, zbuffer, zs.total_out);
             msg_in.size = zs.total_out;
-            msg_in.data[msg_in.size] = '\0';
-            msg_in.check = ccitt_crc16((unsigned char *)msg_in.data, msg_in.size);
+            zbuffer[msg_in.size] = '\0'; /* restore terminating null */
+            msg_in.check = ccitt_crc16((unsigned char *)zbuffer, msg_in.size);
         }
         /* now store message to inbox */
         arim_copy_mycall(target_call, sizeof(target_call));
@@ -250,8 +255,11 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
         pthread_mutex_lock(&mutex_recents);
         cmdq_push(&g_recents_q, linebuf);
         pthread_mutex_unlock(&mutex_recents);
-        if (!mbox_add_msg(MBOX_INBOX_FNAME,
-                 remote_call, target_call, msg_in.check, msg_in.data)) {
+        if (!zoption)
+            zret = mbox_add_msg(MBOX_INBOX_FNAME, remote_call, target_call, msg_in.check, msg_in.data, 1);
+        else
+            zret = mbox_add_msg(MBOX_INBOX_FNAME, remote_call, target_call, msg_in.check, zbuffer, 1);
+        if (!zret) {
             snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Message download failed, could not open inbox");
             bufq_queue_debug_log(linebuf);
@@ -274,7 +282,7 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
 
 int arim_arq_msg_on_send_first(const char *remote_call, int max_msgs)
 {
-    char linebuf[MAX_LOG_LINE_SIZE], msgbuffer[MIN_MSG_BUF_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE], msgbuffer[MAX_UNCOMP_DATA_SIZE];
 
     next_msg = 0;
     if (max_msgs > MAX_MGET_HEADERS || max_msgs == 0)
@@ -285,7 +293,7 @@ int arim_arq_msg_on_send_first(const char *remote_call, int max_msgs)
     if (!num_msgs)
         return 0;
     if (mbox_get_msg(msgbuffer, sizeof(msgbuffer),
-                        MBOX_OUTBOX_FNAME, headers[next_msg])) {
+                        MBOX_OUTBOX_FNAME, headers[next_msg], 0)) {
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Sending message %d of %d, [%s]",
                 next_msg + 1, num_msgs, headers[next_msg]);
@@ -307,7 +315,7 @@ int arim_arq_msg_on_send_first(const char *remote_call, int max_msgs)
 
 int arim_arq_msg_on_send_next()
 {
-    char linebuf[MAX_LOG_LINE_SIZE], msgbuffer[MIN_MSG_BUF_SIZE];
+    char linebuf[MAX_LOG_LINE_SIZE], msgbuffer[MAX_UNCOMP_DATA_SIZE];
 
     /* send next message if available */
     if (next_msg < num_msgs) {
@@ -321,7 +329,7 @@ int arim_arq_msg_on_send_next()
         ++next_msg;
         if (next_msg < num_msgs) {
             if (mbox_get_msg(msgbuffer, sizeof(msgbuffer),
-                        MBOX_OUTBOX_FNAME, headers[next_msg])) {
+                        MBOX_OUTBOX_FNAME, headers[next_msg], 0)) {
                 snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Sending message %d of %d, [%s]", next_msg + 1, num_msgs, headers[next_msg]);
                 bufq_queue_debug_log(linebuf);
@@ -442,12 +450,12 @@ int arim_arq_msg_on_mput(char *cmd, size_t size, char *eol)
             msg_in.size = atoi(p_size);
             if (1 != sscanf(p_check, "%x", &msg_in.check))
                 msg_in.check = 0;
-            msg_in_cnt = 0;
             snprintf(linebuf, sizeof(linebuf),
                         "ARQ: Message download %s %zu %04X started",
                            msg_in.call , msg_in.size, msg_in.check);
             bufq_queue_debug_log(linebuf);
-            /* start progress meter */
+            /* initialize count and start progress meter */
+            msg_in_cnt = 0;
             ui_status_xfer_start(0, msg_in.size, STATUS_XFER_DIR_DOWN);
             /* cache any data remaining */
             if ((cmd + size) > eol) {
@@ -476,7 +484,7 @@ int arim_arq_msg_on_ok()
 {
     char linebuf[MAX_LOG_LINE_SIZE];
     z_stream zs;
-    char zbuffer[MIN_DATA_BUF_SIZE];
+    char zbuffer[MAX_UNCOMP_DATA_SIZE];
     int zret;
 
     if (zoption) {
@@ -489,28 +497,33 @@ int arim_arq_msg_on_ok()
         zs.next_out = (Bytef *)zbuffer;
         zret = inflateInit(&zs);
         if (zret == Z_OK) {
-            zret = inflate(&zs, Z_NO_FLUSH);
+            zret = inflate(&zs, Z_FINISH);
             inflateEnd(&zs);
             if (zret != Z_STREAM_END) {
                 snprintf(linebuf, sizeof(linebuf),
                     "ARQ: Unable to save sent message, decompression failed");
                 bufq_queue_debug_log(linebuf);
+                return 0;
             } else {
-                memcpy(msg_out.data, zbuffer, zs.total_out);
                 msg_out.size = zs.total_out;
-                msg_out.data[msg_out.size] = '\0';
-                msg_out.check = ccitt_crc16((unsigned char *)msg_out.data, msg_out.size);
-                arim_copy_mycall(linebuf, sizeof(linebuf));
-                /* store message to sent messages mailbox */
-                mbox_add_msg(MBOX_SENTBOX_FNAME,
-                    linebuf, msg_out.call, msg_out.check, msg_out.data);
+                zbuffer[msg_out.size] = '\0';
+                msg_out.check = ccitt_crc16((unsigned char *)zbuffer, msg_out.size);
             }
         } else {
             snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Unable to save sent message, decompression init error");
             bufq_queue_debug_log(linebuf);
+            return 0;
         }
     }
+    /* store message to sent messages mailbox */
+    arim_copy_mycall(linebuf, sizeof(linebuf));
+    if (!zoption)
+        mbox_add_msg(MBOX_SENTBOX_FNAME,
+            linebuf, msg_out.call, msg_out.check, msg_out.data, 0);
+    else
+        mbox_add_msg(MBOX_SENTBOX_FNAME,
+            linebuf, msg_out.call, msg_out.check, zbuffer, 0);
     return 1;
 }
 
@@ -598,16 +611,19 @@ int arim_arq_msg_on_client_mget(const char *cmd, const char *args, int use_zopti
     char *s, *e, argbuf[MAX_CMD_SIZE];
     size_t len;
 
-    snprintf(argbuf, sizeof(argbuf), "%s", args);
-    /* trim leading and trailing spaces */
+    argbuf[0] = '\0';
     s = argbuf;
-    while (*s && *s == ' ')
-        ++s;
-    len = strlen(argbuf);
-    e = &argbuf[len - 1];
-    while (e > s && *e == ' ') {
-        *e = '\0';
-        --e;
+    if (args) {
+        snprintf(argbuf, sizeof(argbuf), "%s", args);
+        /* trim leading and trailing spaces */
+        while (*s && *s == ' ')
+            ++s;
+        len = strlen(argbuf);
+        e = &argbuf[len - 1];
+        while (e > s && *e == ' ') {
+            *e = '\0';
+            --e;
+        }
     }
     arim_arq_auth_set_ha2_info("MGET", s);
     arim_arq_send_remote(cmd);

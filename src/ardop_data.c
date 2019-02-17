@@ -2,7 +2,7 @@
 
     gARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the gARIM messaging program.
 
@@ -81,7 +81,7 @@ void ardop_data_reset_num_bytes()
 
 void ardop_data_on_fec(char *data, size_t size)
 {
-    char inbuffer[MIN_MSG_BUF_SIZE];
+    char inbuffer[MIN_DATA_BUF_SIZE];
 
     snprintf(inbuffer, size + 8, ">> [U] %s", data);
     bufq_queue_data_in(inbuffer);
@@ -91,7 +91,7 @@ void ardop_data_on_fec(char *data, size_t size)
 
 void ardop_data_on_idf(char *data, size_t size)
 {
-    char *s, *e, inbuffer[MIN_MSG_BUF_SIZE];
+    char *s, *e, inbuffer[MIN_DATA_BUF_SIZE];
 
     snprintf(inbuffer, size + 8, ">> [I] %s", data);
     s = strstr(inbuffer, "ID:");
@@ -122,7 +122,7 @@ void ardop_data_on_idf(char *data, size_t size)
 
 void ardop_data_on_arq(char *data, size_t size)
 {
-    char *s, *e, inbuffer[MIN_MSG_BUF_SIZE], remote_call[TNC_MYCALL_SIZE];
+    char *s, *e, inbuffer[MIN_DATA_BUF_SIZE], remote_call[TNC_MYCALL_SIZE];
     int state;
 
     bufq_queue_debug_log("Data thread: received ARDOP ARQ frame from TNC");
@@ -191,7 +191,7 @@ void ardop_data_on_arq(char *data, size_t size)
 
 void ardop_data_on_err(char *data, size_t size)
 {
-    char *p, inbuffer[MIN_MSG_BUF_SIZE];
+    char *p, inbuffer[MIN_DATA_BUF_SIZE];
 
     snprintf(inbuffer, size + 8, ">> [E] %s", data);
     p = inbuffer;
@@ -206,13 +206,13 @@ void ardop_data_on_err(char *data, size_t size)
 //#define VIEW_DATA_IN
 size_t ardop_data_handle_data(unsigned char *data, size_t size)
 {
-    static unsigned char buffer[MIN_MSG_BUF_SIZE];
+    static unsigned char buffer[MIN_DATA_BUF_SIZE];
     static size_t cnt = 0;
     static int arim_frame_type = 0;
     int is_new_frame, is_arim_frame, datasize = 0;
 
 #ifdef VIEW_DATA_IN
-char buf[MIN_MSG_BUF_SIZE];
+char buf[MIN_DATA_BUF_SIZE];
 #endif
 
     if ((cnt + size) > sizeof(buffer)) {

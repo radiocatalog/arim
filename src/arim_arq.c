@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -38,6 +38,7 @@
 #include "arim_arq_msg.h"
 #include "arim_arq_auth.h"
 #include "ini.h"
+#include "datathread.h"
 #include "bufq.h"
 #include "ardop_data.h"
 #include "ui_recents.h"
@@ -46,13 +47,24 @@
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
+#include "tnc_attach.h"
+
+#define ONE_SECOND_TIMER    5 /* 200 msec intervals */
 
 static int arq_rpts, arq_cmd_size, is_outbound, arq_session_bw_any;
 static char cached_cmd[MAX_CMD_SIZE];
 static char cached_arq_bw[TNC_ARQ_BW_SIZE];
 static char arq_session_bw[TNC_ARQ_BW_SIZE];
 
-const char *arq_bw_next[] = {
+const char *arq_bw_next_v1[] = {
+    "200MAX,2000MAX",
+    "500MAX,200MAX",
+    "1000MAX,500MAX",
+    "2000MAX,1000MAX",
+    0,
+};
+
+const char *arq_bw_next_v2[] = {
     "200,2500",
     "500,200",
     "2500,500",
@@ -251,6 +263,7 @@ int arim_arq_on_disconnected()
     is_outbound = 0; /* reset outbound connection flag */
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset session authenticated status */
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
     return 1;
 }
 
@@ -280,6 +293,7 @@ int arim_arq_on_conn_timeout()
     is_outbound = 0; /* reset outbound connection flag */
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
     return 1;
 }
 
@@ -303,6 +317,7 @@ int arim_arq_on_conn_fail()
     is_outbound = 0; /* reset outbound connection flag */
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
     return 1;
 }
 
@@ -333,16 +348,20 @@ int arim_arq_on_conn_rej_busy()
 
 int arim_arq_bw_downshift()
 {
-    const char *p;
+    const char *p, **bw;
     size_t len, i = 0;
     int result;
 
     /* get the current arq bw */
     arim_copy_arq_bw(arq_session_bw, sizeof(arq_session_bw));
     len = strlen(arq_session_bw);
-    p = arq_bw_next[0];
+    if (g_tnc_version.major <= 1)
+        bw = arq_bw_next_v1;
+    else
+        bw = arq_bw_next_v2;
+    p = bw[0];
     while (p) {
-        result = strncasecmp(arq_bw_next[i], arq_session_bw, len);
+        result = strncasecmp(bw[i], arq_session_bw, len);
         if (!result && *(p + len) == ',') {
             p += (len + 1);
             snprintf(arq_session_bw, sizeof(arq_session_bw), "%s", p);
@@ -352,7 +371,7 @@ int arim_arq_bw_downshift()
             else
                 return 1;
         }
-        p = arq_bw_next[++i];
+        p = bw[++i];
     }
     return 0;
 }
@@ -443,6 +462,7 @@ int arim_arq_on_conn_cancel()
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */
     ui_status_xfer_end(); /* hide xfer progress meter */
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
     return 1;
 }
 
@@ -463,9 +483,10 @@ size_t arim_arq_send_remote(const char *msg)
 size_t arim_arq_on_cmd(const char *cmd, size_t size)
 {
     /* called by datathread via arim_arq_on_data() */
-    static char buffer[MIN_MSG_BUF_SIZE*4];
+    static char buffer[MAX_UNCOMP_DATA_SIZE];
     static size_t cnt = 0;
-    char *e, *eol, respbuf[MIN_MSG_BUF_SIZE], cmdbuf[MIN_MSG_BUF_SIZE];
+    static int line_timer = 0;
+    char *e, *eol, respbuf[MAX_UNCOMP_DATA_SIZE], cmdbuf[MIN_DATA_BUF_SIZE];
     char sendcr[TNC_ARQ_SENDCR_SIZE], linebuf[MAX_LOG_LINE_SIZE];
     int state, result, numch, send_cr = 0;
 
@@ -810,21 +831,13 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
                     }
                     strncat(&buffer[cnt], "/EAUTH", size);
                     cnt += size;
-                } else {
-                    /* no such query defined */
-                    size = strlen("/ERROR Unknown query");
-                    if ((cnt + size) >= sizeof(buffer)) {
-                        /* overflow, reset buffer and return */
-                        cnt = 0;
-                        return cnt;
-                    }
-                    strncat(&buffer[cnt], "/ERROR Unknown query", size);
-                    cnt += size;
                 }
-                break;
+                /* unknown queries are ignored in ARQ mode */
             }
         }
     } else if (cnt) {
+        if (line_timer && --line_timer > 0)
+            return cnt;
         /* send data out one line at a time */
         e = buffer;
         if (*e) {
@@ -842,6 +855,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             cnt -= (e - buffer);
             memmove(buffer, e, cnt + 1);
         }
+        line_timer = ONE_SECOND_TIMER; /* delay to prevent data queue overrun */
     }
     (void)numch; /* suppress 'assigned but not used' warning for dummy var */
     return cnt;
@@ -849,9 +863,9 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
 
 size_t arim_arq_on_resp(const char *resp, size_t size)
 {
-    static char buffer[MIN_MSG_BUF_SIZE*4];
+    static char buffer[MAX_UNCOMP_DATA_SIZE];
     static size_t cnt = 0;
-    char *e, linebuf[MIN_MSG_BUF_SIZE];
+    char *e, linebuf[MIN_DATA_BUF_SIZE];
     size_t i, len;
     int numch;
 
@@ -903,6 +917,12 @@ int arim_arq_on_data(char *data, size_t size)
     bufq_queue_heard(linebuf);
     /* pass to command or response handler */
     if (!arq_cmd_size && data[0] == '/') {
+        /* all commands start with an alpha character */
+        if (size > 1 && !isalpha(data[1])){
+            /* not a command (all commands start with alpha character) */
+            arim_arq_on_resp(data, size);
+            return 1;
+        }
         /* start of command; a complete command is newline terminated */
         s = data;
         e = data + size;

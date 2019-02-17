@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -35,6 +35,34 @@
 #include "ui_tnc_data_win.h"
 #include "util.h"
 #include "bufq.h"
+#include "datathread.h"
+
+size_t arim_msg_on_send_buffer(size_t size)
+{
+    static size_t prev_size, bytes_buffered, prev_bytes_buffered;
+    bytes_buffered = datathread_get_num_bytes_buffered();
+    if (size != prev_size && bytes_buffered >= size) {
+        /* update progress meter, handle case where BUFFER notication is lagging behind */
+        if (prev_bytes_buffered > size && bytes_buffered > prev_bytes_buffered && size < prev_size)
+            ui_status_xfer_update(prev_bytes_buffered - size);
+        else
+            ui_status_xfer_update(bytes_buffered - size);
+        prev_size = size;
+        prev_bytes_buffered = bytes_buffered;
+        return size;
+    }
+    return 1; /* keep alive until BUFFER count from TNC is > 0 */
+}
+
+int arim_store_msg_prev_out()
+{
+    return arim_store_out(prev_msg, prev_to_call);
+}
+
+int arim_store_msg_prev_sent()
+{
+    return arim_store_sent(prev_msg, prev_to_call);
+}
 
 int arim_send_msg(const char *msg, const char *to_call)
 {
@@ -70,11 +98,6 @@ int arim_send_msg(const char *msg, const char *to_call)
                     check,
                     msg);
     bufq_queue_data_out(msg_buffer);
-    /* prime buffer count because update from TNC not immediate */
-    pthread_mutex_lock(&mutex_tnc_set);
-    snprintf(g_tnc_settings[g_cur_tnc].buffer,
-        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
-    pthread_mutex_unlock(&mutex_tnc_set);
     if (arim_test_netcall(to_call)) {
         /* initialize arim_proto global */
         msg_len = len;
@@ -105,27 +128,6 @@ int arim_send_msg(const char *msg, const char *to_call)
     return 1;
 }
 
-size_t arim_msg_on_send_buffer(size_t size)
-{
-    static size_t last_size;
-    if (size != last_size) {
-        last_size = size;
-        /* update progress meter */
-        ui_status_xfer_update(msg_len - size);
-    }
-    return size;
-}
-
-int arim_store_msg_prev_out()
-{
-    return arim_store_out(prev_msg, prev_to_call);
-}
-
-int arim_store_msg_prev_sent()
-{
-    return arim_store_sent(prev_msg, prev_to_call);
-}
-
 int arim_send_msg_pp()
 {
     char mycall[TNC_MYCALL_SIZE], fecmode[TNC_FECMODE_SIZE];
@@ -150,11 +152,6 @@ int arim_send_msg_pp()
                      check,
                      prev_msg);
     bufq_queue_data_out(msg_buffer);
-    /* prime buffer count because update from TNC not immediate */
-    pthread_mutex_lock(&mutex_tnc_set);
-    snprintf(g_tnc_settings[g_cur_tnc].buffer,
-        sizeof(g_tnc_settings[g_cur_tnc].buffer), "%zu", len);
-    pthread_mutex_unlock(&mutex_tnc_set);
     /* set up for ACK wait and repeats */
     if (!strncasecmp(g_arim_settings.fecmode_downshift, "TRUE", 4))
         fecmode_downshift = 1;
@@ -197,7 +194,7 @@ int arim_recv_msg(const char *fm_call, const char *to_call,
             pthread_mutex_lock(&mutex_recents);
             cmdq_push(&g_recents_q, buffer);
             pthread_mutex_unlock(&mutex_recents);
-            mbox_add_msg(MBOX_INBOX_FNAME, fm_call, to_call, check, msg);
+            mbox_add_msg(MBOX_INBOX_FNAME, fm_call, to_call, check, msg, 1);
             if (is_netcall) {
                 snprintf(buffer, sizeof(buffer), "6[M] %-10s ", fm_call);
             } else
@@ -234,6 +231,7 @@ int arim_cancel_msg()
     snprintf(buffer, sizeof(buffer), ">> [X] (Message canceled by operator)");
     bufq_queue_traffic_log(buffer);
     bufq_queue_data_in(buffer);
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
     return 1;
 }
 

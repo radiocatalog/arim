@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -431,7 +431,8 @@ void ui_check_status_dirty()
         break;
     case STATUS_NET_MSG_SENT:
         ui_status_xfer_end(); /* end progress meter */
-        ui_print_status("ARIM Idle: done sending net message", 1);
+        ui_print_status("ARIM Idle: net message sent, saving to Sent Messages...", 1);
+        arim_store_msg_prev_sent();
         break;
     case STATUS_BEACON_SENT:
         ui_print_status("ARIM Idle: done sending beacon", 1);

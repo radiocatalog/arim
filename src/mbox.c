@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -138,7 +138,8 @@ int mbox_purge(const char *fn, int days)
     return 1;
 }
 
-int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call, int check, const char *msg)
+int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call,
+                 int check, const char *msg, int trace)
 {
     FILE *mboxfp;
     char timestamp[MAX_TIMESTAMP_SIZE];
@@ -150,12 +151,32 @@ int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call, int c
     mboxfp = fopen(fpath, "a");
     if (mboxfp != NULL) {
         flockfile(mboxfp);
-        fprintf(mboxfp, "From %-10s %s To %-10s %04X ---\nFrom: %s\nTo: %s\n\n",
+        fprintf(mboxfp, "From %-10s %s To %-10s %04X ---\nFrom: %s\nTo: %s\n",
                 fm_call, util_date_timestamp(timestamp, sizeof(timestamp)),
-                        to_call, check, fm_call, to_call);
+                    to_call, check, fm_call, to_call);
+        /* insert 'Received:' line in message if tracing is enabled */
+        if (trace && !strncasecmp(g_arim_settings.msg_trace_en, "TRUE", 4)) {
+            fprintf(mboxfp, "Received: from %s by %s; %s\n",
+                    fm_call, to_call, util_rcv_timestamp(timestamp, sizeof(timestamp)));
+        }
+        /* insert newline to terminate headers if this is first 'Received:' line in message */
+        if (msg && strncmp(msg, "Received:", 9))
+            fputc('\n', mboxfp);
         p = msg;
         prev = p;
-        fputc(*p++, mboxfp);
+        /* From line must be escaped by prefixing it with '>' char */
+        while (*p && *p == '>')
+            ++p;
+        if (*p == 'F' && (p + 1) < stop && *(p + 1) == 'r' &&
+                         (p + 2) < stop && *(p + 2) == 'o' &&
+                         (p + 3) < stop && *(p + 3) == 'm' &&
+                         (p + 4) < stop && *(p + 4) == ' ') {
+            fputc('>', mboxfp);
+            p = prev;
+        }
+        fputc(*p, mboxfp);
+        prev = p;
+        ++p;
         while (*p) {
             if (*prev == '\n') {
                 /* From line must be escaped by prefixing it with '>' char */
@@ -182,6 +203,73 @@ int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call, int c
     } else {
         return 0;
     }
+    return 1;
+}
+
+int mbox_set_flag(const char *fn, const char *hdr, int flag)
+{
+    FILE *mboxfp, *tempfp;
+    int fd;
+    char *p, linebuf[MAX_MSG_LINE_SIZE];
+    char fpath[MAX_PATH_SIZE*2], tempfn[MAX_PATH_SIZE*2];
+
+    snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
+    mboxfp = fopen(fpath, "r");
+    if (mboxfp == NULL)
+        return 0;
+    snprintf(tempfn, sizeof(tempfn), "%s/temp.mbox.XXXXXX", mbox_dir_path);
+    fd = mkstemp(tempfn);
+    if (fd == -1) {
+        fclose(mboxfp);
+        return 0;
+    }
+    tempfp = fdopen(fd, "r+");
+    if (tempfp == NULL) {
+        close(fd);
+        fclose(mboxfp);
+        return 0;
+    }
+    flockfile(mboxfp);
+    /* find matching header in file */
+    p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    while (p && strncmp(linebuf, hdr, strlen(hdr))) {
+        /* write into temp file */
+        fprintf(tempfp, "%s", linebuf);
+        p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    }
+    if (p) {
+        /* got it, set flag */
+        while (*p && *p != '\n')
+            ++p;
+        if (*p && *(p - 4) == ' ') {
+            switch(flag) {
+            case 'R':
+            case 'r':
+                *(p - 3) = 'R';
+                break;
+            case 'F':
+            case 'f':
+                *(p - 2) = 'F';
+                break;
+            case 'S':
+            case 's':
+                *(p - 1) = 'S';
+                break;
+            }
+        }
+        fprintf(tempfp, "%s", linebuf);
+    }
+    p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    while (p) {
+        /* write into temp file */
+        fprintf(tempfp, "%s", linebuf);
+        p = fgets(linebuf, sizeof(linebuf), mboxfp);
+    }
+    funlockfile(mboxfp);
+    fclose(mboxfp);
+    unlink(fpath);
+    fclose(tempfp);
+    rename(tempfn, fpath);
     msg_view_restart = 1;
     return 1;
 }
@@ -255,6 +343,7 @@ int mbox_clear_flag(const char *fn, const char *hdr, int flag)
     unlink(fpath);
     fclose(tempfp);
     rename(tempfn, fpath);
+    msg_view_restart = 1;
     return 1;
 }
 
@@ -367,7 +456,7 @@ int mbox_get_headers_to(char headers[][MAX_MBOX_HDR_SIZE],
 }
 
 int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
-                         const char *fn, const char *hdr)
+                         const char *fn, const char *hdr, int canonical_eol)
 {
     FILE *mboxfp;
     size_t len, cnt = 0;
@@ -385,18 +474,10 @@ int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
         p = fgets(linebuf, sizeof(linebuf), mboxfp);
     }
     if (p) {
-        /* got it, skip over headers */
+        /* got it, read message, discarding To: and From: header lines */
         do {
             p = fgets(linebuf, sizeof(linebuf), mboxfp);
-            if (p && *p == '\n') {
-                /* found blank line between headers and body, stop */
-                break;
-            }
-        } while (p);
-        /* now copy body of message into msg buffer */
-        do {
-            p = fgets(linebuf, sizeof(linebuf), mboxfp);
-            if (p) {
+            if (p && strncmp(p, "To:", 3) && strncmp(p, "From:", 5)) {
                 len = strlen(linebuf);
                 /* check for 'From ' char sequence escaped with '>' char(s) */
                 while (*p && *p == '>')
@@ -407,6 +488,12 @@ int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
                         strncat(msgbuffer, &linebuf[1], msgbufsize - cnt - 1);
                         cnt += len - 1;
                     }
+                    if (canonical_eol) /* convert CRLF line endings */
+                        if (cnt > 1 && msgbuffer[cnt - 2] == '\r' && msgbuffer[cnt - 1] == '\n') {
+                            msgbuffer[cnt - 2] = '\n';
+                            msgbuffer[cnt - 1] = '\0';
+                            --cnt;
+                        }
                 } else if (p && !strncmp(p, "From ", 5)) {
                     /* unescaped mbox header from next msg in file, stop */
                     break;
@@ -416,6 +503,12 @@ int mbox_get_msg(char *msgbuffer, size_t msgbufsize,
                         strncat(msgbuffer, linebuf, msgbufsize - cnt - 1);
                         cnt += len;
                     }
+                    if (canonical_eol) /* convert CRLF line endings */
+                        if (cnt > 1 && msgbuffer[cnt - 2] == '\r' && msgbuffer[cnt - 1] == '\n') {
+                            msgbuffer[cnt - 2] = '\n';
+                            msgbuffer[cnt - 1] = '\0';
+                            --cnt;
+                        }
                 }
             }
         } while (p);
@@ -568,7 +661,7 @@ int mbox_save_msg(const char *fn, const char *hdr, const char *savefn)
 }
 
 int mbox_read_msg(char *msgbuffer, size_t msgbufsize,
-                                    const char *fn, const char *hdr)
+                      const char *fn, const char *hdr)
 {
     FILE *mboxfp, *tempfp;
     size_t len, cnt = 0;
@@ -602,7 +695,7 @@ int mbox_read_msg(char *msgbuffer, size_t msgbufsize,
         p = fgets(linebuf, sizeof(linebuf), mboxfp);
     }
     if (p) {
-        /* got it, set flag and write header to temp file */
+        /* got it, set 'R' flag and print to file */
         while (*p && *p != '\n')
             ++p;
         if (*p && *(p - 4) == ' ')
@@ -713,8 +806,20 @@ int mbox_fwd_msg(char *msgbuffer, size_t msgbufsize, const char *fn, const char 
         do {
             p = fgets(linebuf, sizeof(linebuf), mboxfp);
             fprintf(tempfp, "%s", linebuf);
-            if (p && *p == '\n') {
+            /* Discard To: and From: headers which are implied */
+            if (p && strncmp(p, "To:", 3) && strncmp(p, "From:", 5)) {
+                len = strlen(linebuf);
+                if ((cnt + len - 1) < msgbufsize) {
+                    strncat(msgbuffer, linebuf, msgbufsize - cnt - 1);
+                    cnt += len - 1;
+                }
+            } else if (p && *p == '\n') {
                 /* found blank line between headers and body, stop */
+                len = strlen(linebuf);
+                if ((cnt + len - 1) < msgbufsize) {
+                    strncat(msgbuffer, linebuf, msgbufsize - cnt - 1);
+                    cnt += len - 1;
+                }
                 break;
             }
         } while (p);
@@ -803,10 +908,11 @@ int mbox_send_msg(char *msgbuffer, size_t msgbufsize,
         p = fgets(linebuf, sizeof(linebuf), mboxfp);
     }
     if (p) {
-        /* got it, read headers and extract to: address */
+        /* got it, read headers */
         do {
             p = fgets(linebuf, sizeof(linebuf), mboxfp);
             if (p && !strncmp(p, "To:", 3)) {
+                /* Copy, but discard, To: header which is implied */
                 s = p + 3;
                 while (*s == ' ')
                     ++s;
@@ -815,6 +921,13 @@ int mbox_send_msg(char *msgbuffer, size_t msgbufsize,
                     ++e;
                 *e = '\0';
                 snprintf(to_call, to_call_size, "%s", s);
+            } else if (p && strncmp(p, "From:", 5)) {
+                /* Discard From: header, which is implied, but include any others */
+                len = strlen(linebuf);
+                if ((cnt + len - 1) < msgbufsize) {
+                    strncat(msgbuffer, linebuf, msgbufsize - cnt - 1);
+                    cnt += len - 1;
+                }
             } else if (p && *p == '\n') {
                 /* found blank line between headers and body, stop */
                 break;

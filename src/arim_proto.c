@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -44,25 +44,54 @@
 #include "arim_proto_unproto.h"
 #include "arim_proto_frame.h"
 #include "arim_proto_arq_conn.h"
-#include "arim_proto_arq_files.h"
 #include "arim_proto_arq_msg.h"
+#include "arim_proto_arq_files.h"
 #include "arim_proto_arq_auth.h"
+#include "mbox.h"
+#include "tnc_attach.h"
+#include "datathread.h"
 
 pthread_mutex_t mutex_arim_state = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_send_repeats = PTHREAD_MUTEX_INITIALIZER;
 
 char msg_acknak_buffer[MAX_ACKNAK_SIZE];
-char msg_buffer[MIN_MSG_BUF_SIZE];
+char msg_buffer[MAX_UNCOMP_DATA_SIZE];
 
 size_t msg_len;
 time_t prev_time;
 char prev_fecmode[TNC_FECMODE_SIZE];
 char prev_to_call[TNC_MYCALL_SIZE];
-char prev_msg[MIN_MSG_BUF_SIZE];
+char prev_msg[MAX_UNCOMP_DATA_SIZE];
 int rcv_nak_cnt = 0, ack_timeout = 30, send_repeats = 0, fecmode_downshift = 0;
 static int arim_state = 0;
 
-const char *downshift[] = {
+const char *downshift_v1[] = {
+    /* 4FSK family */
+    "4FSK.200.50S,4FSK.200.50S",
+    "4FSK.500.100S,4FSK.200.50S",
+    "4FSK.500.100,4FSK.500.100S",
+    "4FSK.2000.600S,4FSK.500.100",
+    "4FSK.2000.600,4FSK.2000.600S",
+    /* 4PSK family */
+    "4PSK.200.100S,4FSK.200.50S",
+    "4PSK.200.100,4PSK.200.100S",
+    "4PSK.500.100,4PSK.200.100",
+    "4PSK.1000.100,4PSK.500.100",
+    "4PSK.2000.100,4PSK.1000.100",
+    /* 8PSK family */
+    "8PSK.200.100,4FSK.200.50S",
+    "8PSK.500.100,8PSK.200.100",
+    "8PSK.1000.100,8PSK.500.100",
+    "8PSK.2000.100,8PSK.1000.100",
+    /* 16QAM family */
+    "16QAM.200.100,4FSK.200.50S",
+    "16QAM.500.100,16QAM.200.100",
+    "16QAM.1000.100,16QAM.500.100",
+    "16QAM.2000.100,16QAM.1000.100",
+    0,
+};
+
+const char *downshift_v2[] = {
     "4PSK.200.50,4PSK.200.50",
     "4PSK.200.100,4PSK.200.50",
     "16QAM.200.100,4PSK.200.100",
@@ -188,6 +217,15 @@ const char *events[] = {
     "EV_ARQ_FLIST_SEND",                /* 61 */
     "EV_ARQ_FLIST_SEND_CMD",            /* 62 */
 };
+
+void arim_on_cancel()
+{
+    if (g_tnc_attached) {
+        arim_on_event(EV_CANCEL, 0);
+        arim_set_channel_not_busy(); /* force TNC not busy status */
+        datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
+    }
+}
 
 void arim_copy_mycall(char *call, size_t size)
 {
@@ -319,7 +357,7 @@ int arim_store_out(const char *msg, const char *to_call)
     unsigned int check;
 
     check = ccitt_crc16((unsigned char *)msg, strlen(msg));
-    return mbox_add_msg(MBOX_OUTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg);
+    return mbox_add_msg(MBOX_OUTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
 }
 
 int arim_store_sent(const char *msg, const char *to_call)
@@ -327,7 +365,7 @@ int arim_store_sent(const char *msg, const char *to_call)
     unsigned int check;
 
     check = ccitt_crc16((unsigned char *)msg, strlen(msg));
-    return mbox_add_msg(MBOX_SENTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg);
+    return mbox_add_msg(MBOX_SENTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
 }
 
 void arim_restore_prev_fecmode()
@@ -494,23 +532,28 @@ void arim_copy_fecmode(char *mode, size_t size)
 
 void arim_fecmode_downshift()
 {
-    const char *p;
+    const char *p, **modes;
     char temp[MAX_CMD_SIZE], fecmode[TNC_FECMODE_SIZE];
     size_t len, i = 0;
     int result;
 
     arim_copy_fecmode(fecmode, sizeof(fecmode));
     len = strlen(fecmode);
-    p = downshift[i];
+    /* test TNC version to determine which FEC mode table to use */
+    if (g_tnc_version.major <= 1)
+        modes = downshift_v1;
+    else
+        modes = downshift_v2;
+    p = modes[i];
     while (p) {
-        result = strncasecmp(downshift[i], fecmode, len);
+        result = strncasecmp(modes[i], fecmode, len);
         if (!result && *(p + len) == ',') {
             p += (len + 1);
             snprintf(temp, sizeof(temp), "FECMODE %s", p);
             bufq_queue_cmd_out(temp);
             break;
         }
-        p = downshift[++i];
+        p = modes[++i];
     }
 }
 
@@ -518,6 +561,7 @@ void arim_cancel_trans()
 {
     if (arim_get_buffer_cnt() > 0)
         bufq_queue_cmd_out("ABORT");
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
 }
 
 int arim_cancel_unproto()
@@ -529,6 +573,7 @@ int arim_cancel_unproto()
     snprintf(buffer, sizeof(buffer), ">> [X] (Unproto message canceled by operator)");
     bufq_queue_traffic_log(buffer);
     bufq_queue_data_in(buffer);
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
     return 1;
 }
 

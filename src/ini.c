@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016, 2017, 2018 Robert Cunnings NW8L
+    Copyright (C) 2016-2019 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -902,7 +902,7 @@ void ini_read_arim_set(FILE *inifp)
                 /* test directory */
                 dirp = opendir(g_arim_settings.files_dir);
                 if (!dirp) {
-                    if (errno == ENOENT && mkdir(g_arim_settings.files_dir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+                    if (errno == ENOENT && mkdir(g_arim_settings.files_dir, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) == -1)
                         return;
                 } else {
                     closedir(dirp);
@@ -988,6 +988,15 @@ void ini_read_arim_set(FILE *inifp)
                 if (g_print_config)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "max-file-size", g_arim_settings.max_file_size);
             }
+            else if ((v = ini_get_value("msg-trace-en", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_arim_settings.msg_trace_en, sizeof(g_arim_settings.msg_trace_en), "TRUE");
+                else
+                    snprintf(g_arim_settings.msg_trace_en, sizeof(g_arim_settings.msg_trace_en), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "msg-trace-en", g_arim_settings.msg_trace_en);
+            }
             else if ((v = ini_get_value("dynamic-file", p))) {
                 if (g_arim_settings.dyn_files_cnt < ARIM_DYN_FILES_MAX_CNT)
                     snprintf(g_arim_settings.dyn_files[g_arim_settings.dyn_files_cnt],
@@ -1022,6 +1031,7 @@ int ini_get_arim_set(const char *fn)
     snprintf(g_arim_settings.max_file_size, sizeof(g_arim_settings.max_file_size), DEFAULT_ARIM_FILES_MAX_SIZE);
     snprintf(g_arim_settings.max_msg_days, sizeof(g_arim_settings.max_msg_days), DEFAULT_ARIM_MSG_MAX_DAYS);
     snprintf(g_arim_settings.fecmode_downshift, sizeof(g_arim_settings.fecmode_downshift), DEFAULT_ARIM_FECMODE_DOWN);
+    snprintf(g_arim_settings.msg_trace_en, sizeof(g_arim_settings.msg_trace_en), DEFAULT_ARIM_MSG_TRACE_EN);
 
     inifp = fopen(fn, "r");
     if (inifp == NULL)
