@@ -268,6 +268,11 @@ int ui_create_get_line(char *msg_line, size_t max_len)
             curs_set(1);
             break;
         case '\n':
+            /* allow insertion of empty lines into message text */
+            if (!len) {
+                msg_line[len++] = '\n';
+                msg_line[len] = '\0';
+            }
             quit = 1;
             break;
         case 27:
@@ -423,7 +428,8 @@ int ui_create_msg(char *buffer, size_t bufsize, const char *to)
                 if (msglen + len < bufsize) {
                     strncat(buffer, msg_line, bufsize - msglen - 1);
                     msglen += len;
-                    strncat(buffer, "\n", bufsize - msglen - 1);
+                    if (msg_line[0] != '\n') /* don't double up terminator on empty lines */
+                        strncat(buffer, "\n", bufsize - msglen - 1);
                     ++msglen;
                 } else {
                     ui_print_status("New message: buffer full! Type '/ex' to end, '/can' to cancel", 1);

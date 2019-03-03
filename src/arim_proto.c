@@ -355,17 +355,21 @@ int arim_check(const char *msg, unsigned int cs_rcvd)
 int arim_store_out(const char *msg, const char *to_call)
 {
     unsigned int check;
+    char *hdr;
 
     check = ccitt_crc16((unsigned char *)msg, strlen(msg));
-    return mbox_add_msg(MBOX_OUTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
+    hdr =  mbox_add_msg(MBOX_OUTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
+    return hdr == NULL ? 0 : 1;
 }
 
 int arim_store_sent(const char *msg, const char *to_call)
 {
     unsigned int check;
+    char *hdr;
 
     check = ccitt_crc16((unsigned char *)msg, strlen(msg));
-    return mbox_add_msg(MBOX_SENTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
+    hdr = mbox_add_msg(MBOX_SENTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
+    return hdr == NULL ? 0 : 1;
 }
 
 void arim_restore_prev_fecmode()

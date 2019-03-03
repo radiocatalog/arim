@@ -162,7 +162,7 @@ size_t arim_arq_msg_on_send_buffer(size_t size)
 int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
 {
     char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE], linebuf[MAX_LOG_LINE_SIZE];
+    char *hdr, linebuf[MAX_LOG_LINE_SIZE];
     unsigned int check;
     z_stream zs;
     char zbuffer[MAX_UNCOMP_DATA_SIZE];
@@ -249,17 +249,11 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
         }
         /* now store message to inbox */
         arim_copy_mycall(target_call, sizeof(target_call));
-        snprintf(linebuf, sizeof(linebuf), "From %-10s %s To %-10s %04X",
-                remote_call, util_date_timestamp(timestamp,
-                        sizeof(timestamp)), target_call, msg_in.check);
-        pthread_mutex_lock(&mutex_recents);
-        cmdq_push(&g_recents_q, linebuf);
-        pthread_mutex_unlock(&mutex_recents);
         if (!zoption)
-            zret = mbox_add_msg(MBOX_INBOX_FNAME, remote_call, target_call, msg_in.check, msg_in.data, 1);
+            hdr = mbox_add_msg(MBOX_INBOX_FNAME, remote_call, target_call, msg_in.check, msg_in.data, 1);
         else
-            zret = mbox_add_msg(MBOX_INBOX_FNAME, remote_call, target_call, msg_in.check, zbuffer, 1);
-        if (!zret) {
+            hdr = mbox_add_msg(MBOX_INBOX_FNAME, remote_call, target_call, msg_in.check, zbuffer, 1);
+        if (hdr == NULL) {
             snprintf(linebuf, sizeof(linebuf),
                 "ARQ: Message download failed, could not open inbox");
             bufq_queue_debug_log(linebuf);
@@ -268,6 +262,10 @@ int arim_arq_msg_on_rcv_frame(const char *data, size_t size)
             arim_on_event(EV_ARQ_MSG_ERROR, 0);
             return 0;
         }
+        /* add message header to recents list */
+        pthread_mutex_lock(&mutex_recents);
+        cmdq_push(&g_recents_q, hdr);
+        pthread_mutex_unlock(&mutex_recents);
         snprintf(linebuf, sizeof(linebuf),
             "ARQ: Saved %s message %zu bytes, checksum %04X",
                zoption ? "compressed" : "uncompressed",  msg_in_cnt, check);

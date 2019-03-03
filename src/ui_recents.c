@@ -129,7 +129,7 @@ void ui_print_recents()
     if (p) {
         snprintf(recent, sizeof(recent), "%s", p);
         memmove(&recents_list[1], &recents_list[0], MAX_RECENTS_LIST_LEN*MAX_MBOX_HDR_SIZE);
-        numch = snprintf(recents_list[0], sizeof(recents_list[0]), "%s ---", recent);
+        numch = snprintf(recents_list[0], sizeof(recents_list[0]), "%s", recent);
         ++recents_list_cnt;
         if (recents_list_cnt > MAX_RECENTS_LIST_LEN)
             --recents_list_cnt;
@@ -198,7 +198,7 @@ int ui_set_recent_flag(const char *header, char flag)
 
     for (i = 0; i < recents_list_cnt; i++) {
         len = strlen(recents_list[i]);
-        if (len > 4 && !strncmp(header, recents_list[i], len)) {
+        if (!strncmp(header, recents_list[i], len)) {
             p = recents_list[i] + len;
             if (*(p - 4) == ' ') {
                 switch(flag) {

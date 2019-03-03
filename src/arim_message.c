@@ -177,8 +177,7 @@ int arim_send_msg_pp()
 int arim_recv_msg(const char *fm_call, const char *to_call,
                             unsigned int check, const char *msg)
 {
-    char buffer[MAX_CMD_SIZE], mycall[TNC_MYCALL_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE];
+    char *hdr, buffer[MAX_CMD_SIZE], mycall[TNC_MYCALL_SIZE];
     int is_netcall, is_mycall, result = 1;
 
     /* is this message directed to mycall or netcall? */
@@ -188,13 +187,13 @@ int arim_recv_msg(const char *fm_call, const char *to_call,
         /* verify good checksum */
         result = arim_check(msg, check);
         if (result) {
-            /* good checksum, store message into mbox */
-            snprintf(buffer, sizeof(buffer), "From %-10s %s To %-10s %04X",
-                    fm_call, util_date_timestamp(timestamp, sizeof(timestamp)), to_call, check);
-            pthread_mutex_lock(&mutex_recents);
-            cmdq_push(&g_recents_q, buffer);
-            pthread_mutex_unlock(&mutex_recents);
-            mbox_add_msg(MBOX_INBOX_FNAME, fm_call, to_call, check, msg, 1);
+            /* good checksum, store message into mbox, add to recents */
+            hdr = mbox_add_msg(MBOX_INBOX_FNAME, fm_call, to_call, check, msg, 1);
+            if (hdr != NULL) {
+                pthread_mutex_lock(&mutex_recents);
+                cmdq_push(&g_recents_q, hdr);
+                pthread_mutex_unlock(&mutex_recents);
+            }
             if (is_netcall) {
                 snprintf(buffer, sizeof(buffer), "6[M] %-10s ", fm_call);
             } else

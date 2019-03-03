@@ -2,6 +2,14 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 2.6
+-----------
+* Add size field to message listing lines. This is the number of
+  bytes in decimal format (before compression).
+* Fix bug preventing insertion of empty lines in text of messages
+  composed with the 'cm' command.
+* Update Help document.
+
 Version 2.5
 -----------
 * Add optional message tracing feature. This inserts headers like:

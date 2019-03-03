@@ -1,6 +1,14 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v2.6 02Mar2019
+--------------
+1. Add size field to message listing lines. This is the number of
+   bytes in decimal format (before compression).
+2. Fix bug preventing insertion of empty lines in text of messages
+   composed with the 'cm' command.
+3. Update Help document.
+
 v2.5 17Feb2019
 --------------
 1. Add optional message tracing feature. This inserts headers like:

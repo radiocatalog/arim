@@ -27,8 +27,8 @@
 #include "main.h"
 
 extern int mbox_init(void);
-extern int mbox_add_msg(const char *fn, const char *fm_call, const char *to_call,
-                            int check, const char *msg, int trace);
+extern char *mbox_add_msg(const char *fn, const char *fm_call, const char *to_call,
+                              int check, const char *msg, int trace);
 extern int mbox_delete_msg(const char *fn, const char *hdr);
 extern int mbox_save_msg(const char *fn, const char *hdr, const char *savefn);
 extern int mbox_set_flag(const char *fn, const char *hdr, int flag);
