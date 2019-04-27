@@ -49,6 +49,8 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */
@@ -80,6 +82,8 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_EAUTH_LOCAL);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_ARQ_FILE_ERROR:
         /* something went wrong */
@@ -87,6 +91,8 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_FILE_SEND_ERROR);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_ARQ_CANCEL_WAIT:
         /* wait canceled, return to connected state */
@@ -94,12 +100,16 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
         arim_set_state(ST_IDLE);
         arim_arq_on_disconnected();
         ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_TNC_NEWSTATE:
         arim_copy_tnc_state(buffer, sizeof(buffer));
@@ -108,6 +118,8 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
             arim_set_state(ST_IDLE);
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+            /* cancel file history view entry */
+            bufq_queue_ftable("X");
         } else {
             /* reload timer */
             ack_timeout = ARDOP_CONN_TIMEOUT;
@@ -124,6 +136,8 @@ void arim_proto_arq_file_send_wait_ok(int event, int param)
             prev_time = time(NULL);
             arim_set_state(ST_ARQ_CONNECTED);
             ui_set_status_dirty(STATUS_ARQ_FILE_SEND_TIMEOUT);
+            /* cancel file history view entry */
+            bufq_queue_ftable("X");
         }
         break;
     }
@@ -140,6 +154,8 @@ void arim_proto_arq_file_send_wait(int event, int param)
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */
@@ -154,12 +170,16 @@ void arim_proto_arq_file_send_wait(int event, int param)
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
         arim_set_state(ST_IDLE);
         arim_arq_on_disconnected();
         ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_TNC_NEWSTATE:
         arim_copy_tnc_state(buffer, sizeof(buffer));
@@ -168,6 +188,8 @@ void arim_proto_arq_file_send_wait(int event, int param)
             arim_set_state(ST_IDLE);
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+            /* cancel file history view entry */
+            bufq_queue_ftable("X");
         } else {
             /* reload timer */
             ack_timeout = ARDOP_CONN_TIMEOUT;
@@ -192,6 +214,8 @@ void arim_proto_arq_file_send_wait(int event, int param)
                 prev_time = time(NULL);
                 arim_set_state(ST_ARQ_CONNECTED);
                 ui_set_status_dirty(STATUS_ARQ_FILE_SEND_TIMEOUT);
+                /* cancel file history view entry */
+                bufq_queue_ftable("X");
             }
         }
         break;
@@ -209,6 +233,8 @@ void arim_proto_arq_file_send(int event, int param)
         arim_set_state(ST_IDLE);
         arim_arq_on_conn_cancel();
         ui_set_status_dirty(STATUS_ARQ_CONN_CAN);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_TNC_PTT:
         /* a PTT async response was received from the TNC */
@@ -223,6 +249,8 @@ void arim_proto_arq_file_send(int event, int param)
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_FILE_SEND_ACK);
+        /* add to file history view */
+        bufq_queue_ftable("D");
         break;
     case EV_ARQ_FILE_ERROR:
         /* something went wrong */
@@ -230,12 +258,16 @@ void arim_proto_arq_file_send(int event, int param)
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
         ui_set_status_dirty(STATUS_ARQ_FILE_SEND_ERROR);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_ARQ_DISCONNECTED:
         /* a DISCONNECTED async response was received from the TNC */
         arim_set_state(ST_IDLE);
         arim_arq_on_disconnected();
         ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+        /* cancel file history view entry */
+        bufq_queue_ftable("X");
         break;
     case EV_TNC_NEWSTATE:
         arim_copy_tnc_state(buffer, sizeof(buffer));
@@ -244,6 +276,8 @@ void arim_proto_arq_file_send(int event, int param)
             arim_set_state(ST_IDLE);
             arim_arq_on_disconnected();
             ui_set_status_dirty(STATUS_ARQ_DISCONNECTED);
+            /* cancel file history view entry */
+            bufq_queue_ftable("X");
         } else {
             /* reload timer */
             ack_timeout = ARDOP_CONN_TIMEOUT;
@@ -264,6 +298,8 @@ void arim_proto_arq_file_send(int event, int param)
                 prev_time = time(NULL);
                 arim_set_state(ST_ARQ_CONNECTED);
                 ui_set_status_dirty(STATUS_ARQ_FILE_SEND_TIMEOUT);
+                /* cancel file history view entry */
+                bufq_queue_ftable("X");
             }
         }
         break;

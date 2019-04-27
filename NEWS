@@ -2,6 +2,22 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 2.7
+-----------
+* Add "ARQ File History" tab. This reports inbound and outbound
+  ARQ file transfers. For example:
+    [ 1] >> KA8RYU      Apr 14 23:45:24 [00:00:05] -z    177 bytes B074 test.txt
+  Included are: direction (>> inbound, << outbound), remote station
+  call sign, timestamp, elapsed time, compression flag, size in
+  bytes, checksum and file name. The list can hold up to 64 entries,
+  after which the oldest entry is dropped when a new one is added.
+* Add new command "clrfile" which clears the ARQ File History tab.
+* Filter out all control characters except newlines when printing
+  FEC data to the traffic log.
+* When sending a beacon, automatically cancel the operation if the
+  TNC doesn't transmit the data within 90 seconds.
+* Update embedded Help and PDF Help document.
+
 Version 2.6
 -----------
 * Add size field to message listing lines. This is the number of

@@ -71,6 +71,7 @@ pthread_mutex_t mutex_traffic_log = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_recents = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_ptable = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_ctable = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_ftable = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_time = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_tnc_set = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_file_out = PTHREAD_MUTEX_INITIALIZER;

@@ -32,6 +32,7 @@
 #include "ui_recents.h"
 #include "ui_ping_hist.h"
 #include "ui_conn_hist.h"
+#include "ui_file_hist.h"
 
 WINDOW *tnc_cmd_win;
 WINDOW *tnc_cmd_box;
@@ -122,7 +123,7 @@ void ui_print_cmd_in()
         p = cmdq_pop(&g_cmd_in_q);
     }
     pthread_mutex_unlock(&mutex_cmd_in);
-    if (!show_recents && !show_ptable && !show_ctable) {
+    if (!show_recents && !show_ptable && !show_ctable && !show_ftable) {
         touchwin(tnc_cmd_box);
         wrefresh(tnc_cmd_box);
     }

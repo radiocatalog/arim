@@ -40,6 +40,7 @@ CMDQUEUE g_heard_q;
 CMDQUEUE g_recents_q;
 CMDQUEUE g_ptable_q;
 CMDQUEUE g_ctable_q;
+CMDQUEUE g_ftable_q;
 CMDQUEUE g_debug_log_q;
 CMDQUEUE g_tncpi9k6_log_q;
 FILEQUEUE g_file_out_q;
@@ -306,5 +307,12 @@ void bufq_queue_ctable(const char *text)
     pthread_mutex_lock(&mutex_ctable);
     cmdq_push(&g_ctable_q, text);
     pthread_mutex_unlock(&mutex_ctable);
+}
+
+void bufq_queue_ftable(const char *text)
+{
+    pthread_mutex_lock(&mutex_ftable);
+    cmdq_push(&g_ftable_q, text);
+    pthread_mutex_unlock(&mutex_ftable);
 }
 

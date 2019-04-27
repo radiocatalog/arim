@@ -44,6 +44,7 @@
 #include "ui_recents.h"
 #include "ui_ping_hist.h"
 #include "ui_conn_hist.h"
+#include "ui_file_hist.h"
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
@@ -207,7 +208,7 @@ int arim_arq_on_connected()
              is_outbound ? 'O' : 'I', remote_call, gridsq, arq_bw_hz);
     bufq_queue_ctable(buffer);
     /* close recents, ping or connection history view if open */
-    show_recents = show_ptable = show_ctable = 0;
+    show_recents = show_ptable = show_ctable = show_ftable = 0;
     ardop_data_reset_num_bytes(); /* reset ARQ data transfer byte counters */
     arq_cmd_size = 0; /* reset ARQ command size */
     arim_arq_auth_set_status(0); /* reset sesson authenticated status */

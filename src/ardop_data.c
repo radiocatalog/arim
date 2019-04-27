@@ -82,9 +82,15 @@ void ardop_data_reset_num_bytes()
 void ardop_data_on_fec(char *data, size_t size)
 {
     char inbuffer[MIN_DATA_BUF_SIZE];
+    size_t i, j;
 
     snprintf(inbuffer, size + 8, ">> [U] %s", data);
     bufq_queue_data_in(inbuffer);
+    /* for traffic log, replace unprintable chars (except newlines) with spaces */
+    for (i = 7, j = 0; j < size; i++, j++) {
+        if (!isprint(inbuffer[i]) && inbuffer[i] != '\n')
+            inbuffer[i] = ' ';
+    }
     bufq_queue_traffic_log(inbuffer);
     bufq_queue_debug_log("Data thread: received ARDOP FEC frame from TNC");
 }

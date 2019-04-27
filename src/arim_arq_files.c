@@ -705,7 +705,7 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
     FILE *fp;
     char fpath[MAX_PATH_SIZE], dpath[MAX_PATH_SIZE];
     char linebuf[MAX_LOG_LINE_SIZE], databuf[MIN_DATA_BUF_SIZE];
-    char filebuf[MAX_UNCOMP_DATA_SIZE+1];
+    char filebuf[MAX_UNCOMP_DATA_SIZE+1], remote_call[TNC_MYCALL_SIZE];
     size_t max, filesize;
     int numch, result;
     z_stream zs;
@@ -903,6 +903,14 @@ int arim_arq_files_send_file(const char *fn, const char *destdir, int is_local)
     /* initialize count and start progress meter */
     file_out_cnt = 0;
     ui_status_xfer_start(0, file_out.size, STATUS_XFER_DIR_UP);
+    /* initialize file history entry */
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    numch = snprintf(linebuf, MAX_FTABLE_ROW_SIZE,
+             "O%c%-12s%6zu%04X%s", zoption ? 'Z' : ' ',
+                 remote_call, file_out.size, file_out.check, fpath);
+    if (numch >= MAX_FTABLE_ROW_SIZE)
+        ui_truncate_line(linebuf, MAX_FTABLE_ROW_SIZE);
+    bufq_queue_ftable(linebuf);
     return 1;
 }
 
@@ -975,6 +983,7 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
     DIR *dirp;
     char fpath[MAX_PATH_SIZE*2], dpath[MAX_PATH_SIZE];
     char linebuf[MAX_LOG_LINE_SIZE], databuf[MIN_DATA_BUF_SIZE];
+    char remote_call[TNC_MYCALL_SIZE];
     int numch;
     unsigned int check;
     z_stream zs;
@@ -1139,6 +1148,14 @@ int arim_arq_files_on_rcv_frame(const char *data, size_t size)
                  "/OK %s %zu %04X saved", file_in.name, file_in_cnt, check);
         arim_arq_send_remote(databuf);
         arim_on_event(EV_ARQ_FILE_RCV_DONE, 0);
+        /* update file history list */
+        arim_copy_remote_call(remote_call, sizeof(remote_call));
+        numch = snprintf(linebuf, MAX_FTABLE_ROW_SIZE,
+                 "I%c%-12s%6zu%04X%s/%s", zoption ? 'Z' : ' ',
+                     remote_call, file_in.size, file_in.check, file_in.path, file_in.name);
+        if (numch >= MAX_FTABLE_ROW_SIZE)
+            ui_truncate_line(linebuf, MAX_FTABLE_ROW_SIZE);
+        bufq_queue_ftable(linebuf);
     }
     return 1;
 }
@@ -1382,6 +1399,8 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                         /* initialize count and start progress meter */
                         file_in_cnt = 0;
                         ui_status_xfer_start(0, file_in.size, STATUS_XFER_DIR_DOWN);
+                        /* start timer for file history list */
+                        bufq_queue_ftable("S");
                     }
                 } else {
                     /* file located in root shared file dir */
@@ -1397,6 +1416,8 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                     /* initialize count and start progress meter */
                     file_in_cnt = 0;
                     ui_status_xfer_start(0, file_in.size, STATUS_XFER_DIR_DOWN);
+                    /* start timer for file history list */
+                    bufq_queue_ftable("S");
                 }
             } else {
                 /* data arriving next if role is is 'client' */
@@ -1414,6 +1435,8 @@ int arim_arq_files_on_fput(char *cmd, size_t size, char *eol, int arq_cs_role)
                 if ((cmd + size) > eol) {
                     arim_arq_files_on_rcv_frame(eol, size - (eol - cmd));
                 }
+                /* start timer for file history list */
+                bufq_queue_ftable("S");
             }
         } else {
             numch = snprintf(linebuf, sizeof(linebuf),

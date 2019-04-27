@@ -32,6 +32,7 @@
 #include "ui_recents.h"
 #include "ui_ping_hist.h"
 #include "ui_conn_hist.h"
+#include "ui_file_hist.h"
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
@@ -302,6 +303,7 @@ const char *help[] = {
     "  'clrheard' to clear the Calls Heard view.",
     "  'clrping' to clear the Ping History view.",
     "  'clrconn' to clear the Connection History view.",
+    "  'clrfile' to clear the ARQ File History view.",
     "  'clrrec' to clear the Recent Messages view.",
     "",
     "UI theme control:",
@@ -514,7 +516,7 @@ void ui_show_help()
             break;
         case 'r':
         case 'R':
-            if (show_ptable)
+            if (show_ptable || show_ctable || show_ftable)
                 break;
             if (show_recents) {
                 show_recents = 0;
@@ -535,7 +537,7 @@ void ui_show_help()
             break;
         case 'p':
         case 'P':
-            if (show_recents)
+            if (show_recents || show_ctable || show_ftable)
                 break;
             if (show_ptable) {
                 show_ptable = 0;
@@ -554,6 +556,48 @@ void ui_show_help()
                 ui_print_status("Ping History view not available in ARQ session", 1);
             }
             break;
+        case 'c':
+        case 'C':
+            if (show_recents || show_ptable || show_ftable)
+                break;
+            if (show_ctable) {
+                show_ctable = 0;
+                ui_print_status("Showing TNC cmds, press 'c' to toggle", 1);
+                break;
+            }
+            temp = arim_get_state();
+            if (temp != ST_ARQ_CONNECTED &&
+                temp != ST_ARQ_IN_CONNECT_WAIT &&
+                temp != ST_ARQ_OUT_CONNECT_WAIT) {
+                if (!show_ctable) {
+                    show_ctable = 1;
+                    ui_print_status("Showing Connections, <SP> 'u' or 'd' to scroll, 'c' to toggle", 1);
+                }
+            } else {
+                ui_print_status("Connection History view not available in ARQ session", 1);
+            }
+            break;
+        case 'l':
+        case 'L':
+            if (show_recents || show_ptable || show_ctable)
+                break;
+            if (show_ftable) {
+                show_ftable = 0;
+                ui_print_status("Showing TNC cmds, press 'l' to toggle", 1);
+                break;
+            }
+            temp = arim_get_state();
+            if (temp != ST_ARQ_CONNECTED &&
+                temp != ST_ARQ_IN_CONNECT_WAIT &&
+                temp != ST_ARQ_OUT_CONNECT_WAIT) {
+                if (!show_ftable) {
+                    show_ftable = 1;
+                    ui_print_status("Showing ARQ File History, <SP> 'u' or 'd' to scroll, 'l' to toggle", 1);
+                }
+            } else {
+                ui_print_status("ARQ File History view not available in ARQ session", 1);
+            }
+            break;
         case 'd':
             if (show_ptable && ptable_list_cnt) {
                 ui_ptable_inc_start_line();
@@ -562,6 +606,10 @@ void ui_show_help()
             else if (show_ctable && ctable_list_cnt) {
                 ui_ctable_inc_start_line();
                 ui_refresh_ctable();
+            }
+            else if (show_ftable && ftable_list_cnt) {
+                ui_ftable_inc_start_line();
+                ui_refresh_ftable();
             }
             else if (show_recents && recents_list_cnt) {
                 ui_recents_inc_start_line();
@@ -576,6 +624,10 @@ void ui_show_help()
             else if (show_ctable && ctable_list_cnt) {
                 ui_ctable_dec_start_line();
                 ui_refresh_ctable();
+            }
+            else if (show_ftable && ftable_list_cnt) {
+                ui_ftable_dec_start_line();
+                ui_refresh_ftable();
             }
             else if (show_recents && recents_list_cnt) {
                 ui_recents_dec_start_line();
@@ -597,6 +649,7 @@ void ui_show_help()
             ui_print_recents();
             ui_print_ptable();
             ui_print_ctable();
+            ui_print_ftable();
             ui_print_heard_list();
             ui_check_status_dirty();
             break;

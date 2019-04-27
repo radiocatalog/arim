@@ -153,3 +153,14 @@ int arim_beacon_cancel()
     return 1;
 }
 
+int arim_beacon_timeout()
+{
+    char buffer[MAX_LOG_LINE_SIZE];
+
+    /* beacon send attempt timed out, print to monitor view and traffic log */
+    snprintf(buffer, sizeof(buffer), ">> [X] (Beacon send attempt timed out)");
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
+    return 1;
+}
+

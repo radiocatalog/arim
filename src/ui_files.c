@@ -45,6 +45,7 @@
 #include "ui_recents.h"
 #include "ui_ping_hist.h"
 #include "ui_conn_hist.h"
+#include "ui_file_hist.h"
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
 #include "ui_tnc_cmd_win.h"
@@ -527,6 +528,7 @@ int ui_files_get_line(char *cmd_line, size_t max_len)
             ui_print_recents();
             ui_print_ptable();
             ui_print_ctable();
+            ui_print_ftable();
             ui_print_heard_list();
             ui_check_status_dirty();
             wmove(prompt_win, prompt_row, prompt_col + cur);
@@ -990,7 +992,7 @@ restart:
             break;
         case 'r':
         case 'R':
-            if (show_ptable || show_ctable)
+            if (show_ptable || show_ctable || show_ftable)
                 break;
             if (!show_recents) {
                 show_recents = 1;
@@ -999,9 +1001,10 @@ restart:
                 show_recents = 0;
                 ui_print_status("Showing TNC cmds, press 'r' to toggle", 1);
             }
+            break;
         case 'p':
         case 'P':
-            if (show_recents || show_ctable)
+            if (show_recents || show_ctable || show_ftable)
                 break;
             if (!show_ptable) {
                 show_ptable = 1;
@@ -1013,7 +1016,7 @@ restart:
             break;
         case 'c':
         case 'C':
-            if (show_recents || show_ptable)
+            if (show_recents || show_ptable || show_ftable)
                 break;
             if (!show_ctable) {
                 show_ctable = 1;
@@ -1021,6 +1024,18 @@ restart:
             } else {
                 show_ctable = 0;
                 ui_print_status("Showing TNC cmds, press 'c' to toggle", 1);
+            }
+            break;
+        case 'l':
+        case 'L':
+            if (show_recents || show_ptable || show_ctable)
+                break;
+            if (!show_ftable) {
+                show_ftable = 1;
+                ui_print_status("Showing ARQ File History, <SP> 'u' or 'd' to scroll, 'l' to toggle", 1);
+            } else {
+                show_ftable = 0;
+                ui_print_status("Showing TNC cmds, press 'l' to toggle", 1);
             }
             break;
         case 'd':
@@ -1031,6 +1046,10 @@ restart:
             else if (show_ctable && ctable_list_cnt) {
                 ui_ctable_inc_start_line();
                 ui_refresh_ctable();
+            }
+            else if (show_ftable && ftable_list_cnt) {
+                ui_ftable_inc_start_line();
+                ui_refresh_ftable();
             }
             else if (show_recents && recents_list_cnt) {
                 ui_recents_inc_start_line();
@@ -1045,6 +1064,10 @@ restart:
             else if (show_ctable && ctable_list_cnt) {
                 ui_ctable_dec_start_line();
                 ui_refresh_ctable();
+            }
+            else if (show_ftable && ftable_list_cnt) {
+                ui_ftable_dec_start_line();
+                ui_refresh_ftable();
             }
             else if (show_recents && recents_list_cnt) {
                 ui_recents_dec_start_line();
@@ -1146,6 +1169,7 @@ restart:
             ui_print_recents();
             ui_print_ptable();
             ui_print_ctable();
+            ui_print_ftable();
             ui_print_heard_list();
             ui_check_status_dirty();
             break;

@@ -79,6 +79,7 @@ extern CMDQUEUE g_heard_q;
 extern CMDQUEUE g_recents_q;
 extern CMDQUEUE g_ptable_q;
 extern CMDQUEUE g_ctable_q;
+extern CMDQUEUE g_ftable_q;
 extern CMDQUEUE g_debug_log_q;
 extern CMDQUEUE g_tncpi9k6_log_q;
 extern FILEQUEUE g_file_out_q;
@@ -114,6 +115,7 @@ extern void bufq_queue_data_in(const char *text);
 extern void bufq_queue_data_out(const char *text);
 extern void bufq_queue_ptable(const char *text);
 extern void bufq_queue_ctable(const char *text);
+extern void bufq_queue_ftable(const char *text);
 
 #endif
 

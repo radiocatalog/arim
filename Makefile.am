@@ -79,6 +79,7 @@ arim_SOURCES = \
     src/ui_recents.c src/ui_recents.h \
     src/ui_ping_hist.c src/ui_ping_hist.h \
     src/ui_conn_hist.c src/ui_conn_hist.h \
+    src/ui_file_hist.c src/ui_file_hist.h \
     src/ui_heard_list.c src/ui_heard_list.h \
     src/ui_tnc_data_win.c src/ui_tnc_data_win.h \
     src/ui_tnc_cmd_win.c src/ui_tnc_cmd_win.h \

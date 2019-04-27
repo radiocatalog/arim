@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <ctype.h>
 #include "main.h"
 #include "arim_proto.h"
 #include "bufq.h"
@@ -281,7 +282,7 @@ void ui_print_data_in()
         snprintf(data_buf[data_buf_end], sizeof(data_buf[0]), "%s", p);
         p = data_buf[data_buf_end];
         while (*p) {
-            if (*p < ' ')
+            if (!isprint(*p)) /* replace unprintable chars with spaces */
                 *p = ' ';
             ++p;
         }

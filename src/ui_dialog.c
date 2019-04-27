@@ -32,6 +32,7 @@
 #include "ui_recents.h"
 #include "ui_ping_hist.h"
 #include "ui_conn_hist.h"
+#include "ui_file_hist.h"
 #include "ui_themes.h"
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
@@ -137,6 +138,7 @@ int ui_show_dialog(const char *prompt, char *wanted_keys)
                 ui_print_recents();
                 ui_print_ptable();
                 ui_print_ctable();
+                ui_print_ftable();
                 ui_print_heard_list();
                 ui_check_status_dirty();
             }

@@ -136,11 +136,11 @@ am_arim_OBJECTS = src/main.$(OBJEXT) src/arim.$(OBJEXT) \
 	src/ui.$(OBJEXT) src/ui_dialog.$(OBJEXT) \
 	src/ui_fec_menu.$(OBJEXT) src/ui_files.$(OBJEXT) \
 	src/ui_recents.$(OBJEXT) src/ui_ping_hist.$(OBJEXT) \
-	src/ui_conn_hist.$(OBJEXT) src/ui_heard_list.$(OBJEXT) \
-	src/ui_tnc_data_win.$(OBJEXT) src/ui_tnc_cmd_win.$(OBJEXT) \
-	src/ui_cmd_prompt_win.$(OBJEXT) src/ui_help_menu.$(OBJEXT) \
-	src/ui_msg.$(OBJEXT) src/ui_themes.$(OBJEXT) \
-	src/util.$(OBJEXT) src/auth.$(OBJEXT) \
+	src/ui_conn_hist.$(OBJEXT) src/ui_file_hist.$(OBJEXT) \
+	src/ui_heard_list.$(OBJEXT) src/ui_tnc_data_win.$(OBJEXT) \
+	src/ui_tnc_cmd_win.$(OBJEXT) src/ui_cmd_prompt_win.$(OBJEXT) \
+	src/ui_help_menu.$(OBJEXT) src/ui_msg.$(OBJEXT) \
+	src/ui_themes.$(OBJEXT) src/util.$(OBJEXT) src/auth.$(OBJEXT) \
 	src/blake2s-ref.$(OBJEXT)
 arim_OBJECTS = $(am_arim_OBJECTS)
 arim_LDADD = $(LDADD)
@@ -414,6 +414,7 @@ arim_SOURCES = \
     src/ui_recents.c src/ui_recents.h \
     src/ui_ping_hist.c src/ui_ping_hist.h \
     src/ui_conn_hist.c src/ui_conn_hist.h \
+    src/ui_file_hist.c src/ui_file_hist.h \
     src/ui_heard_list.c src/ui_heard_list.h \
     src/ui_tnc_data_win.c src/ui_tnc_data_win.h \
     src/ui_tnc_cmd_win.c src/ui_tnc_cmd_win.h \
@@ -640,6 +641,8 @@ src/ui_ping_hist.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/ui_conn_hist.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
+src/ui_file_hist.$(OBJEXT): src/$(am__dirstamp) \
+	src/$(DEPDIR)/$(am__dirstamp)
 src/ui_heard_list.$(OBJEXT): src/$(am__dirstamp) \
 	src/$(DEPDIR)/$(am__dirstamp)
 src/ui_tnc_data_win.$(OBJEXT): src/$(am__dirstamp) \
@@ -710,6 +713,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_conn_hist.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_dialog.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_fec_menu.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_file_hist.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_files.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_heard_list.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/$(DEPDIR)/ui_help_menu.Po@am__quote@

@@ -65,6 +65,8 @@ void arim_proto_idle(int event, int param)
         }
         break;
     case EV_SEND_BCN:
+        ack_timeout = ARDOP_BCN_SEND_TIMEOUT;
+        prev_time = time(NULL);
         arim_set_state(ST_SEND_BCN_BUF_WAIT);
         bufq_queue_cmd_out("LISTEN FALSE");
         break;

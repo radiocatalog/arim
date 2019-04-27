@@ -48,6 +48,7 @@
 #include "ui_recents.h"
 #include "ui_ping_hist.h"
 #include "ui_conn_hist.h"
+#include "ui_file_hist.h"
 #include "ui_heard_list.h"
 #include "ui_tnc_data_win.h"
 #include "util.h"
@@ -1031,6 +1032,9 @@ int cmdproc_cmd(const char *cmd)
         } else if (!strncasecmp(t, "clrconn", 7)) {
             ui_clear_ctable();
             ui_print_status("Connection History list cleared", 1);
+        } else if (!strncasecmp(t, "clrfile", 7)) {
+            ui_clear_ftable();
+            ui_print_status("ARQ File History list cleared", 1);
         } else if (!strncasecmp(t, "clrrec", 6)) {
             ui_clear_recents();
             ui_print_status("Recent Messages list cleared", 1);

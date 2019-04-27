@@ -38,6 +38,8 @@
 
 void arim_proto_beacon_buf_wait(int event, int param)
 {
+    time_t t;
+
     switch (event) {
     case EV_CANCEL:
         arim_cancel_trans();
@@ -50,6 +52,15 @@ void arim_proto_beacon_buf_wait(int event, int param)
         if (!arim_get_buffer_cnt()) {
             arim_set_state(ST_IDLE);
             ui_set_status_dirty(STATUS_BEACON_SENT);
+        } else {
+            t = time(NULL);
+            /* see if we timed out waiting for buffer to empty */
+            if (t > prev_time + ack_timeout) {
+                /* timeout, abandon attempt to send beacon */
+                arim_cancel_trans();
+                arim_set_state(ST_IDLE);
+                arim_beacon_timeout();
+            }
         }
         break;
     }
