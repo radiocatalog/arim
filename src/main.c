@@ -160,21 +160,18 @@ int main(int argc, char *argv[])
         printf("Error: cannot open .ini file\n");
         return 2;
     }
-    /* initialize logging */
-    if (!log_init()) {
-        printf("Error: cannot initialize log files\n");
-        return 3;
-    }
     /* initialize mailbox files */
     if (!mbox_init()) {
         printf("Error: cannot initialize mailbox files\n");
-        return 4;
+        return 3;
     }
     /* initialize password file */
     if (!auth_init()) {
         printf("Error: cannot initialize password file\n");
-        return 5;
+        return 4;
     }
+    /* initialize log directory */
+    snprintf(g_log_dir_path, MAX_DIR_PATH_SIZE, "%s/%s", g_arim_path, "log");
     /* create the timer thread */
     result = pthread_create(&timerthread, NULL, timerthread_func, NULL);
     if (result) {

@@ -460,8 +460,10 @@ int ini_check_ac_files_dir(const char *path)
 void ini_read_tnc_set(FILE *inifp, int which)
 {
     char linebuf[MAX_INI_LINE_SIZE];
-    char *p, *v;
-    int test;
+    char *p, *v, *home_path;
+    int test, numch;
+    size_t len;
+    DIR *dirp;
 
     /* populate with default values */
     memset(&g_tnc_settings[which], 0, sizeof(TNC_SET));
@@ -490,6 +492,12 @@ void ini_read_tnc_set(FILE *inifp, int which)
     snprintf(g_tnc_settings[which].interface, sizeof(g_tnc_settings[which].interface), DEFAULT_TNC_INTERFACE);
     snprintf(g_tnc_settings[which].serial_port, sizeof(g_tnc_settings[which].serial_port), DEFAULT_TNC_SERIAL_PORT);
     snprintf(g_tnc_settings[which].serial_baudrate, sizeof(g_tnc_settings[which].serial_baudrate), DEFAULT_TNC_SERIAL_BAUD);
+    snprintf(g_tnc_settings[which].debug_en, sizeof(g_tnc_settings[which].debug_en), DEFAULT_TNC_DEBUG_EN);
+    snprintf(g_tnc_settings[which].traffic_en, sizeof(g_tnc_settings[which].traffic_en),  DEFAULT_TNC_TRAFFIC_EN);
+    snprintf(g_tnc_settings[which].tncpi9k6_en, sizeof(g_tnc_settings[which].tncpi9k6_en),  DEFAULT_TNC_TNCPI9K6_EN);
+    home_path = getenv("HOME");
+    if (home_path)
+        numch = snprintf(g_tnc_settings[which].log_dir, sizeof(g_tnc_settings[which].log_dir), "%s", home_path);
 
     /* if program invoked with --print-conf switch, print section header */
     if (g_print_config)
@@ -710,10 +718,64 @@ void ini_read_tnc_set(FILE *inifp, int which)
                                 g_tnc_settings[which].tnc_init_cmds[g_tnc_settings[which].tnc_init_cmds_cnt]);
                 ++g_tnc_settings[which].tnc_init_cmds_cnt;
             }
+            else if ((v = ini_get_value("debug-log", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].debug_en, sizeof(g_tnc_settings[which].debug_en), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].debug_en, sizeof(g_tnc_settings[which].debug_en), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "debug-log", g_tnc_settings[which].debug_en);
+            }
+            else if ((v = ini_get_value("traffic-log", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].traffic_en, sizeof(g_tnc_settings[which].traffic_en), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].traffic_en, sizeof(g_tnc_settings[which].traffic_en), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "traffic-log", g_tnc_settings[which].traffic_en);
+            }
+            else if ((v = ini_get_value("tncpi9k6-log", p))) {
+                if (ini_validate_bool(v))
+                    snprintf(g_tnc_settings[which].tncpi9k6_en, sizeof(g_tnc_settings[which].tncpi9k6_en), "TRUE");
+                else
+                    snprintf(g_tnc_settings[which].tncpi9k6_en, sizeof(g_tnc_settings[which].tncpi9k6_en), "FALSE");
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "tncpi9k6-log", g_tnc_settings[which].tncpi9k6_en);
+            }
+            else if ((v = ini_get_value("log-dir", p))) {
+                /* may be absolute path; if not make it relative to the root directory */
+                if (v[0] == '/') {
+                    snprintf(g_tnc_settings[which].log_dir, sizeof(g_tnc_settings[which].log_dir), "%s", v);
+                } else {
+                    home_path = getenv("HOME");
+                    if (home_path) {
+                        numch = snprintf(g_tnc_settings[which].log_dir, sizeof(g_tnc_settings[which].log_dir), "%s/%s", home_path, v);
+                    }
+                }
+                /* trim trailing '/' if present */
+                len = strlen(g_tnc_settings[which].log_dir);
+                if (g_tnc_settings[which].log_dir[len - 1] == '/')
+                    g_tnc_settings[which].log_dir[len - 1] = '\0';
+                /* test directory */
+                dirp = opendir(g_tnc_settings[which].log_dir);
+                if (!dirp) {
+                    if (errno == ENOENT && mkdir(g_tnc_settings[which].log_dir, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) == -1)
+                        return;
+                } else {
+                    closedir(dirp);
+                }
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config)
+                    fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "log-dir", g_tnc_settings[which].log_dir);
+            }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);
     }
     g_num_tnc++;
+    (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
 int ini_get_tnc_set(const char *fn)
@@ -797,6 +859,7 @@ int ini_get_log_set(const char *fn)
     memset(&g_log_settings, 0, sizeof(LOG_SET));
     snprintf(g_log_settings.debug_en, sizeof(g_log_settings.debug_en), DEFAULT_LOG_DEBUG_EN);
     snprintf(g_log_settings.traffic_en, sizeof(g_log_settings.traffic_en),  DEFAULT_LOG_TRAFFIC_EN);
+    snprintf(g_log_settings.tncpi9k6_en, sizeof(g_log_settings.tncpi9k6_en),  DEFAULT_LOG_TNCPI9K6_EN);
 
     inifp = fopen(fn, "r");
     if (inifp == NULL)
@@ -1197,11 +1260,11 @@ int ini_read_settings()
         return 0;
     snprintf(g_arim_path, sizeof(g_arim_path), "%s", cwd_path);
 #endif
-    if (!g_config_clo)
+    if (!g_config_clo) /* config file name not specified on command line */
         numch = snprintf(g_config_fname, sizeof(g_config_fname), "%s/%s", g_arim_path, DEFAULT_INI_FNAME);
     if (access(g_config_fname, F_OK) != 0) {
 #ifndef PORTABLE_BIN
-        if (g_config_clo)  /* if default config file overridden on command line, fail */
+        if (g_config_clo)  /* if config file specified on command line, fail */
             return 0;
         if (errno == ENOENT) {
             inifp = fopen(g_config_fname, "w");

@@ -82,7 +82,7 @@
 #define DEFAULT_INI_FNAME      "arim.ini"
 #define DEFAULT_FILE_FNAME     "test.txt"
 #define DEFAULT_DOWNLOAD_DIR   "download"
-#define DEFAULT_PDF_HELP_FNAME "garim-help.pdf"
+#define DEFAULT_PDF_HELP_FNAME "arim-help.pdf"
 #define MBOX_INBOX_FNAME       "in.mbox"
 #define MBOX_OUTBOX_FNAME      "out.mbox"
 #define MBOX_SENTBOX_FNAME     "sent.mbox"

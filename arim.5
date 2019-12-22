@@ -1,5 +1,5 @@
 
-.TH "ARIM" 5 "2019-02-14" "ARIM Messaging Program" "arim"
+.TH "ARIM" 5 "2019-12-22" "ARIM Messaging Program" "arim"
 .SH NAME
 arim - related files
 .SH FILES
@@ -105,6 +105,18 @@ Controls whether or not the TNC will negotiate ARQ bandwidth for incoming connec
 .TP
 \fBarq-sendcr\fR
 Controls whether or not CRLF line endings are sent in ARQ mode, instead of Unix style LF endings. Set to TRUE to send CR, FALSE to send only LF. Default: TRUE.
+.TP
+\fBlog-dir\fR
+The directory where log files are located if TNC specific logging is enabled. This can be an absolute path or a relative path rooted in the user's home directory. Max length is 255 characters. Default: the user's home directory.
+.TP
+\fBdebug-log\fR
+Set to TRUE to enable debug logging for this TNC in the directory specified by the \fIlog-dir\fR parameter, FALSE to disable it. Default: FALSE.
+.TP
+\fBtraffic-log\fR
+Set to TRUE to enable traffic logging for this TNC in the directory specified by the \fIlog-dir\fR parameter, FALSE to disable it. Default: FALSE.
+.TP
+\fBtncpi9k6-log\fR
+Set to TRUE to enable TNC-Pi9K6 debug logging for this TNC in the directory specified by the \fIlog-dir\fR parameter, FALSE to disable it. Default: FALSE.
 .RE
 .TP
 \fB[arim]\fR This section holds settings for the ARIM messaging protocol.
@@ -170,23 +182,23 @@ The number of times a pilot ping will be repeated in the absence of a PINGACK re
 When pilot pings are enabled, this is the threshold by which signal reports from the target station are judged. If the reported constellation quality is above the threshold, the message (or query) send proceeds; if below this threshold it is cancelled. It is recommended that this value be 60 or higher; choose a threshold suitable for the FEC mode in use. Min is 50, Max is 100. Default: 60.
 .TP
 \fBmax-msg-days\fR
-The maximum age, in days, for messages to be kept in the inbox, outbox and sent messages mailbox. Messages that exceed this limit are automatically purged whenever gARIM is started. Set to 0 to disable the automatic message purge feature. Default: 0.
+The maximum age, in days, for messages to be kept in the inbox, outbox and sent messages mailbox. Messages that exceed this limit are automatically purged whenever ARIM is started. Set to 0 to disable the automatic message purge feature. Default: 0.
 .TP
 \fBmsg-trace-en\fR
 Set to TRUE to enable message tracing, FALSE to disable it. Default: FALSE. When enabled, headers like \fBReceived: from KA8RYU by NW8L; Jan 30 2019 05:01:48 UTC\fR are inserted into messages at the time of receipt. If the message is forwarded to another station with tracing enabled, another \fBReceived:\fR header is added by the receiving station, and so on. In this way a record of the message's progress through a network is built up as it is forwarded from station to station (read from bottom to top).
 .RE
 .TP
-\fB[log]\fR Logging settings appear in this section.
+\fB[log]\fR Default logging settings appear in this section.
 .RS
 .TP
 \fBdebug-log\fR
-Set to TRUE to enable debug logging, FALSE to disable it. Default: FALSE.
+Set to TRUE to enable debug logging in the default log directory, FALSE to disable it. Default: FALSE. May be overridden by the \fIdebug-log\fR setting in a [tnc] section.
 .TP
 \fBtraffic-log\fR
-Set to TRUE to enable traffic logging, FALSE to disable it. Default: TRUE.
+Set to TRUE to enable traffic logging in the default log directory, FALSE to disable it. Default: TRUE. May be overridden by the \fItraffic-log\fR setting in a [tnc] section.
 .TP
 \fBtncpi9k6-log\fR
-Set to TRUE to enable TNC-Pi9K6 debug logging, FALSE to disable it. Default: TRUE.
+Set to TRUE to enable TNC-Pi9K6 debug logging in the default log directory, FALSE to disable it. Default: TRUE. May be overridden by the \fItncpi9k6-log\fR setting in a [tnc] section.
 .RE
 .TP
 \fB[ui]\fR User interface settings appear in this section.

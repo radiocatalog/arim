@@ -52,6 +52,7 @@ const char *help[] = {
     "  Press 'r' to open the Recent Messages view.",
     "  Press 'p' to open the Ping History view.",
     "  Press 'c' to open the Connection History view.",
+    "  Press 'l' to open the ARQ File History view.",
     "  Press 'f' to open the FEC Control menu.",
     "  Press 't' to toggle timestamp format (Clock/Elapsed Time).",
     "  Press 'n' to clear the new message and file counters.",

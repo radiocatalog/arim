@@ -24,13 +24,14 @@
 #ifndef _LOG_H_INCLUDED_
 #define _LOG_H_INCLUDED_
 
-extern int log_init(void);
+extern int log_init(int which_tnc);
 extern void log_close(void);
 extern void log_on_alarm(void);
 
 extern int g_debug_log_enable;
 extern int g_tncpi9k6_log_enable;
 extern int g_traffic_log_enable;
+extern char g_log_dir_path[];
 extern char g_df_error_fn[];
 
 #endif

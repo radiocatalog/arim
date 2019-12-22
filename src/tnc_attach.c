@@ -1,10 +1,10 @@
 /***********************************************************************
 
-    gARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
+    ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
     Copyright (C) 2016-2019 Robert Cunnings NW8L
 
-    This file is part of the gARIM messaging program.
+    This file is part of the ARIM messaging program.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@
 #include "ui.h"
 #include "arim_beacon.h"
 #include "tnc_attach.h"
+#include "log.h"
 
 TNC_VERSION g_tnc_version;
 
@@ -223,17 +224,30 @@ int tnc_detach_serial()
 
 int tnc_attach(int which)
 {
+    int result;
+
+    /* initialize logging */
+    if (!log_init(which)) {
+        ui_print_status("Failed to initialize logging", 1);
+    }
     if (!strncasecmp(g_tnc_settings[which].interface, "serial", 6))
-        return tnc_attach_serial(which);
+        result = tnc_attach_serial(which);
     else
-        return tnc_attach_tcp(which);
+        result = tnc_attach_tcp(which);
+    if (!result)
+        log_close();
+    return result;
 }
 
 int tnc_detach()
 {
+    int result;
+
     if (!strncasecmp(g_tnc_settings[g_cur_tnc].interface, "serial", 6))
-        return tnc_detach_serial();
+        result = tnc_detach_serial();
     else
-        return tnc_detach_tcp();
+        result = tnc_detach_tcp();
+    log_close();
+    return result;
 }
 

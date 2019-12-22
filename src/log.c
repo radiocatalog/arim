@@ -44,12 +44,12 @@ static int time_elapsed = 0;
 static char traffic_fn[MAX_LOG_FN_SIZE];
 static char debug_fn[MAX_LOG_FN_SIZE];
 static char tncpi9k6_fn[MAX_LOG_FN_SIZE];
-static char log_dir_path[MAX_DIR_PATH_SIZE];
 static int prev_yday;
 
 int g_debug_log_enable;
 int g_tncpi9k6_log_enable;
 int g_traffic_log_enable;
+char g_log_dir_path[MAX_DIR_PATH_SIZE];
 
 void log_write_debug_log()
 {
@@ -134,14 +134,14 @@ void log_on_alarm()
         prev_yday = utc->tm_yday;
         /* new day, rotate logs */
         numch = snprintf(traffic_fn, sizeof(traffic_fn), "%s/traffic-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                         g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         numch = snprintf(debug_fn, sizeof(debug_fn), "%s/debug-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                         g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         numch = snprintf(tncpi9k6_fn, sizeof(tncpi9k6_fn), "%s/tncpi9k6-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                         g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         pthread_mutex_lock(&mutex_df_error_log);
         numch =snprintf(g_df_error_fn, sizeof(g_df_error_fn), "%s/dyn-file-error-%s.log",
-                        log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                        g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         pthread_mutex_unlock(&mutex_df_error_log);
     }
     /* called every 6 secs (1/10 minute granularity) */
@@ -158,7 +158,7 @@ void log_on_alarm()
     (void)numch; /* suppress 'assigned but not used' warning for dummy var */
 }
 
-int log_init()
+int log_init(int which_tnc)
 {
     FILE *fp;
     DIR *dirp;
@@ -168,18 +168,27 @@ int log_init()
     time_interval = (LOG_WRITE_INTERVAL_SEC / ALARM_INTERVAL_SEC);
     time_elapsed = time_interval;
 
-    snprintf(log_dir_path, sizeof(log_dir_path), "%s/%s", g_arim_path, "log");
-    dirp = opendir(log_dir_path);
+    /* set up log directory, tnc settings override global settings if enabled */
+    if (!strncasecmp(g_tnc_settings[which_tnc].traffic_en, "TRUE", 4) ||
+        !strncasecmp(g_tnc_settings[which_tnc].debug_en, "TRUE", 4)   ||
+        !strncasecmp(g_tnc_settings[which_tnc].tncpi9k6_en, "TRUE", 4)) {
+            snprintf(g_log_dir_path, sizeof(g_log_dir_path), "%s", g_tnc_settings[which_tnc].log_dir);
+    } else {
+        snprintf(g_log_dir_path, sizeof(g_log_dir_path), "%s/%s", g_arim_path, "log");
+    }
+    dirp = opendir(g_log_dir_path);
     if (!dirp) {
-        if (errno == ENOENT && mkdir(log_dir_path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) == -1)
+        if (errno == ENOENT && mkdir(g_log_dir_path, S_IRWXU|S_IRWXG|S_IROTH|S_IXOTH) == -1)
             return 0;
     } else {
         closedir(dirp);
     }
-    if (!strncasecmp(g_log_settings.traffic_en, "TRUE", 4)) {
+    /* set up traffic log if enabled, tnc settings override global settings */
+    if (!strncasecmp(g_tnc_settings[which_tnc].traffic_en, "TRUE", 4) ||
+            !strncasecmp(g_log_settings.traffic_en, "TRUE", 4)) {
         g_traffic_log_enable = 1;
         numch = snprintf(traffic_fn, sizeof(traffic_fn), "%s/traffic-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                         g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         fp = fopen(traffic_fn, "a");
         if (fp == NULL) {
             g_traffic_log_enable = 0;
@@ -187,14 +196,16 @@ int log_init()
         } else {
             fprintf(fp, "\n[%s] %s\n",
                     util_timestamp(timestamp, sizeof(timestamp)),
-                        "--- Program start, initializing log ---");
+                        "--- Session start, initializing log ---");
             fclose(fp);
         }
     }
-    if (!strncasecmp(g_log_settings.debug_en, "TRUE", 4)) {
+    /* set up debug log if enabled, tnc settings override global settings */
+    if (!strncasecmp(g_tnc_settings[which_tnc].debug_en, "TRUE", 4) ||
+            !strncasecmp(g_log_settings.debug_en, "TRUE", 4)) {
         g_debug_log_enable = 1;
         numch = snprintf(debug_fn, sizeof(debug_fn), "%s/debug-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                         g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         fp = fopen(debug_fn, "a");
         if (fp == NULL) {
             g_debug_log_enable = 0;
@@ -202,14 +213,16 @@ int log_init()
         } else {
             fprintf(fp, "\n[%s] %s\n",
                     util_timestamp_usec(timestamp, sizeof(timestamp)),
-                        "--- Program start, initializing log ---");
+                        "--- Session start, initializing log ---");
             fclose(fp);
         }
     }
-    if (!strncasecmp(g_log_settings.tncpi9k6_en, "TRUE", 4)) {
+    /* set up tncpi9k6 log if enabled, tnc settings override global settings */
+    if (!strncasecmp(g_tnc_settings[which_tnc].tncpi9k6_en, "TRUE", 4) ||
+            !strncasecmp(g_log_settings.tncpi9k6_en, "TRUE", 4)) {
         g_tncpi9k6_log_enable = 1;
         numch = snprintf(tncpi9k6_fn, sizeof(tncpi9k6_fn), "%s/tncpi9k6-%s.log",
-                         log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                         g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
         fp = fopen(tncpi9k6_fn, "a");
         if (fp == NULL) {
             g_tncpi9k6_log_enable = 0;
@@ -217,19 +230,19 @@ int log_init()
         } else {
             fprintf(fp, "\n[%s] %s\n",
                     util_timestamp_usec(timestamp, sizeof(timestamp)),
-                        "--- Program start, initializing log ---");
+                        "--- Session start, initializing log ---");
             fclose(fp);
         }
     }
     numch = snprintf(g_df_error_fn, sizeof(g_df_error_fn), "%s/dyn-file-error-%s.log",
-                     log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
+                     g_log_dir_path, util_datestamp(datestamp, sizeof(datestamp)));
     fp = fopen(g_df_error_fn, "a");
     if (fp == NULL) {
         return 0;
     } else {
         fprintf(fp, "\n[%s] %s\n",
                 util_timestamp_usec(timestamp, sizeof(timestamp)),
-                    "--- Program start, initializing log ---");
+                    "--- Session start, initializing log ---");
         fclose(fp);
     }
     (void)numch; /* suppress 'assigned but not used' warning for dummy var */

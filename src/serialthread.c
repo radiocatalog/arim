@@ -1,10 +1,10 @@
 /***********************************************************************
 
-    gARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
+    ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
     Copyright (C) 2016-2019 Robert Cunnings NW8L
 
-    This file is part of the gARIM messaging program.
+    This file is part of the ARIM messaging program.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -585,7 +585,7 @@ int serialthread_handle_log_trace(char *resp, int size)
        ignore the timestamp. The local timestamp will
        be inserted when the trace is written to the log.
        This makes it easy to compare the TNC-PI9K6 and
-       gARIM logs when troubleshooting.
+       ARIM logs when troubleshooting.
     */
     snprintf(linebuf, sizeof(linebuf), "[%c] ", resp[7]);
     size = size - 10; /* drop trailing ctrl chars */

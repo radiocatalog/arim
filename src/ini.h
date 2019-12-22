@@ -59,6 +59,9 @@
 #define TNC_INTERFACE_SIZE       12
 #define TNC_SERIAL_PORT_SIZE     64
 #define TNC_SERIAL_BAUD_SIZE     16
+#define TNC_DEBUG_EN_SIZE        8
+#define TNC_TRAFFIC_EN_SIZE      8
+#define TNC_TNCPI9K6_EN_SIZE     8
 
 #define TNC_MAX_COUNT            10
 #define TNC_NETCALL_MAX_CNT      8
@@ -88,6 +91,9 @@
 #define DEFAULT_TNC_INTERFACE    "TCP"
 #define DEFAULT_TNC_SERIAL_PORT  "/dev/serial0"
 #define DEFAULT_TNC_SERIAL_BAUD  "115200"
+#define DEFAULT_TNC_DEBUG_EN     "FALSE"
+#define DEFAULT_TNC_TRAFFIC_EN   "FALSE"
+#define DEFAULT_TNC_TNCPI9K6_EN  "FALSE"
 
 #define MAX_TNC_GRIDSQ_STRLEN    8
 #define MAX_TNC_NETCALL_STRLEN   10
@@ -140,6 +146,10 @@ typedef struct tnc_set {
     char interface[TNC_INTERFACE_SIZE];
     char serial_port[TNC_SERIAL_PORT_SIZE];
     char serial_baudrate[TNC_SERIAL_BAUD_SIZE];
+    char log_dir[MAX_DIR_PATH_SIZE];
+    char debug_en[TNC_DEBUG_EN_SIZE];
+    char traffic_en[TNC_TRAFFIC_EN_SIZE];
+    char tncpi9k6_en[TNC_TNCPI9K6_EN_SIZE];
     char tnc_init_cmds[TNC_INIT_CMDS_MAX_CNT][TNC_INIT_CMD_SIZE];
     int tnc_init_cmds_cnt;
 } TNC_SET;

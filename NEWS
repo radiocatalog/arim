@@ -2,6 +2,41 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 2.8
+-----------
+* Allow specification of [tnc] specific log file directories in
+  the arim.ini file. This permits the logging output of different
+  TNCs to be directed into separate locations outside the default log
+  directory. Use this feature when running multiple instances of
+  ARIM concurrently so logging output from the TNCs isn't intermixed
+  in the default log files. The following new parameters can be used
+  in a [tnc] section:
+  -- 'log-dir' is used to specify the directory. The value may be
+     either a relative or absolute path. If a relative path is given
+     it is made relative the the user's home directory. Examples:
+       /var/log/nw8l/tnc1-logs (absolute)
+       tnc2-logs (relative, full path is /home/nw8l/tnc2-logs)
+     If the directory doesn't exist it will be created. Be careful
+     specifying absolute paths; the user invoking arim must have
+     permissions to create and write to files in that directory.
+  -- 'traffic-log' is set to TRUE to enable traffic logging in the
+     directory specified by the 'log-dir' parameter. Set to FALSE to
+     disable logging. Default: FALSE.
+  -- 'debug-log' is set to TRUE  enable debug logging in the directory
+     specified by the 'log-dir' parameter. Set to FALSE to disable
+     logging. Default: FALSE.
+  -- 'tncpi9k6-log' is set to TRUE to enable TNC-Pi9K6 debug logging
+     in the directory specified by the 'log-dir' parameter. Set to
+     FALSE to disable logging. Default: FALSE.
+  If one or more of 'traffic-log', 'debug-log' or 'tncpi9k6-log' are
+  set to TRUE, then logging output for this TNC is directed to the
+  directory specified by 'log-dir'. If 'traffic-log', 'debug-log'
+  and 'tncpi9k6-log' are all absent or all set to FALSE, then the
+  global settings in the [log] section are used, and logging output
+  is directed to the default log directory.
+  Thanks to Kevin, K3TL for suggesting this.
+* Update arim(5) man page and Help document.
+
 Version 2.7
 -----------
 * Add "ARQ File History" tab. This reports inbound and outbound
@@ -59,7 +94,7 @@ Version 2.5
   when initiating ARQ connections from the command prompt.
 * Messages sent to net addresses are now stored in the Sent Messages
   mailbox if successfully transmitted.
-* Update garim(5) man page and Help document.
+* Update arim(5) man page and Help document.
 
 Version 2.4
 -----------
