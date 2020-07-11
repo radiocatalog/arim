@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -229,9 +229,13 @@ void arim_on_cancel()
 
 void arim_copy_mycall(char *call, size_t size)
 {
-    pthread_mutex_lock(&mutex_tnc_set);
-    snprintf(call, size, "%s", g_tnc_settings[g_cur_tnc].mycall);
-    pthread_mutex_unlock(&mutex_tnc_set);
+    if (g_tnc_attached) {
+        pthread_mutex_lock(&mutex_tnc_set);
+        snprintf(call, size, "%s", g_tnc_settings[g_cur_tnc].mycall);
+        pthread_mutex_unlock(&mutex_tnc_set);
+    } else {
+        snprintf(call, size, "%s", g_arim_settings.mycall);
+    }
 }
 
 void arim_copy_gridsq(char *gridsq, size_t size)
@@ -358,7 +362,10 @@ int arim_store_out(const char *msg, const char *to_call)
     char *hdr;
 
     check = ccitt_crc16((unsigned char *)msg, strlen(msg));
-    hdr =  mbox_add_msg(MBOX_OUTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
+    if (g_tnc_attached)
+        hdr =  mbox_add_msg(MBOX_OUTBOX_FNAME, g_tnc_settings[g_cur_tnc].mycall, to_call, check, msg, 0);
+    else
+        hdr =  mbox_add_msg(MBOX_OUTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
     return hdr == NULL ? 0 : 1;
 }
 
@@ -368,7 +375,10 @@ int arim_store_sent(const char *msg, const char *to_call)
     char *hdr;
 
     check = ccitt_crc16((unsigned char *)msg, strlen(msg));
-    hdr = mbox_add_msg(MBOX_SENTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
+    if (g_tnc_attached)
+        hdr =  mbox_add_msg(MBOX_SENTBOX_FNAME, g_tnc_settings[g_cur_tnc].mycall, to_call, check, msg, 0);
+    else
+        hdr =  mbox_add_msg(MBOX_SENTBOX_FNAME, g_arim_settings.mycall, to_call, check, msg, 0);
     return hdr == NULL ? 0 : 1;
 }
 

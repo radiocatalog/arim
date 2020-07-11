@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -51,7 +51,7 @@ void tnc_get_version(const char *str)
     else
         g_tnc_version.vendor = 'W';
     p = verstr;
-    while (!isdigit(*p))
+    while (!isdigit((int)*p))
         ++p;
     /* at start of version number */
     for (i = 0; *p && i < 3; i++) {
@@ -248,6 +248,7 @@ int tnc_detach()
     else
         result = tnc_detach_tcp();
     log_close();
+    ui_set_tnc_detached();
     return result;
 }
 

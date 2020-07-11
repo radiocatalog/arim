@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -226,8 +226,9 @@ int arim_arq_send_disconn_req()
         arim_copy_mycall(target_call, sizeof(target_call));
     arim_copy_remote_call(remote_call, sizeof(remote_call));
     snprintf(buffer, sizeof(buffer),
-                "%s<%s (Disconnect request)", remote_call, target_call);
-    bufq_queue_data_out(buffer);
+                "<< [@] %s<%s (Disconnect request)", remote_call, target_call);
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
     bufq_queue_cmd_out("DISCONNECT");
     return 1;
 }
@@ -708,7 +709,7 @@ size_t arim_arq_on_cmd(const char *cmd, size_t size)
             /* remote station requests that we send an /A1 authentication challenge */
             if (state == ST_ARQ_CONNECTED)
                 arim_arq_auth_on_challenge(cmdbuf, size, eol);
-         } else if (!strncasecmp(cmdbuf, "/MLIST", 6)) {
+        } else if (!strncasecmp(cmdbuf, "/MLIST", 6)) {
             /* remote station requests message list */
             switch (state) {
             case ST_ARQ_AUTH_RCV_A4_WAIT:
@@ -893,7 +894,7 @@ size_t arim_arq_on_resp(const char *resp, size_t size)
         ++e;
         len = strlen(buffer);
         for (i = 0; i < len; i++) {
-            if (!isprint(buffer[i]))
+            if (!isprint((int)buffer[i]))
                 buffer[i] = ' ';
         }
         numch = snprintf(linebuf, sizeof(linebuf), ">> [@] %s", buffer);
@@ -919,7 +920,7 @@ int arim_arq_on_data(char *data, size_t size)
     /* pass to command or response handler */
     if (!arq_cmd_size && data[0] == '/') {
         /* all commands start with an alpha character */
-        if (size > 1 && !isalpha(data[1])){
+        if (size > 1 && !isalpha((int)data[1])){
             /* not a command (all commands start with alpha character) */
             arim_arq_on_resp(data, size);
             return 1;

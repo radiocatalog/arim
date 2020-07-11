@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -90,7 +90,7 @@ int arim_test_frame(const char *data, size_t size)
     if (size >= 4 && data[0] == '|' &&
         (data[1] == 'M' || data[1] == 'Q' || data[1] == 'R' ||
          data[1] == 'B' || data[1] == 'A' || data[1] == 'N') &&
-        (isdigit(data[2]) && isdigit(data[3]) && atoi(&data[2]) ==
+        (isdigit((int)data[2]) && isdigit((int)data[3]) && atoi(&data[2]) ==
         ARIM_PROTO_VERSION) && data[4] == '|') {
         return data[1];
     }
@@ -172,7 +172,7 @@ bufq_queue_debug_log("Parser: failed type");
 bufq_queue_debug_log("Parser: entering version");
 #endif
             s = c;
-            if (remaining >= 2 && isdigit(*c++) && isdigit(*c++)) {
+            if (remaining >= 2 && isdigit((int)*c++) && isdigit((int)*c++)) {
                 version = atoi(s);
                 remaining -= 2;
                 hdr_size += 2;
@@ -283,8 +283,8 @@ bufq_queue_debug_log("Parser: failed to_call");
 bufq_queue_debug_log("Parser: entering size");
 #endif
             s = c;
-            if (remaining >= 4 && isxdigit(*c++) && isxdigit(*c++) &&
-                                  isxdigit(*c++) && isxdigit(*c++)) {
+            if (remaining >= 4 && isxdigit((int)*c++) && isxdigit((int)*c++) &&
+                                  isxdigit((int)*c++) && isxdigit((int)*c++)) {
                 numbuf[0] = s[0];
                 numbuf[1] = s[1];
                 numbuf[2] = s[2];
@@ -400,8 +400,8 @@ bufq_queue_debug_log("Parser: failed pipe_5");
 bufq_queue_debug_log("Parser: entering check");
 #endif
             s = c;
-            if (remaining >= 4 && isxdigit(*c++) && isxdigit(*c++) &&
-                                  isxdigit(*c++) && isxdigit(*c++)) {
+            if (remaining >= 4 && isxdigit((int)*c++) && isxdigit((int)*c++) &&
+                                  isxdigit((int)*c++) && isxdigit((int)*c++)) {
                 numbuf[0] = s[0];
                 numbuf[1] = s[1];
                 numbuf[2] = s[2];

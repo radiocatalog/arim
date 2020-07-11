@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -142,7 +142,7 @@ int ini_validate_ipaddr(const char *addr)
             if (len == 0)
                 return 0;
             ++len;
-        } else if (isalnum(*p)) {
+        } else if (isalnum((int)*p)) {
             ++len;
         } else {
             return 0;
@@ -165,7 +165,7 @@ int ini_validate_mycall(const char *call)
         return 0;
 
     p = call;
-    while (*p && isalnum(*p))
+    while (*p && isalnum((int)*p))
         ++p;
     if (*p == '-') {
         /* encountered SSID */
@@ -204,7 +204,7 @@ int ini_validate_netcall(const char *call)
         return 0;
 
     p = call;
-    while (*p && *p != ' ' && isprint(*p))
+    while (*p && *p != ' ' && isprint((int)*p))
         ++p;
     if (*p)
         return 0;
@@ -221,7 +221,7 @@ int ini_validate_name(const char *name)
         return 0;
 
     p = name;
-    while (*p && isprint(*p))
+    while (*p && isprint((int)*p))
         ++p;
     if (*p)
         return 0;
@@ -274,7 +274,7 @@ int ini_validate_gridsq(const char *gridsq)
         return 0;
     if ((gridsq[1] < 'A' || gridsq[1] > 'R') && (gridsq[1] < 'a' || gridsq[1] > 'r'))
         return 0;
-    if (!isdigit(gridsq[2]) || !isdigit(gridsq[3]))
+    if (!isdigit((int)gridsq[2]) || !isdigit((int)gridsq[3]))
         return 0;
     if (len > 4) {
         if ((gridsq[4] < 'A' || gridsq[4] > 'X') && (gridsq[4] < 'a' || gridsq[4] > 'x'))
@@ -282,7 +282,7 @@ int ini_validate_gridsq(const char *gridsq)
         if ((gridsq[5] < 'A' || gridsq[5] > 'X') && (gridsq[5] < 'a' || gridsq[5] > 'x'))
             return 0;
         if (len > 6) {
-            if (!isdigit(gridsq[6]) || !isdigit(gridsq[7]))
+            if (!isdigit((int)gridsq[6]) || !isdigit((int)gridsq[7]))
                 return 0;
         }
     }

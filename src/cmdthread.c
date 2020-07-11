@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -36,6 +36,7 @@
 #include "bufq.h"
 #include "ini.h"
 #include "ardop_cmds.h"
+#include "tnc_attach.h"
 
 void cmdthread_next_cmd_out(int sock)
 {
@@ -108,8 +109,14 @@ void *cmdthread_func(void *data)
         default:
             if (FD_ISSET(cmdsock, &cmdreadfds)) {
                 rsize = read(cmdsock, buffer, sizeof(buffer) - 1);
-                if (rsize != -1)
+                if (rsize == 0) {
+                    bufq_queue_debug_log("Cmd thread: Socket closed by TNC");
+                    tnc_detach(); /* close TCP connection to TNC */
+                } else if (rsize == -1) {
+                    bufq_queue_debug_log("Cmd thread: Socket read error (-1)");
+                } else {
                     ardop_cmds_proc_resp(buffer, rsize);
+                }
             }
             if (FD_ISSET(cmdsock, &cmderrorfds)) {
                 bufq_queue_debug_log("Cmd thread: Socket select error (FD_ISSET)");

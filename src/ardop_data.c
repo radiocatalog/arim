@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -88,7 +88,7 @@ void ardop_data_on_fec(char *data, size_t size)
     bufq_queue_data_in(inbuffer);
     /* for traffic log, replace unprintable chars (except newlines) with spaces */
     for (i = 7, j = 0; j < size; i++, j++) {
-        if (!isprint(inbuffer[i]) && inbuffer[i] != '\n')
+        if (!isprint((int)inbuffer[i]) && inbuffer[i] != '\n')
             inbuffer[i] = ' ';
     }
     bufq_queue_traffic_log(inbuffer);
@@ -103,7 +103,7 @@ void ardop_data_on_idf(char *data, size_t size)
     s = strstr(inbuffer, "ID:");
     if (s) {
         e = s;
-        while (isprint(*e))
+        while (isprint((int)*e))
             ++e;
         *e = '\0';
         bufq_queue_data_in(inbuffer);
@@ -132,24 +132,17 @@ void ardop_data_on_arq(char *data, size_t size)
     int state;
 
     bufq_queue_debug_log("Data thread: received ARDOP ARQ frame from TNC");
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", remote_call);
     state = arim_get_state();
     switch(state) {
     case ST_ARQ_FLIST_RCV:
-        arim_copy_remote_call(remote_call, sizeof(remote_call));
-        snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", remote_call);
-        bufq_queue_heard(inbuffer);
         arim_arq_files_flist_on_rcv_frame(data, size);
         break;
     case ST_ARQ_FILE_RCV:
-        arim_copy_remote_call(remote_call, sizeof(remote_call));
-        snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", remote_call);
-        bufq_queue_heard(inbuffer);
         arim_arq_files_on_rcv_frame(data, size);
         break;
     case ST_ARQ_MSG_RCV:
-        arim_copy_remote_call(remote_call, sizeof(remote_call));
-        snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", remote_call);
-        bufq_queue_heard(inbuffer);
         arim_arq_msg_on_rcv_frame(data, size);
         break;
     case ST_ARQ_CONNECTED:
@@ -172,11 +165,13 @@ void ardop_data_on_arq(char *data, size_t size)
         arim_arq_on_data(data, size);
         break;
     default:
+        /* special case, call sign is embedded in data,
+           remove leading ':' character if present */
         snprintf(inbuffer, size + 8, ">> [@] %s", data);
         s = strstr(inbuffer, ":");
         if (s) {
             e = s;
-            while (isprint(*e))
+            while (isprint((int)*e))
                 ++e;
             *e = '\0';
             bufq_queue_data_in(inbuffer);
@@ -189,10 +184,10 @@ void ardop_data_on_arq(char *data, size_t size)
                 ++e;
             *e = '\0';
             snprintf(inbuffer, sizeof(inbuffer), "9[@] %-10s ", s);
-            bufq_queue_heard(inbuffer);
         }
         break;
     }
+    bufq_queue_heard(inbuffer);
 }
 
 void ardop_data_on_err(char *data, size_t size)
@@ -201,7 +196,7 @@ void ardop_data_on_err(char *data, size_t size)
 
     snprintf(inbuffer, size + 8, ">> [E] %s", data);
     p = inbuffer;
-    while (isprint(*p))
+    while (isprint((int)*p))
         ++p;
     *p = '\0';
     bufq_queue_data_in(inbuffer);

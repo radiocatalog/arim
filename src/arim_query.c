@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -198,6 +198,7 @@ size_t arim_on_send_response_buffer(size_t size)
             ui_status_xfer_update(bytes_buffered - size);
         prev_size = size;
         prev_bytes_buffered = bytes_buffered;
+        bufq_queue_cmd_out("FECSEND TRUE"); /* seems necessary for ARDOP_Win */
         return size;
     }
     return 1; /* keep alive until BUFFER count from TNC is > 0 */

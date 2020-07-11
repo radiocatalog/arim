@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -121,19 +121,20 @@ int arim_arq_msg_on_send_msg()
 size_t arim_arq_msg_on_send_buffer(size_t size)
 {
     static int prev_size = -1, prev_msg_out_cnt = 0;
-    static size_t prev_msg_out_buffered;
     char linebuf[MAX_LOG_LINE_SIZE];
-    size_t msg_out_buffered = datathread_get_num_bytes_buffered();
+    size_t msg_out_buffered;
 
-    if (!send_done && prev_size != size && msg_out_buffered >= size) {
-        /* handle case where BUFFER notication is lagging behind */
-        if (prev_msg_out_buffered > size &&
-                msg_out_buffered > prev_msg_out_buffered && size < prev_size)
-            msg_out_cnt = prev_msg_out_buffered - size;
-        else
+    if (!send_done) {
+        if (prev_size == -1 && size == 0)
+            return 1; /* wait for nonzero buffer count (size) */
+        if (prev_size == size)
+            return 1; /* ignore repeated BUFFER count */
+        msg_out_buffered = datathread_get_num_bytes_buffered();
+        if (msg_out_buffered >= size)
             msg_out_cnt = msg_out_buffered - size;
+        else
+            return 1; /* must be non-negative number of bytes */
         prev_size = size;
-        prev_msg_out_buffered = msg_out_buffered;
         if (msg_out_cnt == 0 || msg_out_cnt == prev_msg_out_cnt)
             return 1; /* don't double-print upload status lines */
         prev_msg_out_cnt = msg_out_cnt;
@@ -152,7 +153,6 @@ size_t arim_arq_msg_on_send_buffer(size_t size)
             send_done = 1;
             prev_size = -1;
             prev_msg_out_cnt = 0;
-            prev_msg_out_buffered = 0;
             return 0;
         }
     }

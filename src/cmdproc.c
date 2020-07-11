@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -582,9 +582,7 @@ int cmdproc_cmd(const char *cmd)
                 ui_print_status("Invalid TNC number", 1);
             }
         } else if (!strncasecmp(t, "det", 3) && g_tnc_attached) {
-            ui_print_status("Detaching from TNC...", 1);
             tnc_detach();
-            ui_set_title_dirty(TITLE_TNC_DETACHED);
         } else if (!strncasecmp(t, "listen", 4)) {
             if (g_tnc_attached) {
                 t = strtok(NULL, " \t");
@@ -1053,20 +1051,23 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
     size_t i, len, cnt;
     int result;
 
-    respbuf[0] = '\0';
+    if (respbuf)
+        respbuf[0] = '\0';
+    else
+        return CMDPROC_FAIL;
     snprintf(buffer, sizeof(buffer), "%s", cmd);
     t = strtok(buffer, " \t");
-    if (respbuf && !strncasecmp(t, "version", 4)) {
+    if (!strncasecmp(t, "version", 4)) {
         pthread_mutex_lock(&mutex_tnc_set);
         snprintf(respbuf, respbufsize, "VERSION: ARIM " ARIM_VERSION ", %s\n",
                     g_tnc_settings[g_cur_tnc].version);
         pthread_mutex_unlock(&mutex_tnc_set);
-    } else if (respbuf && !strncasecmp(t, "pname", 4)) {
+    } else if (!strncasecmp(t, "pname", 4)) {
         pthread_mutex_lock(&mutex_tnc_set);
         snprintf(respbuf, respbufsize, "PNAME: %s\n",
                     g_tnc_settings[g_cur_tnc].name);
         pthread_mutex_unlock(&mutex_tnc_set);
-    } else if (respbuf && !strncasecmp(t, "info", 4)) {
+    } else if (!strncasecmp(t, "info", 4)) {
         pthread_mutex_lock(&mutex_tnc_set);
         snprintf(respbuf, respbufsize, "INFO: %s\n",
             g_tnc_settings[g_cur_tnc].info);
@@ -1080,14 +1081,14 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
             }
             ++t;
         }
-    } else if (respbuf && !strncasecmp(t, "gridsq", 4)) {
+    } else if (!strncasecmp(t, "gridsq", 4)) {
         pthread_mutex_lock(&mutex_tnc_set);
         snprintf(respbuf, respbufsize, "GRIDSQ: %s\n",
                     g_tnc_settings[g_cur_tnc].gridsq);
         pthread_mutex_unlock(&mutex_tnc_set);
-    } else if (respbuf && !strncasecmp(t, "heard", 4)) {
+    } else if (!strncasecmp(t, "heard", 4)) {
         ui_get_heard_list(respbuf, respbufsize);
-    } else if (respbuf && !strncasecmp(t, "flist", 4)) {
+    } else if (!strncasecmp(t, "flist", 4)) {
         t = strtok(NULL, "\0");
         if (t) {
             /* trim leading and trailing spaces */
@@ -1139,7 +1140,7 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
             result = ui_get_file_list(g_arim_settings.files_dir, t, respbuf, respbufsize);
             return (result ? CMDPROC_OK : CMDPROC_DIR_ERR);
         }
-    } else if (respbuf && !strncasecmp(t, "file", 4)) {
+    } else if (!strncasecmp(t, "file", 4)) {
         t = strtok(NULL, "\0");
         if (t) {
             /* trim leading and trailing spaces */
@@ -1217,7 +1218,7 @@ int cmdproc_query(const char *cmd, char *respbuf, size_t respbufsize)
                 snprintf(respbuf, respbufsize, "Error: empty file name.\n");
             return CMDPROC_FILE_ERR;
         }
-    } else if (respbuf && !strncasecmp(t, "netcalls", 4)) {
+    } else if (!strncasecmp(t, "netcalls", 4)) {
         snprintf(respbuf, respbufsize, "NETCALLS:\n");
         len = strlen(respbuf);
         pthread_mutex_lock(&mutex_tnc_set);

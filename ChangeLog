@@ -1,6 +1,20 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v2.9 10Jul2020
+--------------
+1. Refine logic used to calculate the number of bytes sent during a
+   message or file upload in ARQ mode.
+2. Adjust timing to speed up the response to a received /A3 command
+   during the mutual authentication process.
+3. In ARQ mode, update timestamp in Heard List whenever data is
+   received from the remote station.
+4. Immediately detach from the ARDOP TNC on detecting that it has
+   closed the TCP connection (e.g. on program exit).
+5. Force the 'to' call sign to uppercase when saving a message to a
+   mailbox or sending a message to the remote station.
+6. Update arim(5) man page and Help document.
+
 v2.8 22Dec2019
 --------------
 1. Allow specification of [tnc] specific log file directories in

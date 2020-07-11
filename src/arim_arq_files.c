@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -196,20 +196,21 @@ int arim_arq_files_flist_on_send_cmd()
 size_t arim_arq_files_flist_on_send_buffer(size_t size)
 {
     static int prev_size = -1, prev_file_out_cnt = 0;
-    static size_t prev_file_out_buffered = 0;
     char linebuf[MAX_LOG_LINE_SIZE];
     int numch;
-    size_t file_out_buffered = datathread_get_num_bytes_buffered();
+    size_t file_out_buffered;
 
-    if (!send_done && prev_size != size && file_out_buffered >= size) {
-        /* handle case where BUFFER notication is lagging behind */
-        if (prev_file_out_buffered > size &&
-                file_out_buffered > prev_file_out_buffered && size < prev_size)
-            file_out_cnt = prev_file_out_buffered - size;
-        else
+    if (!send_done) {
+        if (prev_size == -1 && size == 0)
+            return 1; /* wait for nonzero buffer count (size) */
+        if (prev_size == size)
+            return 1; /* ignore repeated BUFFER count */
+        file_out_buffered = datathread_get_num_bytes_buffered();
+        if (file_out_buffered >= size)
             file_out_cnt = file_out_buffered - size;
+        else
+            return 1; /* must be non-negative number of bytes */
         prev_size = size;
-        prev_file_out_buffered = file_out_buffered;
         if (file_out_cnt == 0 || file_out_cnt == prev_file_out_cnt)
             return 1; /* don't double-print upload status lines */
         prev_file_out_cnt = file_out_cnt;
@@ -237,7 +238,6 @@ size_t arim_arq_files_flist_on_send_buffer(size_t size)
             send_done = 1;
             prev_size = -1;
             prev_file_out_cnt = 0;
-            prev_file_out_buffered = 0;
             return 0;
         }
     }
@@ -934,20 +934,21 @@ int arim_arq_files_on_send_cmd()
 size_t arim_arq_files_on_send_buffer(size_t size)
 {
     static int prev_size = -1, prev_file_out_cnt = 0;
-    static size_t prev_file_out_buffered = 0;
     char linebuf[MAX_LOG_LINE_SIZE];
     int numch;
-    size_t file_out_buffered = datathread_get_num_bytes_buffered();
+    size_t file_out_buffered;
 
-    if (!send_done && prev_size != size && file_out_buffered >= size) {
-        /* handle case where BUFFER notication is lagging behind */
-        if (prev_file_out_buffered > size &&
-                file_out_buffered > prev_file_out_buffered && size < prev_size)
-            file_out_cnt = prev_file_out_buffered - size;
-        else
+    if (!send_done) {
+        if (prev_size == -1 && size == 0)
+            return 1; /* wait for nonzero BUFFER count (size) */
+        if (prev_size == size)
+            return 1; /* ignore repeated BUFFER count */
+        file_out_buffered = datathread_get_num_bytes_buffered();
+        if (file_out_buffered >= size)
             file_out_cnt = file_out_buffered - size;
+        else
+            return 1; /* must be non-negative number of bytes */
         prev_size = size;
-        prev_file_out_buffered = file_out_buffered;
         if (file_out_cnt == 0 || file_out_cnt == prev_file_out_cnt)
             return 1; /* don't double-print upload status lines */
         prev_file_out_cnt = file_out_cnt;
@@ -970,7 +971,6 @@ size_t arim_arq_files_on_send_buffer(size_t size)
             send_done = 1;
             prev_size = -1;
             prev_file_out_cnt = 0;
-            prev_file_out_buffered = 0;
             return 0;
         }
     }

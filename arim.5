@@ -1,5 +1,5 @@
 
-.TH "ARIM" 5 "2019-12-22" "ARIM Messaging Program" "arim"
+.TH "ARIM" 5 "2020-07-04" "ARIM Messaging Program" "arim"
 .SH NAME
 arim - related files
 .SH FILES
@@ -123,7 +123,7 @@ Set to TRUE to enable TNC-Pi9K6 debug logging for this TNC in the directory spec
 .RS
 .TP
 \fBmycall\fR
-The callsign used as the "from" address for messages. Default: NOCALL.
+The callsign used as the "from" address for messages stored in the outbox when not attached to a port. Default: NOCALL.
 .TP
 \fBsend-repeats\fR
 The number of times an ARIM message will be repeated in the absence of an ACK response from the recipient. It is recommended that this value not exceed 3to prevent tying up the channel with repeats in poor conditions. Default: 0.

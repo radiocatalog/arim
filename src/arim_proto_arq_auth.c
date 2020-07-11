@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -333,6 +333,14 @@ void arim_proto_arq_auth_rcv_a3_wait(int event, int param)
         arim_set_state(ST_ARQ_CONNECTED);
         ack_timeout = ARDOP_CONN_TIMEOUT;
         prev_time = time(NULL);
+        break;
+    case EV_ARQ_AUTH_OK:
+        /* /A3 from remote stn is accepted, mutual auth is complete */
+        arim_arq_auth_on_ok();
+        arim_set_state(ST_ARQ_CONNECTED);
+        ack_timeout = ARDOP_CONN_TIMEOUT;
+        prev_time = time(NULL);
+        ui_set_status_dirty(STATUS_ARQ_AUTH_OK);
         break;
     case EV_ARQ_AUTH_ERROR:
         /* remote station can't be authenticated */

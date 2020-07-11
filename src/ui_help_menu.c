@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -371,7 +371,7 @@ const char *help[] = {
     "  CHECK = data payload checksum (hex, 4 digits)",
     "  DATA  = data payload (text, 8-bit encoding)",
     "",
-    "Copyright (C) 2016-2019 Robert Cunnings NW8L",
+    "Copyright (C) 2016-2020 Robert Cunnings NW8L",
     "This program is free software: you can redistribute it and/or",
     "modify it under the terms of the GNU General Public License",
     "as published by the Free Software Foundation, either version 3",

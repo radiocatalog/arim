@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2019 Robert Cunnings NW8L
+    Copyright (C) 2016-2020 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -143,30 +143,34 @@ char *mbox_add_msg(const char *fn, const char *fm_call, const char *to_call,
 {
     static char separator[MAX_MBOX_HDR_SIZE];
     FILE *mboxfp;
-    char rcvd_hdr[MAX_ARIM_HDR_SIZE];
-    char timestamp[MAX_TIMESTAMP_SIZE];
-    char fpath[MAX_PATH_SIZE*2];
+    char rcvd_hdr[MAX_ARIM_HDR_SIZE], call[TNC_MYCALL_SIZE];
+    char timestamp[MAX_TIMESTAMP_SIZE], fpath[MAX_PATH_SIZE*2];
     const char *p, *prev;
-    int insert_rcvd_hdr = 0, len = 0;
+    int insert_rcvd_hdr = 0, len = 0, i;
 
     snprintf(fpath, sizeof(fpath), "%s/%s", mbox_dir_path, fn);
     mboxfp = fopen(fpath, "a");
     if (mboxfp == NULL)
         return NULL;
+    snprintf(call, sizeof(call), "%s", to_call);
+    len = strlen(call);
+    for (i = 0; i < len; i++)
+        call[i] = toupper((int)call[i]);
+    len = 0;
     flockfile(mboxfp);
     if (trace && !strncasecmp(g_arim_settings.msg_trace_en, "TRUE", 4)) {
         snprintf(rcvd_hdr, sizeof(rcvd_hdr), "Received: from %s by %s; %s\n",
-                fm_call, to_call, util_rcv_timestamp(timestamp, sizeof(timestamp)));
+                fm_call, call, util_rcv_timestamp(timestamp, sizeof(timestamp)));
         len = strlen(rcvd_hdr);
         insert_rcvd_hdr = 1;
     }
     len += strlen(msg);
     /* print message separator line */
     snprintf(separator, sizeof(separator),
-             "From %-10s %s To %-10s %5d %04X ---", fm_call,
-                util_date_timestamp(timestamp, sizeof(timestamp)), to_call, len, check);
+             "From %-10s %s To %-10s %5d %04X ----", fm_call,
+                util_date_timestamp(timestamp, sizeof(timestamp)), call, len, check);
     fprintf(mboxfp, "%s", separator);
-    fprintf(mboxfp, "\nFrom: %s\nTo: %s\n", fm_call, to_call);
+    fprintf(mboxfp, "\nFrom: %s\nTo: %s\n", fm_call, call);
     if (insert_rcvd_hdr)
         fprintf(mboxfp, "%s", rcvd_hdr);
     if (strncmp(msg, "Received:", 9))
