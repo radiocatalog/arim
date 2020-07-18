@@ -35,6 +35,8 @@
 #include "arim_beacon.h"
 #include "tnc_attach.h"
 #include "log.h"
+#include "arim_arq.h"
+#include "arim_proto.h"
 
 TNC_VERSION g_tnc_version;
 
@@ -164,8 +166,6 @@ int tnc_detach_tcp()
         pthread_join(g_datathread, NULL);
         g_datathread = 0;
     }
-    g_tnc_attached = 0;
-    g_cur_tnc = 0;
     return 1;
 }
 
@@ -217,8 +217,6 @@ int tnc_detach_serial()
         pthread_join(g_serialthread, NULL);
         g_serialthread = 0;
     }
-    g_tnc_attached = 0;
-    g_cur_tnc = 0;
     return 1;
 }
 
@@ -239,16 +237,23 @@ int tnc_attach(int which)
     return result;
 }
 
-int tnc_detach()
+void tnc_detach()
 {
-    int result;
-
+    if (arim_is_arq_state()) {
+        arim_arq_on_conn_closed();
+    } else {
+        datathread_cancel_send_data_out();
+        ui_status_xfer_end();
+    }
+    arim_set_state(ST_IDLE);
     if (!strncasecmp(g_tnc_settings[g_cur_tnc].interface, "serial", 6))
-        result = tnc_detach_serial();
+        tnc_detach_serial();
     else
-        result = tnc_detach_tcp();
+        tnc_detach_tcp();
+    arim_set_channel_not_busy();
     log_close();
+    g_tnc_attached = 0;
+    g_cur_tnc = 0;
     ui_set_tnc_detached();
-    return result;
 }
 

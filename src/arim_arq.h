@@ -39,6 +39,7 @@ extern int arim_arq_on_conn_rej_busy(void);
 extern int arim_arq_on_conn_rej_bw(void);
 extern int arim_arq_on_conn_req_repeat(void);
 extern int arim_arq_on_conn_cancel(void);
+extern int arim_arq_on_conn_closed(void);
 extern int arim_arq_on_data(char *data, size_t size);
 extern size_t arim_arq_on_cmd(const char *cmd, size_t size);
 extern size_t arim_arq_on_resp(const char *resp, size_t size);

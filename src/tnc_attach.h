@@ -38,7 +38,7 @@ typedef struct ver {
 
 extern TNC_VERSION g_tnc_version;
 extern int tnc_attach(int which);
-extern int tnc_detach(void);
+extern void tnc_detach(void);
 extern void tnc_get_version(const char *str);
 
 #ifdef __cplusplus

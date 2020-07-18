@@ -154,7 +154,6 @@ void ui_print_status_ind()
     char idle_busy, tx_rx, ind[MAX_STATUS_IND_SIZE], fecmode[TNC_FECMODE_SIZE];
     char tnc_state[TNC_STATE_SIZE], remote_call[TNC_MYCALL_SIZE], bw_hz[TNC_ARQ_BW_SIZE];
 
-
     if (g_tnc_attached) {
         state = arim_get_state();
         switch (state) {

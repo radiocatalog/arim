@@ -468,6 +468,36 @@ int arim_arq_on_conn_cancel()
     return 1;
 }
 
+int arim_arq_on_conn_closed()
+{
+    char remote_call[TNC_MYCALL_SIZE], target_call[TNC_MYCALL_SIZE];
+    char arq_bw_hz[TNC_ARQ_BW_SIZE], gridsq[TNC_GRIDSQ_SIZE];
+    char buffer[MAX_LOG_LINE_SIZE];
+
+    /* TNC has shut down, closing TCP connections */
+    arim_copy_target_call(target_call, sizeof(target_call));
+    if (!strlen(target_call))
+        arim_copy_mycall(target_call, sizeof(target_call));
+    arim_copy_remote_call(remote_call, sizeof(remote_call));
+    snprintf(buffer, sizeof(buffer),
+                ">> [X] %s>%s (Unexpected shutdown of TNC)",
+                remote_call, target_call);
+    bufq_queue_traffic_log(buffer);
+    bufq_queue_data_in(buffer);
+    /* update connection history */
+    arim_copy_arq_bw_hz(arq_bw_hz, sizeof(arq_bw_hz));
+    snprintf(buffer, sizeof(buffer), "D%c%-12s%-8s%s",
+             is_outbound ? 'O' : 'I', remote_call, gridsq, arq_bw_hz);
+    bufq_queue_ctable(buffer);
+    arim_arq_restore_arqbw(); /* restore default arq bw */
+    is_outbound = 0; /* reset outbound connection flag */
+    arq_cmd_size = 0; /* reset ARQ command size */
+    arim_arq_auth_set_status(0); /* reset sesson authenticated status */
+    ui_status_xfer_end(); /* hide xfer progress meter */
+    datathread_cancel_send_data_out(); /* cancel data transfer to TNC */
+    return 1;
+}
+
 size_t arim_arq_send_remote(const char *msg)
 {
     char sendcr[TNC_ARQ_SENDCR_SIZE], linebuf[MAX_LOG_LINE_SIZE];

@@ -1,6 +1,12 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v2.10 12Jul2020
+---------------
+1. Reset application state and UI after detecting unexpected shut
+   down of VARA modem.
+2. Update Help document.
+
 v2.9 10Jul2020
 --------------
 1. Refine logic used to calculate the number of bytes sent during a
