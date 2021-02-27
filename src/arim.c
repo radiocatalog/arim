@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2020 Robert Cunnings NW8L
+    Copyright (C) 2016-2021 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -482,13 +482,25 @@ sleep(1);
         } /* end switch */
     } while (!quit && remaining > 0);
     if (state == ST_MSG_END) {
-        check_valid = arim_recv_msg(fm_call, to_call, check, buffer + hdr_size);
-        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'M' : '!', buffer);
-        if (numch >= sizeof(inbuffer))
-            ui_truncate_line(inbuffer, sizeof(inbuffer));
-        bufq_queue_traffic_log(inbuffer);
-        bufq_queue_data_in(inbuffer);
-        bufq_queue_debug_log("Data thread: received ARIM [M] frame from TNC");
+        if (!ini_check_ac_calls(fm_call)) {
+            numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] (Access denied) %s", 'M', buffer);
+            if (numch >= sizeof(inbuffer))
+                ui_truncate_line(inbuffer, sizeof(inbuffer));
+            bufq_queue_traffic_log(inbuffer);
+            numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] Ignored [M] frame from %s (access denied)", 'X', fm_call);
+            if (numch >= sizeof(inbuffer))
+                ui_truncate_line(inbuffer, sizeof(inbuffer));
+            bufq_queue_data_in(inbuffer);
+            bufq_queue_debug_log("Data thread: ignored ARIM [M] frame from TNC (access denied)");
+        } else {
+            check_valid = arim_recv_msg(fm_call, to_call, check, buffer + hdr_size);
+            numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'M' : '!', buffer);
+            if (numch >= sizeof(inbuffer))
+                ui_truncate_line(inbuffer, sizeof(inbuffer));
+            bufq_queue_traffic_log(inbuffer);
+            bufq_queue_data_in(inbuffer);
+            bufq_queue_debug_log("Data thread: received ARIM [M] frame from TNC");
+        }
         arim_reset();
         /* end the download progress meter */
         ui_status_xfer_end();
@@ -502,13 +514,25 @@ sleep(1);
         arim_beacon_recv(fm_call, gridsq, buffer + hdr_size);
         arim_reset();
     } else if (state == ST_QUERY_END) {
-        check_valid = arim_recv_query(fm_call, to_call, check, buffer + hdr_size);
-        numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'Q' : '!', buffer);
-        if (numch >= sizeof(inbuffer))
-            ui_truncate_line(inbuffer, sizeof(inbuffer));
-        bufq_queue_data_in(inbuffer);
-        bufq_queue_traffic_log(inbuffer);
-        bufq_queue_debug_log("Data thread: received ARIM [Q] frame from TNC");
+        if (!ini_check_ac_calls(fm_call)) {
+            numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] (access denied) %s", 'Q', buffer);
+            if (numch >= sizeof(inbuffer))
+                ui_truncate_line(inbuffer, sizeof(inbuffer));
+            bufq_queue_traffic_log(inbuffer);
+            numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] Ignored [Q] frame from %s (access denied)", 'X', fm_call);
+            if (numch >= sizeof(inbuffer))
+                ui_truncate_line(inbuffer, sizeof(inbuffer));
+            bufq_queue_data_in(inbuffer);
+            bufq_queue_debug_log("Data thread: ignored ARIM [Q] frame from TNC (access denied)");
+        } else {
+            check_valid = arim_recv_query(fm_call, to_call, check, buffer + hdr_size);
+            numch = snprintf(inbuffer, sizeof(inbuffer), ">> [%c] %s", check_valid ? 'Q' : '!', buffer);
+            if (numch >= sizeof(inbuffer))
+                ui_truncate_line(inbuffer, sizeof(inbuffer));
+            bufq_queue_data_in(inbuffer);
+            bufq_queue_traffic_log(inbuffer);
+            bufq_queue_debug_log("Data thread: received ARIM [Q] frame from TNC");
+        }
         arim_reset();
     } else if (state == ST_RESPONSE_END) {
         check_valid = arim_recv_response(fm_call, to_call, check, buffer + hdr_size);

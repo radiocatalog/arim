@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2020 Robert Cunnings NW8L
+    Copyright (C) 2016-2021 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 

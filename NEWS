@@ -2,6 +2,52 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 2.11
+------------
+* Implement access control by call sign, with two modes:
+  -- Whitelist: Only stations whose call signs appear in the list are
+     allowed to make ARQ connections or send FEC messages and queries
+     to the local station. ARIM immediately disconnects from inbound
+     ARQ connections from all other stations, and ignores any FEC
+     messages and queries sent by them.
+  -- Blacklist: Stations whose call signs appear in the list are not
+     allowed to make ARQ connections or send FEC messages and queries
+     to the local station. ARIM immediately disconnects from inbound
+     ARQ connections from the listed stations, and ignores any FEC
+     messages and queries sent by them.
+  A non-empty whitelist takes precedence over the blacklist, which is
+  ignored in that case. If the whitelist is empty or doesn't exist,
+  then the blacklist takes effect. If neither list exists then all
+  remote stations are granted access to the local station by default.
+* The following new configuration file parameters can be used
+  to define access control by call sign in the [arim] section:
+  -- 'ac-allow' is used to specify a whitelist. The value is a series
+     of one or more call signs, separated by commas (whitespace is
+     tolerated). You can use a wildcard (*) character at the end of a
+     call sign to include tactical call variations, e.g. NW8L* will
+     match NW8L, NW8L-1 NW8L-2 etc. Example:
+       ac-allow = W1AW, NW8L*, KA8RYU-1
+     The maximum length of an 'ac-allow' line is 255 characters.
+     Zero or more 'ac-allow" parameters are allowed in the [arim]
+     section of the configuration file. If multiple 'ac-allow'
+     parameters are present then their contents are combined to
+     create the whitelist. The total number of call signs is
+     limited to 512.
+  -- 'ac-deny' is used to specify a blacklist. The value is a series
+     of one or more call signs, separated by commas (whitespace is
+     tolerated). You can use a wildcard (*) character at the end of a
+     call sign to include tactical call variations, e.g. NW8L* will
+     match NW8L, NW8L-1 NW8L-2 etc. Example:
+       ac-deny = W1AW, NW8L*, KA8RYU-1
+     The maximum length of an 'ac-deny' line is 255 characters.
+     Zero or more 'ac-deny" parameters are allowed in the [arim]
+     section of the configuration file. If multiple 'ac-deny'
+     parameters are present then their contents are combined to
+     create the blacklist. The total number of call signs is
+     limited to 512. The blacklist is ignored if a whitelist is
+     specified by one or more non-empty 'ac-allow' parameters.
+* Update garim(5) man page and Help document.
+
 Version 2.10
 ------------
 * Reset application state and UI after detecting unexpected shut

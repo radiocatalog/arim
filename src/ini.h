@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2020 Robert Cunnings NW8L
+    Copyright (C) 2016-2021 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -172,7 +172,7 @@ extern int g_num_tnc;
 #define ARIM_FECMODE_DOWN_SIZE       8
 #define ARIM_MAX_MSG_DAYS_SIZE       8
 #define ARIM_MSG_TRACE_EN_SIZE       8
-
+#define ARIM_AC_LIST_MAX_CNT         512
 #define DEFAULT_ARIM_MYCALL          "NOCALL"
 #define DEFAULT_ARIM_SEND_REPEATS    "0"
 #define DEFAULT_ARIM_PILOT_PING      "0"
@@ -215,6 +215,10 @@ typedef struct arim_set {
     int add_files_dir_cnt;
     char ac_files_dir[ARIM_AC_FILES_DIR_MAX_CNT][MAX_DIR_PATH_SIZE];
     int ac_files_dir_cnt;
+    char ac_allow_calls[ARIM_AC_LIST_MAX_CNT+1][TNC_MYCALL_SIZE];
+    int ac_allow_calls_cnt;
+    char ac_deny_calls[ARIM_AC_LIST_MAX_CNT+1][TNC_MYCALL_SIZE];
+    int ac_deny_calls_cnt;
 } ARIM_SET;
 
 extern ARIM_SET g_arim_settings;
@@ -269,6 +273,7 @@ extern int ini_validate_arq_bw(const char *val);
 extern int ini_validate_fecmode(const char *val);
 extern int ini_check_add_files_dir(const char *path);
 extern int ini_check_ac_files_dir(const char *path);
+extern int ini_check_ac_calls(const char *call);
 extern char g_arim_path[];
 extern char g_config_fname[];
 extern char g_print_config_fname[];

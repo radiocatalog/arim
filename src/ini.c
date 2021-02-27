@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2020 Robert Cunnings NW8L
+    Copyright (C) 2016-2021 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -204,7 +204,7 @@ int ini_validate_netcall(const char *call)
         return 0;
 
     p = call;
-    while (*p && *p != ' ' && isprint((int)*p))
+    while (*p && !isspace((int)*p) && isprint((int)*p))
         ++p;
     if (*p)
         return 0;
@@ -880,6 +880,72 @@ int ini_get_log_set(const char *fn)
     return 1;
 }
 
+int ini_check_ac_calls(const char *call)
+{
+    int i;
+    size_t len;
+
+    if (g_arim_settings.ac_allow_calls_cnt) {
+        for (i = 0; i < g_arim_settings.ac_allow_calls_cnt; i++) {
+            len = strlen(g_arim_settings.ac_allow_calls[i]);
+            if (g_arim_settings.ac_allow_calls[i][len - 1] == '*') {
+                if (!strncasecmp(call, g_arim_settings.ac_allow_calls[i], len - 1))
+                    return 1; /* wildcard match */
+            } else {
+                if (!strcasecmp(call, g_arim_settings.ac_allow_calls[i]))
+                    return 1; /* exact match */
+            }
+        }
+        return 0;
+    } else if (g_arim_settings.ac_deny_calls_cnt) {
+        for (i = 0; i < g_arim_settings.ac_deny_calls_cnt; i++) {
+            len = strlen(g_arim_settings.ac_deny_calls[i]);
+            if (g_arim_settings.ac_deny_calls[i][len - 1] == '*') {
+                if (!strncasecmp(call, g_arim_settings.ac_deny_calls[i], len - 1))
+                    return 0; /* wildcard match */
+            } else {
+                if (!strcasecmp(call, g_arim_settings.ac_deny_calls[i]))
+                    return 0; /* exact match */
+            }
+        }
+        return 1;
+    } else {
+        return 1;
+    }
+}
+
+void parse_ac_calls(const char *data, char *list, int *cnt)
+{
+    char temp[MAX_INI_LINE_SIZE];
+    char *s, *e, *z;
+
+    snprintf(temp, sizeof(temp), "%s", data);
+    z = &temp[strlen(temp)]; /* mark end of list */
+    s = temp;
+    while (*cnt < ARIM_AC_LIST_MAX_CNT) {
+        if (s == z)
+            break; /* at end, stop */
+        /* skip over whitespace or commas */
+        while (s < z && (isspace((int)*s) || *s == ','))
+            ++s;
+        e = s;
+        if (e == z)
+            break; /* at end, stop */
+        /* skip over call sign, stopping at whitespace, comma or wildcard char */
+        while (e < z && !isspace((int)*e) &&  *e != ',')
+            ++e;
+        *e = '\0';
+        if (ini_validate_netcall(s)) {
+            snprintf(list + (*cnt * TNC_MYCALL_SIZE), TNC_MYCALL_SIZE, "%s", s);
+            ++(*cnt);
+        }
+        if (e == z)
+            break; /* at end, stop */
+        ++e;
+        s = e;
+    }
+}
+
 void ini_read_arim_set(FILE *inifp)
 {
 #ifndef PORTABLE_BIN
@@ -1069,6 +1135,28 @@ void ini_read_arim_set(FILE *inifp)
                     fprintf(printconf_fp ? printconf_fp : stdout, "%s=%s\n", "dynamic-file",
                                 g_arim_settings.dyn_files[g_arim_settings.dyn_files_cnt]);
                 ++g_arim_settings.dyn_files_cnt;
+            }
+            else if ((v = ini_get_value("ac-allow", p))) {
+                int start = g_arim_settings.ac_allow_calls_cnt;
+                parse_ac_calls(v, (char *)g_arim_settings.ac_allow_calls, &g_arim_settings.ac_allow_calls_cnt);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config) {
+                    fprintf(printconf_fp ? printconf_fp : stdout, "ac-allow=");
+                    for (; start < g_arim_settings.ac_allow_calls_cnt; start++)
+                        fprintf(printconf_fp ? printconf_fp : stdout, "%s ", g_arim_settings.ac_allow_calls[start]);
+                    fprintf(printconf_fp ? printconf_fp : stdout, "\n");
+                }
+            }
+            else if ((v = ini_get_value("ac-deny", p))) {
+                int start = g_arim_settings.ac_deny_calls_cnt;
+                parse_ac_calls(v, (char *)g_arim_settings.ac_deny_calls, &g_arim_settings.ac_deny_calls_cnt);
+                /* if program invoked with --print-conf switch, print key/value pair */
+                if (g_print_config) {
+                    fprintf(printconf_fp ? printconf_fp : stdout, "ac-deny=");
+                    for (; start < g_arim_settings.ac_deny_calls_cnt; start++)
+                        fprintf(printconf_fp ? printconf_fp : stdout, "%s ", g_arim_settings.ac_deny_calls[start]);
+                    fprintf(printconf_fp ? printconf_fp : stdout, "\n");
+                }
             }
         }
         p = fgets(linebuf, sizeof(linebuf), inifp);

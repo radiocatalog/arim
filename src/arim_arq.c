@@ -2,7 +2,7 @@
 
     ARIM Amateur Radio Instant Messaging program for the ARDOP TNC.
 
-    Copyright (C) 2016-2020 Robert Cunnings NW8L
+    Copyright (C) 2016-2021 Robert Cunnings NW8L
 
     This file is part of the ARIM messaging program.
 
@@ -185,12 +185,22 @@ int arim_arq_on_connected()
     char arq_bw_hz[TNC_ARQ_BW_SIZE], gridsq[TNC_GRIDSQ_SIZE];
     char buffer[MAX_LOG_LINE_SIZE];
 
-    /* we are connected to a remote station now so
-       print to monitor view and traffic log */
     arim_copy_target_call(target_call, sizeof(target_call));
     if (!strlen(target_call))
         arim_copy_mycall(target_call, sizeof(target_call));
     arim_copy_remote_call(remote_call, sizeof(remote_call));
+    /* check remote call against access control call sign lists */
+    if (!is_outbound && !ini_check_ac_calls(remote_call)) {
+        snprintf(buffer, sizeof(buffer),
+                    ">> [X] %s>%s (Access denied)", remote_call, target_call);
+        bufq_queue_traffic_log(buffer);
+        bufq_queue_data_in(buffer);
+        /* disconnect */
+        arim_arq_send_disconn_req();
+        return 0;
+    }
+    /* we are connected to a remote station now so
+       print to monitor view and traffic log */
     snprintf(buffer, sizeof(buffer),
                 ">> [@] %s>%s (Connected)", remote_call, target_call);
     bufq_queue_traffic_log(buffer);
