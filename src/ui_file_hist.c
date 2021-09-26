@@ -179,8 +179,8 @@ void ui_print_ftable()
                 if (ftable_list_cnt > MAX_FTABLE_LIST_LEN)
                     --ftable_list_cnt;
                 ftable_list[0].done = 2; /* signal 'I' out-of-order w.r.t signal 'S' */
+                ftable_list[0].start_time = time(NULL);
             }
-            ftable_list[0].start_time = time(NULL);
             ftable_list[0].inbound = 1;
             ftable_list[0].compressed = (p[1] == 'Z' ? 1 : 0);
             snprintf(ftable_list[0].call, sizeof(ftable_list[0].call), "%.11s", &p[2]);

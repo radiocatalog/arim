@@ -1,6 +1,11 @@
                 ARIM Messaging Program Change Log
                 ---------------------------------
 
+v2.12 19Sep2021
+--------------
+1. Fix bug causing incorrect calculation of elapsed time for inbound
+   file transfers listed in the ARQ File History view.
+
 v2.11 26Feb2021
 ---------------
 1. Implement optional access control by call sign, with two modes:

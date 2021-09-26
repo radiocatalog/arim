@@ -2,6 +2,11 @@
                        ARIM Release Notes
 =====================================================================
 
+Version 2.12
+------------
+* Fix bug causing incorrect calculation of elapsed time for inbound
+  file transfers listed in the ARQ File History view.
+
 Version 2.11
 ------------
 * Implement access control by call sign, with two modes:
